@@ -1,0 +1,10 @@
+$MQ = "../Common.ui";
+
+Group {
+  Anchor: (Width: 420, Height: 250, Right: 20, Bottom: 110);
+  LayoutMode: Bottom;
+
+  Group #ToastList {
+    LayoutMode: Top;
+  }
+}

@@ -1,0 +1,91 @@
+$Base = "../../Common.ui";
+$MQ = "../Common.ui";
+
+$Base.@PageOverlay {}
+
+$Base.@Container {
+  Anchor: (Width: 1120, Height: 720);
+
+  #Title {
+    $MQ.@HeaderBar {
+      Group {
+        Anchor: (Width: 4, Height: 24, Right: 12);
+        Background: $MQ.@AccentGold;
+      }
+
+      Label {
+        Text: "MYSTICQUESTS";
+        Style: $MQ.@PageTitleStyle;
+        Anchor: (Right: 18);
+      }
+
+      Label {
+        Text: "Quest Board";
+        Style: (...$MQ.@MutedLabelStyle, FontSize: 15);
+      }
+    }
+  }
+
+  #Content {
+    LayoutMode: Left;
+    Background: $MQ.@BackgroundDeep;
+
+    Group {
+      Anchor: (Width: 190);
+      LayoutMode: Top;
+      Background: $MQ.@Panel;
+      Padding: (Top: 14);
+
+      Label {
+        Text: "CATEGORIES";
+        Style: $MQ.@SmallBoldStyle;
+        Anchor: (Left: 16, Bottom: 10);
+      }
+
+      Group #CategoryList {
+        LayoutMode: Top;
+      }
+    }
+
+    Group #QuestCardList {
+      FlexWeight: 1;
+      LayoutMode: TopScrolling;
+      ScrollbarStyle: $Base.@DefaultScrollbarStyle;
+      Padding: (Horizontal: 16, Top: 16, Bottom: 16);
+      Background: $MQ.@BackgroundSoft;
+    }
+
+    Group {
+      Anchor: (Width: 300);
+      LayoutMode: Top;
+      Background: $MQ.@Panel;
+      Padding: (Horizontal: 16, Top: 16);
+
+      Label #PreviewQuestName {
+        Text: "Select a quest";
+        Style: (...$MQ.@QuestTitleStyle, TextColor: $MQ.@AccentGold);
+        Anchor: (Bottom: 10);
+      }
+
+      Label #PreviewQuestDescription {
+        Text: "";
+        Style: $MQ.@BodyTextStyle;
+        Anchor: (Bottom: 20);
+      }
+
+      TextButton #TrackButton {
+        Text: "TRACK QUEST";
+        Style: $MQ.@PrimaryButtonStyle;
+        Anchor: (Width: 220, Height: 42, Bottom: 10);
+      }
+
+      TextButton #AbandonButton {
+        Text: "ABANDON";
+        Style: $MQ.@GhostButtonStyle;
+        Anchor: (Width: 220, Height: 42);
+      }
+    }
+  }
+}
+
+$Base.@BackButton {}

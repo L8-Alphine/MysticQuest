@@ -1,0 +1,68 @@
+$MQ = "../Common.ui";
+
+Group {
+  Anchor: (Full: 0);
+  Background: #000000(0.16);
+
+  Group {
+    Anchor: (Left: 80, Right: 80, Bottom: 32, Height: 330);
+    LayoutMode: Top;
+    Background: #131C28(0.94);
+    Padding: (Horizontal: 24, Top: 20, Bottom: 18);
+
+    Group {
+      LayoutMode: Left;
+      Anchor: (Height: 82, Bottom: 12);
+
+      Group {
+        Anchor: (Width: 72, Height: 72, Right: 16);
+        Background: $MQ.@PanelDark;
+
+        Label #SpeakerInitials {
+          Text: "MQ";
+          Style: (...$MQ.@PageTitleStyle, FontSize: 20, HorizontalAlignment: Center, VerticalAlignment: Center);
+        }
+      }
+
+      Group {
+        FlexWeight: 1;
+        LayoutMode: Top;
+
+        Label #SpeakerName {
+          Text: "Quest Giver";
+          Style: (...$MQ.@QuestTitleStyle, TextColor: $MQ.@AccentGold);
+          Anchor: (Bottom: 4);
+        }
+
+        Group {
+          LayoutMode: Left;
+
+          $MQ.@GoldBadge {
+            Anchor: (Right: 6);
+            Label #SpeakerTitle {
+              Text: "NPC";
+              Style: (...$MQ.@BadgeLabelStyle, TextColor: $MQ.@AccentGold);
+            }
+          }
+
+          $MQ.@PurpleBadge {
+            Label {
+              Text: "QUEST";
+              Style: (...$MQ.@BadgeLabelStyle, TextColor: $MQ.@AccentPurple);
+            }
+          }
+        }
+      }
+    }
+
+    Label #DialogueText {
+      Text: "";
+      Style: (...$MQ.@BodyTextStyle, FontSize: 18, TextColor: $MQ.@TextPrimary, Wrap: true);
+      Anchor: (Bottom: 18);
+    }
+
+    Group #ChoiceList {
+      LayoutMode: Top;
+    }
+  }
+}

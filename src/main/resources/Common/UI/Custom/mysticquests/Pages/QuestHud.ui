@@ -1,0 +1,29 @@
+$MQ = "../Common.ui";
+
+Group {
+  Anchor: (Width: 370, Height: 360, Right: 16, Top: 16);
+  LayoutMode: Top;
+  Background: $MQ.@HudBackground;
+
+  Group {
+    Anchor: (Height: 42);
+    LayoutMode: Left;
+    Padding: (Horizontal: 12);
+    Background: #0A0D12(0.74);
+
+    Group {
+      Anchor: (Width: 14, Height: 14, Right: 8);
+      Background: $MQ.@AccentGold;
+    }
+
+    Label {
+      Text: "ACTIVE QUESTS";
+      Style: (...$MQ.@SmallBoldStyle, TextColor: $MQ.@AccentGold);
+    }
+  }
+
+  Group #HudQuestList {
+    LayoutMode: Top;
+    Padding: (Horizontal: 12, Top: 10, Bottom: 8);
+  }
+}

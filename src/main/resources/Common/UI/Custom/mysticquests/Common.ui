@@ -1,0 +1,132 @@
+$Base = "../Common.ui";
+
+@BackgroundDeep = #0A0D12;
+@BackgroundSoft = #0F1520;
+@Panel = #131C28;
+@PanelSoft = #182234;
+@PanelRaised = #1E2B3E;
+@PanelDark = #080B10;
+
+@Border = #2A3D54;
+@BorderSoft = #1E3048;
+@BorderGold = #C4922A;
+
+@TextPrimary = #EEF3FC;
+@TextSecondary = #9AAFC7;
+@TextMuted = #5E7898;
+@TextDim = #3D5470;
+@TextDark = #060A10;
+
+@AccentGold = #F5C842;
+@AccentGoldDark = #C4922A;
+@AccentPurple = #9B6EF8;
+@AccentGreen = #3DD68C;
+@AccentRed = #EF6060;
+@AccentBlue = #4A9EF5;
+@AccentOrange = #F59E3A;
+
+@GoldBg = #2E2410;
+@PurpleBg = #1E1630;
+@GreenBg = #112A20;
+@RedBg = #2E1218;
+@BlueBg = #112236;
+@OrangeBg = #2E2010;
+@GrayBg = #1A2535;
+@HudBackground = #0A0D12(0.86);
+@HudBorder = #2A3D54(0.55);
+
+@PageTitleStyle = (
+  FontSize: 24,
+  RenderBold: true,
+  RenderUppercase: true,
+  TextColor: @AccentGold
+);
+
+@MutedLabelStyle = (
+  FontSize: 13,
+  TextColor: @TextMuted
+);
+
+@SectionTitleStyle = (
+  FontSize: 15,
+  RenderBold: true,
+  RenderUppercase: true,
+  TextColor: @TextSecondary
+);
+
+@BodyTextStyle = (
+  FontSize: 14,
+  TextColor: @TextSecondary,
+  Wrap: true
+);
+
+@QuestTitleStyle = (
+  FontSize: 18,
+  RenderBold: true,
+  TextColor: @TextPrimary,
+  Wrap: true
+);
+
+@SmallBoldStyle = (
+  FontSize: 11,
+  RenderBold: true,
+  RenderUppercase: true,
+  TextColor: @TextDim
+);
+
+@ProgressStyle = (
+  FontSize: 12,
+  RenderBold: true,
+  TextColor: @AccentOrange
+);
+
+@BadgeLabelStyle = (
+  FontSize: 10,
+  RenderBold: true,
+  RenderUppercase: true,
+  HorizontalAlignment: Center,
+  VerticalAlignment: Center
+);
+
+@PrimaryButtonStyle = TextButtonStyle(
+  Default: (Background: PatchStyle(TexturePath: "../Common/Buttons/Tertiary_Active.png", Border: 12), LabelStyle: (...$Base.@DefaultButtonLabelStyle, TextColor: @AccentGold)),
+  Hovered: (Background: PatchStyle(TexturePath: "../Common/Buttons/Tertiary_Hovered.png", Border: 12), LabelStyle: (...$Base.@DefaultButtonLabelStyle, TextColor: @AccentGold)),
+  Pressed: (Background: PatchStyle(TexturePath: "../Common/Buttons/Tertiary_Pressed.png", Border: 12), LabelStyle: (...$Base.@DefaultButtonLabelStyle, TextColor: @AccentGold)),
+  Disabled: (Background: PatchStyle(TexturePath: "../Common/Buttons/Disabled.png", Border: 12), LabelStyle: $Base.@DefaultButtonDisabledLabelStyle),
+  Sounds: $Base.@ButtonSounds,
+);
+
+@GhostButtonStyle = TextButtonStyle(
+  Default: (Background: PatchStyle(TexturePath: "../Common/Buttons/Tertiary.png", Border: 12), LabelStyle: (...$Base.@DefaultButtonLabelStyle, TextColor: @TextSecondary)),
+  Hovered: (Background: PatchStyle(TexturePath: "../Common/Buttons/Tertiary_Hovered.png", Border: 12), LabelStyle: (...$Base.@DefaultButtonLabelStyle, TextColor: @TextPrimary)),
+  Pressed: (Background: PatchStyle(TexturePath: "../Common/Buttons/Tertiary_Pressed.png", Border: 12), LabelStyle: (...$Base.@DefaultButtonLabelStyle, TextColor: @TextPrimary)),
+  Disabled: (Background: PatchStyle(TexturePath: "../Common/Buttons/Disabled.png", Border: 12), LabelStyle: $Base.@DefaultButtonDisabledLabelStyle),
+  Sounds: $Base.@ButtonSounds,
+);
+
+@HeaderBar = Group {
+  Anchor: (Height: 56);
+  Background: @PanelDark;
+  Padding: (Horizontal: 20);
+  LayoutMode: Left;
+};
+
+@GoldBadge = Group {
+  Background: @GoldBg;
+  Padding: (Horizontal: 8, Vertical: 2);
+};
+
+@PurpleBadge = Group {
+  Background: @PurpleBg;
+  Padding: (Horizontal: 8, Vertical: 2);
+};
+
+@BlueBadge = Group {
+  Background: @BlueBg;
+  Padding: (Horizontal: 8, Vertical: 2);
+};
+
+@GreenBadge = Group {
+  Background: @GreenBg;
+  Padding: (Horizontal: 8, Vertical: 2);
+};

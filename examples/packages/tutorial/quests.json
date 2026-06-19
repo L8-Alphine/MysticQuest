@@ -1,0 +1,20 @@
+{
+  "quests": [
+    {
+      "id": "starter_hunt",
+      "displayName": "Starter Hunt",
+      "description": "Prove yourself near the village.",
+      "startConditions": [
+        { "type": "tag", "tag": "tutorial_started" }
+      ],
+      "objectives": [
+        { "id": "craft_sword", "displayName": "Craft a wooden sword", "type": "craft", "item": "hytale:wooden_sword", "amount": 1 },
+        { "id": "enter_gate", "displayName": "Return to the village gate", "type": "triggerEnter", "volume": "village_gate", "amount": 1 }
+      ],
+      "rewards": [
+        { "type": "addTag", "tag": "starter_hunt_complete" },
+        { "type": "modifyMoney", "amount": 25 }
+      ]
+    }
+  ]
+}

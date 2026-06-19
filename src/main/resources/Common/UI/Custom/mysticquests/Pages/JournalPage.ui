@@ -1,0 +1,163 @@
+$Base = "../../Common.ui";
+$MQ = "../Common.ui";
+
+$Base.@PageOverlay {}
+
+$Base.@Container {
+  Anchor: (Width: 1100, Height: 720);
+
+  #Title {
+    $MQ.@HeaderBar {
+      Group {
+        Anchor: (Width: 4, Height: 24, Right: 12);
+        Background: $MQ.@AccentGold;
+      }
+
+      Label {
+        Text: "MYSTICQUESTS";
+        Style: $MQ.@PageTitleStyle;
+        Anchor: (Right: 18);
+      }
+
+      Label {
+        Text: "Journal";
+        Style: (...$MQ.@MutedLabelStyle, FontSize: 15);
+      }
+
+      Group {
+        FlexWeight: 1;
+      }
+
+      Group {
+        LayoutMode: Left;
+        Anchor: (Height: 34);
+
+        Group {
+          LayoutMode: Left;
+          Background: $MQ.@GoldBg;
+          Padding: (Horizontal: 14, Vertical: 6);
+          Anchor: (Right: 2);
+
+          Label {
+            Text: "ACTIVE";
+            Style: (...$MQ.@SmallBoldStyle, TextColor: $MQ.@AccentGold);
+            Anchor: (Right: 8);
+          }
+
+          Label #ActiveCount {
+            Text: "0";
+            Style: (...$MQ.@SmallBoldStyle, TextColor: $MQ.@AccentGold);
+          }
+        }
+
+        Group {
+          LayoutMode: Left;
+          Background: $MQ.@PanelRaised;
+          Padding: (Horizontal: 14, Vertical: 6);
+
+          Label {
+            Text: "COMPLETED";
+            Style: (...$MQ.@SmallBoldStyle, TextColor: $MQ.@TextSecondary);
+            Anchor: (Right: 8);
+          }
+
+          Label #CompletedCount {
+            Text: "0";
+            Style: (...$MQ.@SmallBoldStyle, TextColor: $MQ.@TextMuted);
+          }
+        }
+      }
+    }
+  }
+
+  #Content {
+    LayoutMode: Left;
+    Background: $MQ.@BackgroundDeep;
+
+    Group {
+      Anchor: (Width: 310);
+      LayoutMode: Top;
+      Background: $MQ.@Panel;
+
+      Group {
+        Anchor: (Height: 48);
+        Padding: (Horizontal: 16);
+        LayoutMode: Left;
+        Background: $MQ.@PanelDark;
+
+        Label {
+          Text: "ACTIVE QUESTS";
+          Style: $MQ.@SectionTitleStyle;
+        }
+      }
+
+      Group #QuestList {
+        FlexWeight: 1;
+        LayoutMode: TopScrolling;
+        ScrollbarStyle: $Base.@DefaultScrollbarStyle;
+      }
+    }
+
+    Group {
+      FlexWeight: 1;
+      LayoutMode: Top;
+      Padding: (Left: 22, Right: 16, Top: 18, Bottom: 16);
+      Background: $MQ.@BackgroundSoft;
+
+      Group #EmptyState {
+        LayoutMode: Top;
+        Visible: false;
+
+        Label {
+          Text: "NO ACTIVE QUESTS";
+          Style: (...$MQ.@PageTitleStyle, FontSize: 24, TextColor: $MQ.@TextMuted);
+          Anchor: (Bottom: 8);
+        }
+
+        Label {
+          Text: "Start a quest with /mquest start self <quest> or through a configured conversation.";
+          Style: (...$MQ.@BodyTextStyle, TextColor: $MQ.@TextMuted);
+        }
+      }
+
+      Group #QuestDetails {
+        LayoutMode: Top;
+
+        Label #SelectedQuestName {
+          Text: "";
+          Style: (...$MQ.@QuestTitleStyle, FontSize: 24, TextColor: $MQ.@AccentGold);
+          Anchor: (Bottom: 8);
+        }
+
+        Label #SelectedQuestId {
+          Text: "";
+          Style: (...$MQ.@SmallBoldStyle, TextColor: $MQ.@TextMuted);
+          Anchor: (Bottom: 16);
+        }
+
+        Label #SelectedQuestDescription {
+          Text: "";
+          Style: $MQ.@BodyTextStyle;
+          Anchor: (Bottom: 20);
+        }
+
+        Group {
+          Anchor: (Height: 1, Bottom: 18);
+          Background: $MQ.@BorderSoft;
+        }
+
+        Label {
+          Text: "OBJECTIVES";
+          Style: $MQ.@SectionTitleStyle;
+          Anchor: (Bottom: 10);
+        }
+
+        Group #ObjectiveList {
+          LayoutMode: Top;
+        }
+      }
+    }
+  }
+}
+
+$Base.@BackButton {}

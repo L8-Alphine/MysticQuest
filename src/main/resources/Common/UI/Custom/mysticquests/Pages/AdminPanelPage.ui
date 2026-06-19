@@ -1,0 +1,86 @@
+$Base = "../../Common.ui";
+$MQ = "../Common.ui";
+
+$Base.@PageOverlay {}
+
+$Base.@Container {
+  Anchor: (Width: 1120, Height: 720);
+
+  #Title {
+    $MQ.@HeaderBar {
+      Group {
+        Anchor: (Width: 22, Height: 22, Right: 12);
+        Background: $MQ.@RedBg;
+      }
+
+      Label {
+        Text: "MYSTICQUESTS";
+        Style: (...$MQ.@PageTitleStyle, FontSize: 22);
+        Anchor: (Right: 10);
+      }
+
+      Label {
+        Text: "Admin Panel";
+        Style: (...$MQ.@MutedLabelStyle, TextColor: $MQ.@AccentRed, RenderBold: true);
+      }
+    }
+  }
+
+  #Content {
+    LayoutMode: Left;
+    Background: $MQ.@BackgroundSoft;
+
+    Group {
+      FlexWeight: 1;
+      LayoutMode: Top;
+
+      Group {
+        Anchor: (Height: 40);
+        LayoutMode: Left;
+        Background: $MQ.@PanelDark;
+        Padding: (Horizontal: 16);
+
+        Label {
+          Text: "QUEST";
+          Style: $MQ.@SmallBoldStyle;
+          FlexWeight: 1;
+        }
+
+        Label {
+          Text: "STATUS";
+          Style: $MQ.@SmallBoldStyle;
+          Anchor: (Width: 110);
+        }
+
+        Label {
+          Text: "PROGRESS";
+          Style: $MQ.@SmallBoldStyle;
+          Anchor: (Width: 110);
+        }
+      }
+
+      Group #AdminQuestRows {
+        FlexWeight: 1;
+        LayoutMode: TopScrolling;
+        ScrollbarStyle: $Base.@DefaultScrollbarStyle;
+      }
+    }
+
+    Group {
+      Anchor: (Width: 300);
+      LayoutMode: Top;
+      Background: $MQ.@Panel;
+      Padding: (Horizontal: 16, Top: 16);
+
+      Label {
+        Text: "PLAYER STATE";
+        Style: (...$MQ.@SectionTitleStyle, TextColor: $MQ.@AccentRed);
+        Anchor: (Bottom: 12);
+      }
+
+      Group #AdminStateRows {
+        LayoutMode: Top;
+      }
+    }
+  }
+}
