@@ -1,0 +1,14 @@
+version: 1
+
+notifications:
+  quest_update:
+    io: notification
+    style: Success
+    title: Quest updated
+    bodyColor: "#EEF3FC"
+
+actions:
+  welcome_message: 'message "&bWelcome, %player%. Your route is now active."'
+
+constants:
+  region_name: The Shattered Coast

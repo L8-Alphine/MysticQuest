@@ -1,6 +1,7 @@
 package org.hyzionstudios.mysticquests.ui;
 
 import org.hyzionstudios.mysticquests.service.JournalEntry;
+import org.hyzionstudios.mysticquests.service.ObjectiveView;
 
 import com.hypixel.hytale.server.core.entity.entities.player.hud.CustomUIHud;
 import com.hypixel.hytale.server.core.ui.builder.UICommandBuilder;
@@ -8,8 +9,17 @@ import com.hypixel.hytale.server.core.universe.PlayerRef;
 
 public final class QuestHud extends CustomUIHud {
     public static final String KEY = "mysticquests:quest_tracker";
+    /** Appended path; the client resolves it against {@code Common/UI/Custom/}. */
+    public static final String DOCUMENT = "Hud/MysticQuestsQuestHud.ui";
+    /** Same document as a classpath resource, so probe builds that omit it can be detected. */
+    public static final String DOCUMENT_RESOURCE = "/Common/UI/Custom/" + DOCUMENT;
+    private static final int MAX_OBJECTIVES = 4;
+    private static final String ACTIVE_ICON =
+            "UI/Custom/mysticquests/Assets/Icons/navigation/tracker_32.png";
+    private static final String COMPLETE_ICON =
+            "UI/Custom/mysticquests/Assets/Icons/status/quest_complete_32.png";
 
-    private final JournalEntry entry;
+    private JournalEntry entry;
 
     public QuestHud(PlayerRef playerRef, JournalEntry entry) {
         super(playerRef, KEY, 40);
@@ -18,59 +28,44 @@ public final class QuestHud extends CustomUIHud {
 
     @Override
     protected void build(UICommandBuilder builder) {
-        builder.append("mysticquests/Pages/QuestHud.ui");
-        builder.appendInline("#HudQuestList", questBlock());
+        // Hud/ is the shared custom-HUD root, the layout MysticRPG's working HUD uses. Do not file
+        // this under the mod's own folder: a HUD append resolving from mysticquests/… is what
+        // disconnected clients with "Could not find document … for Custom UI Append command".
+        builder.append(DOCUMENT);
+        appendState(builder);
+    }
+
+    public void updateEntry(JournalEntry entry) {
+        this.entry = entry;
+        UICommandBuilder builder = new UICommandBuilder();
+        appendState(builder);
+        update(false, builder);
+    }
+
+    private void appendState(UICommandBuilder builder) {
         builder.set("#TrackedQuestName.Text", entry.displayName());
         builder.set("#TrackedQuestId.Text", entry.questId());
-        int maxObjectives = Math.min(4, entry.objectives().size());
-        for (int index = 0; index < maxObjectives; index++) {
-            String rowId = "HudObjective" + index;
-            builder.appendInline("#TrackedObjectiveList", objectiveRow(rowId));
-            builder.set("#" + rowId + " #ObjectiveText.Text", entry.objectives().get(index));
+        int visibleObjectives = Math.min(MAX_OBJECTIVES, entry.objectives().size());
+        for (int index = 0; index < MAX_OBJECTIVES; index++) {
+            String rowId = "#HudObjective" + index;
+            boolean visible = index < visibleObjectives;
+            builder.set(rowId + ".Visible", visible);
+            if (!visible) {
+                builder.set("#HudObjectiveText" + index + ".Text", "");
+                builder.set("#HudObjectiveState" + index + ".Text", "");
+                builder.set("#HudObjectiveProgress" + index + ".Text", "");
+                builder.set("#HudObjectiveMeter" + index + ".Value", 0.0f);
+                continue;
+            }
+            ObjectiveView objective = entry.objectives().get(index);
+            boolean complete = objective.complete();
+            // Shape, label, number and fill all carry state; meaning never rests on colour alone.
+            builder.set("#HudObjectiveText" + index + ".Text", objective.displayName());
+            builder.set("#HudObjectiveState" + index + ".Text", complete ? "DONE" : "GO");
+            builder.set("#HudObjectiveProgress" + index + ".Text", objective.progressLabel());
+            builder.set("#HudObjectiveIcon" + index + ".AssetPath", complete ? COMPLETE_ICON : ACTIVE_ICON);
+            builder.set("#HudObjectiveMeter" + index + ".Value",
+                    (float) objective.current() / (float) Math.max(1, objective.target()));
         }
-    }
-
-    private String questBlock() {
-        return """
-                Group #TrackedQuest {
-                  LayoutMode: Top;
-
-                  Label #TrackedQuestName {
-                    Text: "";
-                    Style: (FontSize: 17, RenderBold: true, TextColor: #EEF3FC, Wrap: true);
-                    Anchor: (Bottom: 3);
-                  }
-
-                  Label #TrackedQuestId {
-                    Text: "";
-                    Style: (FontSize: 10, TextColor: #5E7898);
-                    Anchor: (Bottom: 9);
-                  }
-
-                  Group #TrackedObjectiveList {
-                    LayoutMode: Top;
-                  }
-                }
-                """;
-    }
-
-    private String objectiveRow(String rowId) {
-        return """
-                Group #%s {
-                  Anchor: (Height: 28, Bottom: 3);
-                  LayoutMode: Left;
-
-                  Group {
-                    Anchor: (Width: 8, Height: 8, Right: 8);
-                    Background: #F5C842;
-                  }
-
-                  Label #ObjectiveText {
-                    Text: "";
-                    Style: (FontSize: 12, TextColor: #9AAFC7, Wrap: true);
-                    FlexWeight: 1;
-                  }
-                }
-                """.formatted(rowId);
     }
 }

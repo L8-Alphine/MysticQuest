@@ -1,0 +1,82 @@
+conditions:
+  has_map: "tag has_map"
+  grouped: "inParty"
+
+actions:
+  begin_route: "addTag route_started"
+  reward_map: "giveItem hytale:map 1"
+  route_notice:
+    type: notification
+    category: quest_update
+    body: "Travel to %constant.region_name%."
+  reward_party:
+    type: party
+    events:
+      - type: sendMessage
+        message: "&a%player%'s party completed the route."
+
+objectives:
+  scout_ruins: "reachLocation ruins 1 name:'Reach the coastal ruins'"
+  hunt_wolves: "kill hytale:wolf 4 name:'Defeat the wolves' shared:true"
+
+items:
+  route_map:
+    item: hytale:map
+    name: Coastal Route Map
+
+functions:
+  route_label: "Route $1 — %constant.region_name%"
+
+playerHiders:
+  phased_scouts:
+    sourceConditions: [has_map]
+    targetConditions:
+      - type: notTag
+        tag: has_map
+
+quests:
+  first_route:
+    displayName: "%function.route_label.First%"
+    description: "Explore with a party or travel alone."
+    startConditions:
+      - grouped
+    objectives:
+      - scout_ruins
+      - hunt_wolves
+    startEvents:
+      - begin_route
+      - welcome_message
+      - route_notice
+    rewards:
+      - reward_map
+      - reward_party
+
+conversations:
+  cartographer:
+    speaker: Cartographer Mira
+    start: hello
+    nodes:
+      - id: hello
+        text: "I can chart a path through %constant.region_name%."
+        choices:
+          - text: "Show me the route."
+            events:
+              - type: startQuest
+                quest: first_route
+            next: end
+
+cancelers:
+  leave_route:
+    quests: [first_route]
+    tags: [route_started]
+    actions:
+      - route_notice
+
+schedules:
+  daily_route_reset:
+    type: realtime-daily
+    time: "04:00"
+    timezone: America/New_York
+    catchup: one
+    events:
+      - route_notice

@@ -1,26 +1,31 @@
-$MQ = "../Common.ui";
+$MQ = "../Theme.ui";
 
 Group {
   Anchor: (Full: 0);
   Background: #000000(0.16);
 
   Group {
-    Anchor: (Left: 80, Right: 80, Bottom: 32, Height: 330);
+    Anchor: (Left: 72, Right: 72, Bottom: 34, Height: 354);
     LayoutMode: Top;
-    Background: #131C28(0.94);
-    Padding: (Horizontal: 24, Top: 20, Bottom: 18);
+    Background: $MQ.@DarkPanelBackground;
+    Padding: (Horizontal: 48, Top: 28, Bottom: 28);
 
     Group {
       LayoutMode: Left;
-      Anchor: (Height: 82, Bottom: 12);
+      Anchor: (Height: 86, Bottom: 12);
+
+      AssetImage {
+        AssetPath: $MQ.@IconConversation;
+        Anchor: (Width: 68, Height: 68, Right: 12);
+      }
 
       Group {
-        Anchor: (Width: 72, Height: 72, Right: 16);
-        Background: $MQ.@PanelDark;
+        Anchor: (Width: 58, Height: 58, Right: 16);
+        Background: $MQ.@BlueBg;
 
         Label #SpeakerInitials {
           Text: "MQ";
-          Style: (...$MQ.@PageTitleStyle, FontSize: 20, HorizontalAlignment: Center, VerticalAlignment: Center);
+          Style: (...$MQ.@PageTitleStyle, FontSize: 17, TextColor: $MQ.@AccentBlue, HorizontalAlignment: Center, VerticalAlignment: Center);
         }
       }
 
@@ -30,7 +35,7 @@ Group {
 
         Label #SpeakerName {
           Text: "Quest Giver";
-          Style: (...$MQ.@QuestTitleStyle, TextColor: $MQ.@AccentGold);
+          Style: (...$MQ.@QuestTitleStyle, FontSize: 21, TextColor: $MQ.@AccentGold);
           Anchor: (Bottom: 4);
         }
 
@@ -57,12 +62,116 @@ Group {
 
     Label #DialogueText {
       Text: "";
-      Style: (...$MQ.@BodyTextStyle, FontSize: 18, TextColor: $MQ.@TextPrimary, Wrap: true);
+      Style: (...$MQ.@BodyTextStyle, FontSize: 19, TextColor: $MQ.@TextPrimary, Wrap: true);
       Anchor: (Bottom: 18);
     }
 
     Group #ChoiceList {
       LayoutMode: Top;
+
+      Button #Choice0 {
+        Anchor: (Height: 42, Bottom: 6);
+        LayoutMode: Left;
+        Padding: (Horizontal: 12);
+        Style: $MQ.@ChoiceButtonStyle;
+
+        Label #ChoiceText0 {
+          Text: "";
+          Style: (FontSize: 15, TextColor: $MQ.@TextPrimary, VerticalAlignment: Center, Wrap: true);
+          FlexWeight: 1;
+        }
+      }
+
+      Button #Choice1 {
+        Anchor: (Height: 42, Bottom: 6);
+        LayoutMode: Left;
+        Padding: (Horizontal: 12);
+        Style: $MQ.@ChoiceButtonStyle;
+
+        Label #ChoiceText1 {
+          Text: "";
+          Style: (FontSize: 15, TextColor: $MQ.@TextPrimary, VerticalAlignment: Center, Wrap: true);
+          FlexWeight: 1;
+        }
+      }
+
+      Button #Choice2 {
+        Anchor: (Height: 42, Bottom: 6);
+        LayoutMode: Left;
+        Padding: (Horizontal: 12);
+        Style: $MQ.@ChoiceButtonStyle;
+
+        Label #ChoiceText2 {
+          Text: "";
+          Style: (FontSize: 15, TextColor: $MQ.@TextPrimary, VerticalAlignment: Center, Wrap: true);
+          FlexWeight: 1;
+        }
+      }
+
+      Button #Choice3 {
+        Anchor: (Height: 42, Bottom: 6);
+        LayoutMode: Left;
+        Padding: (Horizontal: 12);
+        Style: $MQ.@ChoiceButtonStyle;
+
+        Label #ChoiceText3 {
+          Text: "";
+          Style: (FontSize: 15, TextColor: $MQ.@TextPrimary, VerticalAlignment: Center, Wrap: true);
+          FlexWeight: 1;
+        }
+      }
+
+      Button #Choice4 {
+        Anchor: (Height: 42, Bottom: 6);
+        LayoutMode: Left;
+        Padding: (Horizontal: 12);
+        Style: $MQ.@ChoiceButtonStyle;
+
+        Label #ChoiceText4 {
+          Text: "";
+          Style: (FontSize: 15, TextColor: $MQ.@TextPrimary, VerticalAlignment: Center, Wrap: true);
+          FlexWeight: 1;
+        }
+      }
+
+      Button #Choice5 {
+        Anchor: (Height: 42, Bottom: 6);
+        LayoutMode: Left;
+        Padding: (Horizontal: 12);
+        Style: $MQ.@ChoiceButtonStyle;
+
+        Label #ChoiceText5 {
+          Text: "";
+          Style: (FontSize: 15, TextColor: $MQ.@TextPrimary, VerticalAlignment: Center, Wrap: true);
+          FlexWeight: 1;
+        }
+      }
+
+      Button #Choice6 {
+        Anchor: (Height: 42, Bottom: 6);
+        LayoutMode: Left;
+        Padding: (Horizontal: 12);
+        Style: $MQ.@ChoiceButtonStyle;
+
+        Label #ChoiceText6 {
+          Text: "";
+          Style: (FontSize: 15, TextColor: $MQ.@TextPrimary, VerticalAlignment: Center, Wrap: true);
+          FlexWeight: 1;
+        }
+      }
+
+      Button #Choice7 {
+        Anchor: (Height: 42, Bottom: 6);
+        LayoutMode: Left;
+        Padding: (Horizontal: 12);
+        Style: $MQ.@ChoiceButtonStyle;
+
+        Label #ChoiceText7 {
+          Text: "";
+          Style: (FontSize: 15, TextColor: $MQ.@TextPrimary, VerticalAlignment: Center, Wrap: true);
+          FlexWeight: 1;
+        }
+      }
     }
   }
 }

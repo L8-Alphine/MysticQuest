@@ -1,0 +1,165 @@
+$Base = "../Common.ui";
+
+// Wayfinder's Reliquary palette. Keep synchronized with artifacts/MysticQuests_Assets_v1/PALETTE.csv.
+@BackgroundDeep = #090D19;
+@BackgroundSoft = #11182B;
+@Panel = #18233B;
+@PanelSoft = #1D2944;
+@PanelRaised = #243353;
+@PanelDark = #080C16;
+
+@Border = #34496E;
+@BorderSoft = #263854;
+@BorderGold = #D89A32;
+
+@TextPrimary = #FFF4D9;
+@TextSecondary = #C6D2E5;
+@TextMuted = #7E91AD;
+@TextDim = #5E708E;
+@TextDark = #20170D;
+
+@AccentGold = #FFC857;
+@AccentGoldDark = #D89A32;
+@AccentPurple = #A98AEF;
+@AccentGreen = #52D58B;
+@AccentRed = #E55D52;
+@AccentBlue = #39D5D2;
+@AccentOrange = #F09A45;
+@FocusRing = #79F1EA;
+
+@GoldBg = #3A2A13;
+@PurpleBg = #281E43;
+@GreenBg = #143626;
+@RedBg = #3B1A1B;
+@BlueBg = #12333D;
+@OrangeBg = #3A2717;
+@GrayBg = #1A263B;
+@HudBackground = #090D19(0.92);
+@HudBorder = #39D5D2(0.42);
+
+@PanelBackground = PatchStyle(TexturePath: "Assets/panels/reliquary_panel.png", Border: 64);
+@DarkPanelBackground = PatchStyle(TexturePath: "Assets/panels/reliquary_panel_dark.png", Border: 64);
+@ButtonDefault = PatchStyle(TexturePath: "Assets/buttons/wayfinder_default.png", HorizontalBorder: 28, VerticalBorder: 18);
+@ButtonHover = PatchStyle(TexturePath: "Assets/buttons/wayfinder_hover.png", HorizontalBorder: 28, VerticalBorder: 18);
+@ButtonPressed = PatchStyle(TexturePath: "Assets/buttons/wayfinder_pressed.png", HorizontalBorder: 28, VerticalBorder: 18);
+@ButtonDisabled = PatchStyle(TexturePath: "Assets/buttons/wayfinder_disabled.png", HorizontalBorder: 28, VerticalBorder: 18);
+@ButtonSuccess = PatchStyle(TexturePath: "Assets/buttons/wayfinder_success.png", HorizontalBorder: 28, VerticalBorder: 18);
+@ButtonDestructive = PatchStyle(TexturePath: "Assets/buttons/wayfinder_destructive.png", HorizontalBorder: 28, VerticalBorder: 18);
+
+@IconBrand = "UI/Custom/mysticquests/Assets/Icons/brand/mysticquests_emblem.png";
+@IconQuestBoard = "UI/Custom/mysticquests/Assets/Icons/navigation/quest_board.png";
+@IconJournal = "UI/Custom/mysticquests/Assets/Icons/navigation/journal.png";
+@IconConversation = "UI/Custom/mysticquests/Assets/Icons/navigation/conversation.png";
+@IconTracker = "UI/Custom/mysticquests/Assets/Icons/navigation/tracker.png";
+@IconAdmin = "UI/Custom/mysticquests/Assets/Icons/navigation/admin.png";
+@IconComplete = "UI/Custom/mysticquests/Assets/Icons/status/quest_complete.png";
+@IconReward = "UI/Custom/mysticquests/Assets/Icons/rewards/reward.png";
+@MissingIcon = "UI/Custom/mysticquests/Assets/Icons/fallback/missing_content.png";
+
+@PageTitleStyle = (
+  FontSize: 24,
+  RenderBold: true,
+  RenderUppercase: true,
+  LetterSpacing: 1,
+  TextColor: @AccentGold
+);
+
+@MutedLabelStyle = (FontSize: 13, TextColor: @TextMuted);
+@SectionTitleStyle = (FontSize: 15, RenderBold: true, RenderUppercase: true, LetterSpacing: 1, TextColor: @TextSecondary);
+@BodyTextStyle = (FontSize: 14, TextColor: @TextSecondary, Wrap: true);
+@QuestTitleStyle = (FontSize: 18, RenderBold: true, TextColor: @TextPrimary, Wrap: true);
+@SmallBoldStyle = (FontSize: 11, RenderBold: true, RenderUppercase: true, TextColor: @TextDim);
+@ProgressStyle = (FontSize: 12, RenderBold: true, TextColor: @AccentBlue);
+@BadgeLabelStyle = (FontSize: 10, RenderBold: true, RenderUppercase: true, HorizontalAlignment: Center, VerticalAlignment: Center);
+
+@PrimaryLabel = (...$Base.@DefaultButtonLabelStyle, TextColor: @TextPrimary);
+@DisabledLabel = (...$Base.@DefaultButtonDisabledLabelStyle, TextColor: @TextDim);
+@DangerLabel = (...$Base.@DefaultButtonLabelStyle, TextColor: #FFF1E4);
+
+@PrimaryButtonStyle = TextButtonStyle(
+  Default: (Background: @ButtonDefault, LabelStyle: @PrimaryLabel),
+  Hovered: (Background: @ButtonHover, LabelStyle: (...@PrimaryLabel, TextColor: @FocusRing)),
+  Pressed: (Background: @ButtonPressed, LabelStyle: @PrimaryLabel),
+  Disabled: (Background: @ButtonDisabled, LabelStyle: @DisabledLabel),
+  Sounds: $Base.@ButtonSounds,
+);
+
+@GhostButtonStyle = TextButtonStyle(
+  Default: (Background: @ButtonPressed, LabelStyle: (...@PrimaryLabel, TextColor: @TextSecondary)),
+  Hovered: (Background: @ButtonHover, LabelStyle: (...@PrimaryLabel, TextColor: @FocusRing)),
+  Pressed: (Background: @ButtonPressed, LabelStyle: @PrimaryLabel),
+  Disabled: (Background: @ButtonDisabled, LabelStyle: @DisabledLabel),
+  Sounds: $Base.@ButtonSounds,
+);
+
+@DestructiveButtonStyle = TextButtonStyle(
+  Default: (Background: @ButtonDestructive, LabelStyle: @DangerLabel),
+  Hovered: (Background: @ButtonHover, LabelStyle: (...@DangerLabel, TextColor: #FFD3C7)),
+  Pressed: (Background: @ButtonPressed, LabelStyle: @DangerLabel),
+  Disabled: (Background: @ButtonDisabled, LabelStyle: @DisabledLabel),
+  Sounds: $Base.@ButtonsCancel,
+);
+
+@RowButtonStyle = ButtonStyle(
+  Default: (Background: #000000(0)),
+  Hovered: (Background: @PanelSoft),
+  Pressed: (Background: @PanelRaised),
+  Disabled: (Background: #000000(0)),
+  Sounds: $Base.@ButtonSounds,
+);
+
+@SelectedRowButtonStyle = ButtonStyle(
+  Default: (Background: @BlueBg),
+  Hovered: (Background: @PanelRaised),
+  Pressed: (Background: @BlueBg),
+  Disabled: (Background: @BlueBg),
+  Sounds: $Base.@ButtonSounds,
+);
+
+@CardButtonStyle = ButtonStyle(
+  Default: (Background: @PanelSoft),
+  Hovered: (Background: @PanelRaised),
+  Pressed: (Background: @Panel),
+  Disabled: (Background: @PanelSoft),
+  Sounds: $Base.@ButtonSounds,
+);
+
+@SelectedCardButtonStyle = ButtonStyle(
+  Default: (Background: @BlueBg),
+  Hovered: (Background: @PanelRaised),
+  Pressed: (Background: @BlueBg),
+  Disabled: (Background: @BlueBg),
+  Sounds: $Base.@ButtonSounds,
+);
+
+@ChoiceButtonStyle = ButtonStyle(
+  Default: (Background: @ButtonDefault),
+  Hovered: (Background: @ButtonHover),
+  Pressed: (Background: @ButtonPressed),
+  Disabled: (Background: @ButtonDisabled),
+  Sounds: $Base.@ButtonSounds,
+);
+
+@HeaderBar = Group {
+  Anchor: (Height: 56);
+  Background: @PanelDark;
+  Padding: (Horizontal: 16);
+  LayoutMode: Left;
+};
+
+@GoldBadge = Group { Background: @GoldBg; Padding: (Horizontal: 8, Vertical: 2); };
+@PurpleBadge = Group { Background: @PurpleBg; Padding: (Horizontal: 8, Vertical: 2); };
+@BlueBadge = Group { Background: @BlueBg; Padding: (Horizontal: 8, Vertical: 2); };
+@GreenBadge = Group { Background: @GreenBg; Padding: (Horizontal: 8, Vertical: 2); };
+
+// Offsets come in through @Anchor, the way the base game's own @ProgressBar takes them. Instances
+// may also just re-assign Anchor: — the base game does that in over a hundred documents — but the
+// parameter keeps the shared height in one place.
+@ObjectiveProgressBar = ProgressBar {
+  @Anchor = ();
+
+  Anchor: (...@Anchor, Height: 8);
+  Background: "Assets/meters/objective_frame.png";
+  BarTexturePath: "Assets/meters/objective_fill.png";
+  Value: 0;
+};

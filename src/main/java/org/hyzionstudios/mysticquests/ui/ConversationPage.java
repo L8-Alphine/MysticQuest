@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.UUID;
 
 public final class ConversationPage extends InteractiveCustomUIPage<ConversationPage.PageEventData> {
+    private static final int MAX_CHOICES = 8;
     private static final BuilderCodec<PageEventData> EVENT_CODEC = BuilderCodec
             .builder(PageEventData.class, PageEventData::new)
             .addField(new KeyedCodec<>("Choice", Codec.STRING), PageEventData::setChoice, PageEventData::choice)
@@ -37,7 +38,8 @@ public final class ConversationPage extends InteractiveCustomUIPage<Conversation
 
     @Override
     public void build(Ref<EntityStore> playerEntity, UICommandBuilder builder, UIEventBuilder eventBuilder, Store<EntityStore> store) {
-        render(builder, eventBuilder);
+        builder.append("mysticquests/Pages/ConversationPage.ui");
+        renderState(builder, eventBuilder);
     }
 
     @Override
@@ -51,17 +53,19 @@ public final class ConversationPage extends InteractiveCustomUIPage<Conversation
         if (conversationService.choose(playerId, choiceIndex, playerEntity, store)) {
             UICommandBuilder builder = new UICommandBuilder();
             UIEventBuilder eventBuilder = new UIEventBuilder();
-            render(builder, eventBuilder);
+            renderState(builder, eventBuilder);
             sendUpdate(builder, eventBuilder, false);
         }
     }
 
-    private void render(UICommandBuilder builder, UIEventBuilder eventBuilder) {
-        builder.append("mysticquests/Pages/ConversationPage.ui");
+    private void renderState(UICommandBuilder builder, UIEventBuilder eventBuilder) {
         ConversationService.ConversationView view = conversationService.view(playerId);
         if (view == null) {
             builder.set("#SpeakerName.Text", "MysticQuests");
+            builder.set("#SpeakerInitials.Text", "MQ");
+            builder.set("#SpeakerTitle.Text", "");
             builder.set("#DialogueText.Text", "");
+            appendChoices(builder, eventBuilder, List.of());
             return;
         }
         builder.set("#SpeakerName.Text", view.speaker());
@@ -72,28 +76,20 @@ public final class ConversationPage extends InteractiveCustomUIPage<Conversation
     }
 
     private void appendChoices(UICommandBuilder builder, UIEventBuilder eventBuilder, List<ConversationChoice> choices) {
-        for (int index = 0; index < choices.size(); index++) {
+        int visibleChoices = Math.min(choices.size(), MAX_CHOICES);
+        for (int index = 0; index < MAX_CHOICES; index++) {
             String id = "Choice" + index;
-            builder.appendInline("#ChoiceList", choiceButton(id));
-            builder.set("#" + id + " #ChoiceText.Text", choices.get(index).text());
+            boolean visible = index < visibleChoices;
+            builder.set("#" + id + ".Visible", visible);
+            builder.set("#ChoiceText" + index + ".Text", visible ? choices.get(index).text() : "");
+            if (!visible) {
+                continue;
+            }
             eventBuilder.addEventBinding(
                     CustomUIEventBindingType.Activating,
                     "#" + id,
                     EventData.of("Choice", Integer.toString(index)));
         }
-    }
-
-    private String choiceButton(String id) {
-        return """
-                TextButton #%s {
-                  Anchor: (Height: 42, Bottom: 6);
-                  Style: (Background: #1E2B3E, TextColor: #EEF3FC, FontSize: 15, HorizontalAlignment: Left);
-                  Label #ChoiceText {
-                    Text: "";
-                    Style: (FontSize: 15, TextColor: #EEF3FC, Wrap: true);
-                  }
-                }
-                """.formatted(id);
     }
 
     private String initials(String text) {

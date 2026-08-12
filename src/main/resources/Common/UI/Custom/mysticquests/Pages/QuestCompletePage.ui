@@ -1,5 +1,5 @@
 $Base = "../../Common.ui";
-$MQ = "../Common.ui";
+$MQ = "../Theme.ui";
 
 $Base.@PageOverlay {
   Background: #000000(0.80);
@@ -10,10 +10,15 @@ Group {
   Anchor: (Full: 0);
 
   Group {
-    Anchor: (Width: 660, Height: 430);
+    Anchor: (Width: 700, Height: 500);
     LayoutMode: Top;
-    Background: $MQ.@Panel;
-    Padding: (Horizontal: 40, Top: 36, Bottom: 30);
+    Background: $MQ.@DarkPanelBackground;
+    Padding: (Horizontal: 70, Top: 40, Bottom: 46);
+
+    AssetImage {
+      AssetPath: $MQ.@IconComplete;
+      Anchor: (Width: 132, Height: 132, Bottom: 6);
+    }
 
     Group {
       LayoutMode: Center;
@@ -21,7 +26,7 @@ Group {
 
       Label {
         Text: "QUEST COMPLETE";
-        Style: (...$MQ.@PageTitleStyle, FontSize: 36, TextColor: $MQ.@AccentGold);
+        Style: (...$MQ.@PageTitleStyle, FontSize: 34, TextColor: $MQ.@AccentGold);
       }
     }
 
@@ -45,6 +50,11 @@ Group {
     Group #RewardList {
       LayoutMode: Left;
       Anchor: (Height: 104, Bottom: 24);
+
+      AssetImage {
+        AssetPath: $MQ.@IconReward;
+        Anchor: (Width: 88, Height: 88, Right: 14);
+      }
     }
 
     TextButton #CloseButton {

@@ -1,10 +1,12 @@
-$MQ = "../Common.ui";
+$MQ = "../Theme.ui";
 
 Group {
-  Anchor: (Width: 420, Height: 250, Right: 20, Bottom: 110);
+  Anchor: (Width: 440, Height: 270, Right: 20, Bottom: 126);
   LayoutMode: Bottom;
 
   Group #ToastList {
     LayoutMode: Top;
+    Background: $MQ.@DarkPanelBackground;
+    Padding: (Horizontal: 36, Vertical: 30);
   }
 }
