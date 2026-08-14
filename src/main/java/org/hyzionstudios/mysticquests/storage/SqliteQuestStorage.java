@@ -40,6 +40,7 @@ public final class SqliteQuestStorage implements QuestStorage {
             loadPlayerState(data);
             loadActiveQuests(data);
             loadCompletedQuests(data);
+            loadAbandonedQuests(data);
             loadTags(data);
             loadVariables(data);
             return data;
@@ -56,6 +57,7 @@ public final class SqliteQuestStorage implements QuestStorage {
             savePlayerState(data);
             saveActiveQuests(data);
             saveCompletedQuests(data);
+            saveAbandonedQuests(data);
             saveTags(data);
             saveVariables(data);
             connection.commit();
@@ -97,6 +99,14 @@ public final class SqliteQuestStorage implements QuestStorage {
                         player_uuid TEXT NOT NULL,
                         quest_id TEXT NOT NULL,
                         completed_at TEXT NOT NULL,
+                        PRIMARY KEY (player_uuid, quest_id)
+                    )
+                    """);
+            statement.executeUpdate("""
+                    CREATE TABLE IF NOT EXISTS abandoned_quests (
+                        player_uuid TEXT NOT NULL,
+                        quest_id TEXT NOT NULL,
+                        abandoned_at TEXT NOT NULL,
                         PRIMARY KEY (player_uuid, quest_id)
                     )
                     """);
@@ -310,6 +320,17 @@ public final class SqliteQuestStorage implements QuestStorage {
         }
     }
 
+    private void loadAbandonedQuests(PlayerQuestData data) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement("SELECT quest_id, abandoned_at FROM abandoned_quests WHERE player_uuid = ?")) {
+            statement.setString(1, data.playerId().toString());
+            try (ResultSet rows = statement.executeQuery()) {
+                while (rows.next()) {
+                    data.abandonedQuests().put(rows.getString("quest_id"), Instant.parse(rows.getString("abandoned_at")));
+                }
+            }
+        }
+    }
+
     private void loadTags(PlayerQuestData data) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement("SELECT tag FROM player_tags WHERE player_uuid = ?")) {
             statement.setString(1, data.playerId().toString());
@@ -339,7 +360,7 @@ public final class SqliteQuestStorage implements QuestStorage {
     }
 
     private void deletePlayerRows(UUID playerId) throws SQLException {
-        for (String table : new String[] {"objective_progress", "player_quests", "completed_quests", "player_tags", "variables", "player_state"}) {
+        for (String table : new String[] {"objective_progress", "player_quests", "completed_quests", "abandoned_quests", "player_tags", "variables", "player_state"}) {
             try (PreparedStatement statement = connection.prepareStatement("DELETE FROM " + table + " WHERE player_uuid = ?")) {
                 statement.setString(1, playerId.toString());
                 statement.executeUpdate();
@@ -382,6 +403,18 @@ public final class SqliteQuestStorage implements QuestStorage {
     private void saveCompletedQuests(PlayerQuestData data) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement("INSERT INTO completed_quests(player_uuid, quest_id, completed_at) VALUES (?, ?, ?)")) {
             for (Map.Entry<String, Instant> entry : data.completedQuests().entrySet()) {
+                statement.setString(1, data.playerId().toString());
+                statement.setString(2, entry.getKey());
+                statement.setString(3, entry.getValue().toString());
+                statement.addBatch();
+            }
+            statement.executeBatch();
+        }
+    }
+
+    private void saveAbandonedQuests(PlayerQuestData data) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement("INSERT INTO abandoned_quests(player_uuid, quest_id, abandoned_at) VALUES (?, ?, ?)")) {
+            for (Map.Entry<String, Instant> entry : data.abandonedQuests().entrySet()) {
                 statement.setString(1, data.playerId().toString());
                 statement.setString(2, entry.getKey());
                 statement.setString(3, entry.getValue().toString());

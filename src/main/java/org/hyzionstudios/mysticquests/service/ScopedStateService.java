@@ -87,6 +87,40 @@ public final class ScopedStateService {
         return Set.copyOf(entry(normalizeScope(scope), normalizeOwner(scope, owner), false).tags());
     }
 
+    /** Direct administrative mutation used by the in-game state editor. */
+    public synchronized boolean addTag(String scope, String owner, String tag) {
+        String normalizedScope = normalizeScope(scope);
+        String normalizedOwner = normalizeOwner(normalizedScope, owner);
+        if (tag == null || tag.isBlank() || normalizedOwner.isBlank()) {
+            return false;
+        }
+        boolean changed = entry(normalizedScope, normalizedOwner, true).tags().add(tag.trim());
+        if (changed && normalizedScope.equals("player")) {
+            hyExtrasBridge.addTag(UUID.fromString(normalizedOwner), tag.trim());
+        }
+        if (changed) {
+            save();
+        }
+        return changed;
+    }
+
+    /** Direct administrative mutation used by the in-game state editor. */
+    public synchronized boolean removeTag(String scope, String owner, String tag) {
+        String normalizedScope = normalizeScope(scope);
+        String normalizedOwner = normalizeOwner(normalizedScope, owner);
+        if (tag == null || tag.isBlank() || normalizedOwner.isBlank()) {
+            return false;
+        }
+        boolean changed = entry(normalizedScope, normalizedOwner, false).tags().remove(tag.trim());
+        if (changed && normalizedScope.equals("player")) {
+            hyExtrasBridge.removeTag(UUID.fromString(normalizedOwner), tag.trim());
+        }
+        if (changed) {
+            save();
+        }
+        return changed;
+    }
+
     public synchronized String variable(UUID playerId, TypedConfig config, QuestTargetContext targetContext) {
         return entry(scope(config), owner(playerId, config, targetContext), false)
                 .variables()
@@ -155,6 +189,41 @@ public final class ScopedStateService {
 
     public synchronized Map<String, String> variables(String scope, String owner) {
         return Map.copyOf(entry(normalizeScope(scope), normalizeOwner(scope, owner), false).variables());
+    }
+
+    /** Direct administrative mutation used by the in-game state editor. */
+    public synchronized boolean setVariable(String scope, String owner, String key, String value) {
+        String normalizedScope = normalizeScope(scope);
+        String normalizedOwner = normalizeOwner(normalizedScope, owner);
+        if (key == null || key.isBlank() || normalizedOwner.isBlank()) {
+            return false;
+        }
+        String normalizedKey = key.trim();
+        String normalizedValue = value == null ? "" : value;
+        String previous = entry(normalizedScope, normalizedOwner, true).variables().put(normalizedKey, normalizedValue);
+        if (normalizedScope.equals("player")) {
+            hyExtrasBridge.setVariable(UUID.fromString(normalizedOwner), normalizedKey, normalizedValue);
+        }
+        save();
+        return !java.util.Objects.equals(previous, normalizedValue);
+    }
+
+    /** Direct administrative mutation used by the in-game state editor. */
+    public synchronized boolean removeVariable(String scope, String owner, String key) {
+        String normalizedScope = normalizeScope(scope);
+        String normalizedOwner = normalizeOwner(normalizedScope, owner);
+        if (key == null || key.isBlank() || normalizedOwner.isBlank()) {
+            return false;
+        }
+        String normalizedKey = key.trim();
+        boolean changed = entry(normalizedScope, normalizedOwner, false).variables().remove(normalizedKey) != null;
+        if (changed && normalizedScope.equals("player")) {
+            hyExtrasBridge.removeVariable(UUID.fromString(normalizedOwner), normalizedKey);
+        }
+        if (changed) {
+            save();
+        }
+        return changed;
     }
 
     public synchronized void putMetadata(String scope, String owner, Map<String, String> metadata) {

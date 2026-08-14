@@ -1,12 +1,12 @@
 # BetonQuest To MysticQuests Mapping
 
-MysticQuests is inspired by BetonQuest-style RPG scripting, but it keeps a typed JSON schema instead of importing BetonQuest syntax directly.
+MysticQuests supports BetonQuest-style compact scripting inside YAML while preserving typed JSON/YAML objects for visual tooling and validation.
 
 | BetonQuest idea | MysticQuests V1 equivalent |
 | --- | --- |
 | Packages | `packages/<package-id>/` directories |
-| Conditions | JSON condition objects with `type` |
-| Events | JSON event objects with `type` |
+| Conditions | Named quote-aware instructions or typed objects |
+| Events | Named `actions`/`events`, inline typed objects, and cross-package references |
 | Tags | Player tag storage and `tag` conditions/events |
 | Objectives | Quest `objectives` arrays |
 | Conversations | `conversations.json` with nodes and choices |
@@ -18,6 +18,13 @@ MysticQuests is inspired by BetonQuest-style RPG scripting, but it keeps a typed
 | Block state | `scope: "block"` tags and variables |
 | Trigger volume state | `scope: "volume"` tags and variables |
 | Quest items/rewards | `giveItem`, `removeItem`, `modifyMoney`, `notification`, and custom bridge events |
+| Templates | `templates/<id>/` merged through a package manifest |
+| Quest cancelers | Named `cancelers`, `/mquest cancel`, and `cancelQuest` actions |
+| Schedules | Daily or five-field cron schedules with IANA time zones |
+| Parties | Shared objectives, party conditions, and party action fan-out |
+
+The current syntax and complete sample are documented in
+[BetonQuest-style scripting](betonquest-style-scripting.md).
 
 ## Conversation Pattern
 

@@ -30,6 +30,7 @@ final class QuestStorageTest {
             assertTrue(loaded.tags().contains("tutorial_started"));
             assertEquals("3", loaded.playerVariables().get("dragon_kills"));
             assertEquals("tutorial:starter_hunt", loaded.trackedQuestId());
+            assertEquals(Instant.parse("2026-06-19T09:30:00Z"), loaded.abandonedQuests().get("tutorial:side_trek"));
 
             ScopedStateData scoped = sampleScopedState(playerId);
             storage.saveScopedState(scoped);
@@ -55,6 +56,7 @@ final class QuestStorageTest {
             assertTrue(loaded.tags().contains("tutorial_started"));
             assertEquals("3", loaded.playerVariables().get("dragon_kills"));
             assertEquals("tutorial:starter_hunt", loaded.trackedQuestId());
+            assertEquals(Instant.parse("2026-06-19T09:30:00Z"), loaded.abandonedQuests().get("tutorial:side_trek"));
 
             ScopedStateData scoped = sampleScopedState(playerId);
             storage.saveScopedState(scoped);
@@ -73,6 +75,7 @@ final class QuestStorageTest {
         data.activeQuests().put(active.questId(), active);
         data.setTrackedQuestId(active.questId());
         data.completedQuests().put("tutorial:intro", Instant.parse("2026-06-18T12:00:00Z"));
+        data.abandonedQuests().put("tutorial:side_trek", Instant.parse("2026-06-19T09:30:00Z"));
         data.tags().add("tutorial_started");
         data.playerVariables().put("dragon_kills", "3");
         data.questVariables().computeIfAbsent("tutorial:starter_hunt", ignored -> new java.util.LinkedHashMap<>()).put("stage", "hunt");

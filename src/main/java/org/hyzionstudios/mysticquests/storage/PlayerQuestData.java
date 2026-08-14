@@ -11,6 +11,8 @@ public final class PlayerQuestData {
     private UUID playerId;
     private Map<String, ActiveQuestData> activeQuests = new LinkedHashMap<>();
     private Map<String, Instant> completedQuests = new LinkedHashMap<>();
+    /** Quest ID to the moment it was abandoned; drives re-accept cooldowns and journal history. */
+    private Map<String, Instant> abandonedQuests = new LinkedHashMap<>();
     private Set<String> tags = new LinkedHashSet<>();
     private Map<String, String> playerVariables = new LinkedHashMap<>();
     private Map<String, Map<String, String>> questVariables = new LinkedHashMap<>();
@@ -45,6 +47,14 @@ public final class PlayerQuestData {
 
     public void setCompletedQuests(Map<String, Instant> completedQuests) {
         this.completedQuests = completedQuests == null ? new LinkedHashMap<>() : completedQuests;
+    }
+
+    public Map<String, Instant> abandonedQuests() {
+        return abandonedQuests;
+    }
+
+    public void setAbandonedQuests(Map<String, Instant> abandonedQuests) {
+        this.abandonedQuests = abandonedQuests == null ? new LinkedHashMap<>() : abandonedQuests;
     }
 
     public Set<String> tags() {

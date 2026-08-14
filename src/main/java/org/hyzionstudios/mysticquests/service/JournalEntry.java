@@ -6,6 +6,15 @@ public record JournalEntry(
         String questId,
         String displayName,
         String description,
-        List<String> objectives,
+        List<ObjectiveView> objectives,
         boolean complete) {
+
+    public int completedObjectiveCount() {
+        return (int) objectives.stream().filter(ObjectiveView::complete).count();
+    }
+
+    /** {@code "2 / 5 objectives"} for card and row summaries. */
+    public String progressSummary() {
+        return completedObjectiveCount() + " / " + objectives.size() + " objectives";
+    }
 }

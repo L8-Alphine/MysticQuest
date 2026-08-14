@@ -173,6 +173,9 @@ public final class MysticHyExtrasTriggerBridge {
         var archetype = store.getArchetype(entityRef);
         for (int index = 0; index < archetype.length(); index++) {
             var componentType = archetype.get(index);
+            if (componentType == null || componentType.getTypeClass() == null) {
+                continue;
+            }
             if (Entity.class.isAssignableFrom(componentType.getTypeClass())) {
                 var component = store.getComponent(entityRef, componentType);
                 if (component instanceof Entity entity) {
