@@ -1,6 +1,9 @@
 package org.hyzionstudios.mysticquests.ui;
 
 import org.hyzionstudios.mysticquests.model.EventDefinition;
+import org.hyzionstudios.mysticquests.service.PlayerInventoryService;
+import org.hyzionstudios.mysticquests.service.PlayerSessionService;
+import org.hyzionstudios.mysticquests.util.ChatColorUtil;
 
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.protocol.ItemWithAllMetadata;
@@ -9,41 +12,31 @@ import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.util.NotificationUtil;
 
-import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
+import java.util.function.UnaryOperator;
 
-public final class QuestNotificationService {
+public final class QuestNotificationService implements PlayerInventoryService.QuestNotificationSink {
+    private final PlayerSessionService sessionService;
     private final HytaleLogger logger;
-    private final Map<UUID, PlayerRef> players = new ConcurrentHashMap<>();
 
-    public QuestNotificationService(HytaleLogger logger) {
+    public QuestNotificationService(PlayerSessionService sessionService, HytaleLogger logger) {
+        this.sessionService = sessionService;
         this.logger = logger;
     }
 
-    public void registerPlayer(PlayerRef playerRef) {
-        if (playerRef != null) {
-            players.put(playerRef.getUuid(), playerRef);
-        }
-    }
-
-    public void unregisterPlayer(UUID playerId) {
-        players.remove(playerId);
-    }
-
-    public void clear() {
-        players.clear();
-    }
-
     public void send(UUID playerId, EventDefinition event) {
-        PlayerRef playerRef = players.get(playerId);
+        send(playerId, event, UnaryOperator.identity());
+    }
+
+    public void send(UUID playerId, EventDefinition event, UnaryOperator<String> textResolver) {
+        PlayerRef playerRef = sessionService.playerRef(playerId);
         if (playerRef == null) {
             return;
         }
         try {
-            Message title = message(event.text("title", "MysticQuests"), event.text("titleColor", ""));
-            Message body = message(event.text("body", event.text("message", "")), event.text("bodyColor", ""));
+            Message title = message(textResolver.apply(event.text("title", "MysticQuests")), event.text("titleColor", ""));
+            Message body = message(textResolver.apply(event.text("body", event.text("message", ""))), event.text("bodyColor", ""));
             NotificationStyle style = style(event.text("style", "Default"));
             String icon = event.text("icon", "");
             ItemWithAllMetadata item = item(event);
@@ -63,12 +56,17 @@ public final class QuestNotificationService {
         }
     }
 
-    private Message message(String text, String color) {
-        Message message = text == null ? Message.empty() : Message.parse(text);
-        if (color != null && !color.isBlank()) {
-            message.color(color);
+    @Override
+    public void sendChat(UUID playerId, String text, String color) {
+        PlayerRef playerRef = sessionService.playerRef(playerId);
+        if (playerRef == null) {
+            return;
         }
-        return message;
+        playerRef.sendMessage(ChatColorUtil.message(text, color));
+    }
+
+    private Message message(String text, String color) {
+        return ChatColorUtil.message(text, color);
     }
 
     private NotificationStyle style(String rawStyle) {

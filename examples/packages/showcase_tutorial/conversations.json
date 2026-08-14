@@ -1,0 +1,285 @@
+{
+  "conversations": [
+    {
+      "id": "guide_intro",
+      "speaker": "Showcase Guide",
+      "start": "welcome",
+      "entity": {
+        "uuid": "0300201d-c86b-31a8-8f61-b25496c583fd",
+        "type": "ShowcaseGuide",
+        "name": "Showcase Guide",
+        "interactionHint": "interactionHints.talk",
+        "showPrompt": true
+      },
+      "nodes": [
+        {
+          "id": "welcome",
+          "text": "Welcome to the MysticQuests showcase. I can start a tracked quest, branch the dialogue, store variables, and send live direction updates.",
+          "conditions": [],
+          "events": [
+            {
+              "type": "addTag",
+              "scope": "entity",
+              "tag": "showcase_guide_contacted"
+            }
+          ],
+          "choices": [
+            {
+              "text": "Start the showcase quest.",
+              "conditions": [],
+              "events": [
+                {
+                  "type": "startQuest",
+                  "quest": "first_steps"
+                },
+                {
+                  "type": "addTag",
+                  "scope": "player",
+                  "tag": "showcase_met_guide"
+                },
+                {
+                  "type": "setVariable",
+                  "scope": "player",
+                  "key": "showcase_direction",
+                  "value": "unselected"
+                }
+              ],
+              "next": "briefing"
+            },
+            {
+              "text": "What does this showcase demonstrate?",
+              "conditions": [],
+              "events": [
+                {
+                  "type": "sendMessage",
+                  "message": "&bMysticQuests demo: &fentity UUID conversations, branching choices, dynamic directions, notifications, HUD tracking, journal progress, and scoped state."
+                }
+              ],
+              "next": "about"
+            },
+            {
+              "text": "Maybe later.",
+              "conditions": [],
+              "events": [],
+              "next": "end"
+            }
+          ]
+        },
+        {
+          "id": "about",
+          "text": "BetonQuest-style scripting becomes typed MysticQuests JSON: objectives, conditions, events, tags, variables, conversations, and optional integrations.",
+          "conditions": [],
+          "events": [],
+          "choices": [
+            {
+              "text": "Good. Start it.",
+              "conditions": [],
+              "events": [
+                {
+                  "type": "startQuest",
+                  "quest": "first_steps"
+                },
+                {
+                  "type": "setVariable",
+                  "scope": "player",
+                  "key": "showcase_direction",
+                  "value": "unselected"
+                }
+              ],
+              "next": "briefing"
+            },
+            {
+              "text": "Back to the greeting.",
+              "conditions": [],
+              "events": [],
+              "next": "welcome"
+            }
+          ]
+        },
+        {
+          "id": "briefing",
+          "text": "Your HUD should now pin the showcase quest. Pick a route and I will push a direction update into chat and your player variables.",
+          "conditions": [],
+          "events": [
+            {
+              "type": "setVariable",
+              "scope": "player",
+              "key": "showcase_stage",
+              "value": "choosing_direction"
+            },
+            {
+              "type": "setVariable",
+              "scope": "entity",
+              "key": "last_showcase_node",
+              "value": "briefing"
+            },
+            {
+              "type": "sendMessage",
+              "message": "&dDynamic direction: &fChoose a route in the conversation. MysticQuests will store it as &eshowcase_direction&f."
+            }
+          ],
+          "choices": [
+            {
+              "text": "Send me toward the training marker.",
+              "conditions": [],
+              "events": [
+                {
+                  "type": "setVariable",
+                  "scope": "player",
+                  "key": "showcase_direction",
+                  "value": "training_marker"
+                },
+                {
+                  "type": "setVariable",
+                  "scope": "player",
+                  "key": "showcase_direction_text",
+                  "value": "Face the guide, turn right, and follow the open flat ground to the training marker."
+                },
+                {
+                  "type": "sendMessage",
+                  "message": "&bDirection updated: &fFace the guide, turn &eright&f, and follow the open flat ground to the training marker."
+                },
+                {
+                  "type": "notification",
+                  "title": "Route Selected",
+                  "body": "Training marker route stored.",
+                  "style": "Default"
+                }
+              ],
+              "next": "directions"
+            },
+            {
+              "text": "Send me back toward town.",
+              "conditions": [],
+              "events": [
+                {
+                  "type": "setVariable",
+                  "scope": "player",
+                  "key": "showcase_direction",
+                  "value": "town_return"
+                },
+                {
+                  "type": "setVariable",
+                  "scope": "player",
+                  "key": "showcase_direction_text",
+                  "value": "Turn around from the guide and follow the road lights back toward the village side."
+                },
+                {
+                  "type": "sendMessage",
+                  "message": "&bDirection updated: &fTurn around from the guide and follow the road lights back toward the &evillage&f side."
+                },
+                {
+                  "type": "notification",
+                  "title": "Route Selected",
+                  "body": "Town return route stored.",
+                  "style": "Default"
+                }
+              ],
+              "next": "directions"
+            },
+            {
+              "text": "Send me toward the ruins.",
+              "conditions": [],
+              "events": [
+                {
+                  "type": "setVariable",
+                  "scope": "player",
+                  "key": "showcase_direction",
+                  "value": "ruins_path"
+                },
+                {
+                  "type": "setVariable",
+                  "scope": "player",
+                  "key": "showcase_direction_text",
+                  "value": "Look past the guide, angle left, and move toward the darker stone shapes on the horizon."
+                },
+                {
+                  "type": "sendMessage",
+                  "message": "&bDirection updated: &fLook past the guide, angle &eleft&f, and move toward the darker stone shapes on the horizon."
+                },
+                {
+                  "type": "notification",
+                  "title": "Route Selected",
+                  "body": "Ruins path route stored.",
+                  "style": "Warning"
+                }
+              ],
+              "next": "directions"
+            }
+          ]
+        },
+        {
+          "id": "directions",
+          "text": "Route stored. The player variable showcase_direction now records which path you chose, and the journal objective should advance.",
+          "conditions": [],
+          "events": [
+            {
+              "type": "setVariable",
+              "scope": "player",
+              "key": "showcase_stage",
+              "value": "route_selected"
+            },
+            {
+              "type": "setVariable",
+              "scope": "entity",
+              "key": "last_showcase_node",
+              "value": "directions"
+            }
+          ],
+          "choices": [
+            {
+              "text": "Give me a different route.",
+              "conditions": [],
+              "events": [
+                {
+                  "type": "sendMessage",
+                  "message": "&7Choose another branch and the stored direction variable will change."
+                }
+              ],
+              "next": "briefing"
+            },
+            {
+              "text": "I understand. Confirm the route.",
+              "conditions": [],
+              "events": [
+                {
+                  "type": "addTag",
+                  "scope": "player",
+                  "tag": "showcase_direction_confirmed"
+                }
+              ],
+              "next": "confirm"
+            }
+          ]
+        },
+        {
+          "id": "confirm",
+          "text": "Confirmed. This final node completes the dialogue objective, fires rewards, and leaves scoped state behind for debugging.",
+          "conditions": [],
+          "events": [
+            {
+              "type": "setVariable",
+              "scope": "entity",
+              "key": "last_showcase_node",
+              "value": "confirm"
+            },
+            {
+              "type": "notification",
+              "title": "Route Confirmed",
+              "body": "The final dialogue objective should complete now.",
+              "style": "Success"
+            }
+          ],
+          "choices": [
+            {
+              "text": "Close.",
+              "conditions": [],
+              "events": [],
+              "next": "end"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

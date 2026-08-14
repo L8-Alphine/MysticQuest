@@ -1,88 +1,85 @@
 $Base = "../../Common.ui";
-$MQ = "../Common.ui";
+$MQ = "../Theme.ui";
 
 $Base.@PageOverlay {}
 
 $Base.@Container {
-  Anchor: (Width: 1120, Height: 720);
+  Anchor: (Width: 1000, Height: 620);
 
   #Title {
     $MQ.@HeaderBar {
+      AssetImage { AssetPath: $MQ.@IconQuestBoard; Anchor: (Width: 40, Height: 40, Right: 10); }
+
       Group {
-        Anchor: (Width: 4, Height: 24, Right: 12);
-        Background: $MQ.@AccentGold;
+        LayoutMode: Top;
+        Anchor: (Width: 280, Height: 44);
+        Label { Text: "MYSTICQUESTS"; Style: (...$MQ.@PageTitleStyle, FontSize: 21); }
+        Label { Text: "WAYFINDER BOARD"; Style: (...$MQ.@SmallBoldStyle, FontSize: 10, TextColor: $MQ.@TextMuted); }
       }
 
-      Label {
-        Text: "MYSTICQUESTS";
-        Style: $MQ.@PageTitleStyle;
-        Anchor: (Right: 18);
-      }
-
-      Label {
-        Text: "Quest Board";
-        Style: (...$MQ.@MutedLabelStyle, FontSize: 15);
-      }
+      Group { FlexWeight: 1; }
+      Label { Text: "AVAILABLE CONTRACTS"; Style: (...$MQ.@SmallBoldStyle, TextColor: $MQ.@AccentBlue); }
     }
   }
 
   #Content {
-    LayoutMode: Left;
-    Background: $MQ.@BackgroundDeep;
+    LayoutMode: Top;
+    Background: $MQ.@DarkPanelBackground;
+    Padding: (Left: 14, Right: 14, Top: 12, Bottom: 14);
 
-    Group {
-      Anchor: (Width: 190);
-      LayoutMode: Top;
-      Background: $MQ.@Panel;
-      Padding: (Top: 14);
-
-      Label {
-        Text: "CATEGORIES";
-        Style: $MQ.@SmallBoldStyle;
-        Anchor: (Left: 16, Bottom: 10);
-      }
-
-      Group #CategoryList {
-        LayoutMode: Top;
-      }
-    }
-
-    Group #QuestCardList {
+    Group #BoardEmptyState {
       FlexWeight: 1;
-      LayoutMode: TopScrolling;
-      ScrollbarStyle: $Base.@DefaultScrollbarStyle;
-      Padding: (Horizontal: 16, Top: 16, Bottom: 16);
-      Background: $MQ.@BackgroundSoft;
+      LayoutMode: Center;
+      Visible: false;
+
+      Group {
+        Anchor: (Width: 500, Height: 320);
+        LayoutMode: Top;
+        Padding: (Horizontal: 36, Top: 20);
+
+        AssetImage { AssetPath: $MQ.@IconQuestBoard; Anchor: (Width: 128, Height: 128, Bottom: 12); }
+        Label { Text: "NO QUESTS AVAILABLE"; Style: (...$MQ.@QuestTitleStyle, FontSize: 23, TextColor: $MQ.@AccentGold, HorizontalAlignment: Center); Anchor: (Bottom: 8); }
+        Label #BoardEmptyBody { Text: "Explore the world or speak with a quest giver. Active quests remain available in your journal."; Style: (...$MQ.@BodyTextStyle, FontSize: 15, TextColor: $MQ.@TextSecondary, HorizontalAlignment: Center); }
+      }
     }
 
-    Group {
-      Anchor: (Width: 300);
-      LayoutMode: Top;
-      Background: $MQ.@Panel;
-      Padding: (Horizontal: 16, Top: 16);
+    Group #QuestBoardContent {
+      FlexWeight: 1;
+      LayoutMode: Left;
 
-      Label #PreviewQuestName {
-        Text: "Select a quest";
-        Style: (...$MQ.@QuestTitleStyle, TextColor: $MQ.@AccentGold);
-        Anchor: (Bottom: 10);
+      Group {
+        FlexWeight: 1;
+        LayoutMode: Top;
+        Background: #11182B(0.88);
+
+        Group {
+          Anchor: (Height: 38);
+          LayoutMode: Left;
+          Padding: (Horizontal: 14);
+          Background: $MQ.@PanelDark;
+          Label { Text: "AVAILABLE QUESTS"; Style: (...$MQ.@SectionTitleStyle, FontSize: 13); }
+        }
+
+        Group #QuestCardList {
+          FlexWeight: 1;
+          LayoutMode: TopScrolling;
+          ScrollbarStyle: $Base.@DefaultScrollbarStyle;
+          Padding: (Horizontal: 10, Top: 10, Bottom: 10);
+        }
       }
 
-      Label #PreviewQuestDescription {
-        Text: "";
-        Style: $MQ.@BodyTextStyle;
-        Anchor: (Bottom: 20);
-      }
+      Group {
+        Anchor: (Width: 310, Left: 12);
+        LayoutMode: Top;
+        Background: #090D19(0.92);
+        Padding: (Horizontal: 20, Top: 20, Bottom: 20);
 
-      TextButton #TrackButton {
-        Text: "TRACK QUEST";
-        Style: $MQ.@PrimaryButtonStyle;
-        Anchor: (Width: 220, Height: 42, Bottom: 10);
-      }
-
-      TextButton #AbandonButton {
-        Text: "ABANDON";
-        Style: $MQ.@GhostButtonStyle;
-        Anchor: (Width: 220, Height: 42);
+        AssetImage { AssetPath: $MQ.@IconTracker; Anchor: (Width: 88, Height: 88, Bottom: 10); }
+        Label { Text: "QUEST PREVIEW"; Style: (...$MQ.@SmallBoldStyle, TextColor: $MQ.@AccentBlue); Anchor: (Bottom: 8); }
+        Label #PreviewQuestName { Text: "Select a quest"; Style: (...$MQ.@QuestTitleStyle, FontSize: 20, TextColor: $MQ.@AccentGold); Anchor: (Bottom: 8); }
+        Label #PreviewQuestDescription { Text: ""; Style: (...$MQ.@BodyTextStyle, FontSize: 14); Anchor: (Bottom: 18); }
+        Group { FlexWeight: 1; }
+        TextButton #AcceptButton { Text: "ACCEPT QUEST"; Style: $MQ.@PrimaryButtonStyle; Anchor: (Height: 40); }
       }
     }
   }

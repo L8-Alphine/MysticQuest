@@ -5,9 +5,12 @@ import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 public class TypedConfig {
     private String type;
@@ -61,5 +64,42 @@ public class TypedConfig {
             return fallback;
         }
         return node.decimalValue();
+    }
+
+    /**
+     * Reads a nested array of typed entries, for example the {@code conditions} of an {@code and}
+     * condition or the {@code events} of a {@code folder} event. A single object is accepted in
+     * place of a one-element array so authors can write {@code "condition": {...}}.
+     */
+    public <T extends TypedConfig> List<T> children(String key, Supplier<T> factory) {
+        JsonNode node = data.get(key);
+        if (node == null || node.isNull()) {
+            return List.of();
+        }
+        if (node.isObject()) {
+            return List.of(child(node, factory));
+        }
+        if (!node.isArray()) {
+            return List.of();
+        }
+        List<T> children = new ArrayList<>(node.size());
+        for (JsonNode element : node) {
+            if (element.isObject()) {
+                children.add(child(element, factory));
+            }
+        }
+        return List.copyOf(children);
+    }
+
+    private <T extends TypedConfig> T child(JsonNode node, Supplier<T> factory) {
+        T value = factory.get();
+        for (Map.Entry<String, JsonNode> field : node.properties()) {
+            if (field.getKey().equals("type")) {
+                value.setType(field.getValue().asText());
+            } else {
+                value.put(field.getKey(), field.getValue());
+            }
+        }
+        return value;
     }
 }

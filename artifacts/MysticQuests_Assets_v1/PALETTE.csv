@@ -1,0 +1,17 @@
+token,hex,usage
+background_deep,#090D19,Screen surround and deepest wells
+background_soft,#11182B,Primary indigo field
+panel,#18233B,Lacquered panel surface
+panel_raised,#243353,Hover and selected surface
+parchment,#E8C98A,Warm readable parchment
+parchment_dark,#A77B43,Parchment shadow and muted detail
+brass,#D89A32,Structural brass
+ember_gold,#FFC857,Primary action and active quest
+wayfinder,#39D5D2,"Navigation, focus, and progress"
+wayfinder_dark,#147F8D,Focus shadow and meter start
+success,#52D58B,Completed objective
+danger,#E55D52,Destructive action
+text_primary,#FFF4D9,Primary text
+text_secondary,#C6D2E5,Body and secondary text
+text_muted,#7E91AD,Metadata
+focus_ring,#79F1EA,Keyboard/controller focus

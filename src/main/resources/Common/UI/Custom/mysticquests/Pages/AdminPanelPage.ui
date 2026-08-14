@@ -1,5 +1,5 @@
 $Base = "../../Common.ui";
-$MQ = "../Common.ui";
+$MQ = "../Theme.ui";
 
 $Base.@PageOverlay {}
 
@@ -8,9 +8,9 @@ $Base.@Container {
 
   #Title {
     $MQ.@HeaderBar {
-      Group {
-        Anchor: (Width: 22, Height: 22, Right: 12);
-        Background: $MQ.@RedBg;
+      AssetImage {
+        AssetPath: $MQ.@IconAdmin;
+        Anchor: (Width: 46, Height: 46, Right: 12);
       }
 
       Label {
@@ -28,7 +28,7 @@ $Base.@Container {
 
   #Content {
     LayoutMode: Left;
-    Background: $MQ.@BackgroundSoft;
+    Background: $MQ.@DarkPanelBackground;
 
     Group {
       FlexWeight: 1;
@@ -69,7 +69,7 @@ $Base.@Container {
     Group {
       Anchor: (Width: 300);
       LayoutMode: Top;
-      Background: $MQ.@Panel;
+      Background: #090D19(0.88);
       Padding: (Horizontal: 16, Top: 16);
 
       Label {

@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "org.hyzionstudios"
-version = "1.0.0"
+version = "1.0.2"
 
 repositories {
     mavenCentral()
@@ -30,6 +30,7 @@ dependencies {
     compileOnly("at.helpch:placeholderapi-hytale:1.0.8")
 
     implementation("com.fasterxml.jackson.core:jackson-databind:2.20.1")
+    implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.20.1")
     implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.20.1")
     implementation("org.xerial:sqlite-jdbc:3.51.1.0")
 
@@ -47,6 +48,39 @@ java {
 tasks.shadowJar {
     archiveClassifier.set("")
     mergeServiceFiles()
+}
+
+// Probe builds for the "Could not find document … for Custom UI Append command" disconnect. That
+// failure takes down every mod's HUD on the server, not just ours: with this pack shipping no UI at
+// all, players join fine and other mods' HUDs work, so something in Common/UI here stops the client
+// registering custom UI documents. These flags narrow down what:
+//
+//   ./gradlew deployMod -PskipUiPack        // no UI at all — the known-good baseline
+//   ./gradlew deployMod -PskipUiMarkup      // textures only, no .ui documents
+//   ./gradlew deployMod -PskipUiAssets      // .ui documents only, no textures
+//   ./gradlew deployMod -PskipUiDocuments=QuestStudioPage.ui,JournalPage.ui
+//
+// The HUD disables itself when its document is not in the JAR, so no probe can disconnect anyone.
+val skippedUiDocuments = providers.gradleProperty("skipUiDocuments")
+    .map { it.split(",").map(String::trim).filter(String::isNotEmpty) }
+    .getOrElse(emptyList())
+val uiProbe: Pair<List<String>, String>? = when {
+    providers.gradleProperty("skipUiPack").isPresent ->
+        listOf("Common/UI/**") to "no Common/UI content at all"
+    providers.gradleProperty("skipUiMarkup").isPresent ->
+        listOf("Common/UI/**/*.ui") to "textures only, no .ui documents"
+    providers.gradleProperty("skipUiAssets").isPresent ->
+        listOf("Common/UI/Custom/mysticquests/Assets/**") to "documents only, no textures"
+    skippedUiDocuments.isNotEmpty() ->
+        skippedUiDocuments.map { "**/$it" } to "omitting $skippedUiDocuments"
+    else -> null
+}
+
+tasks.processResources {
+    uiProbe?.let { (patterns, description) ->
+        patterns.forEach { exclude(it) }
+        doFirst { logger.lifecycle("Probe build: $description.") }
+    }
 }
 
 tasks.test {

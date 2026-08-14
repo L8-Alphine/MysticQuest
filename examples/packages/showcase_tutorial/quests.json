@@ -1,0 +1,85 @@
+{
+  "quests": [
+    {
+      "id": "first_steps",
+      "displayName": "MysticQuests Showcase: First Steps",
+      "description": "Speak with the showcase guide, choose a direction, and confirm the route. This quest demonstrates entity-bound conversations, dynamic chat directions, notifications, scoped tags, player variables, journal progress, and HUD tracking.",
+      "startConditions": [],
+      "objectives": [
+        {
+          "id": "meet_guide",
+          "displayName": "Begin the guide's briefing",
+          "type": "dialogue",
+          "target": "showcase_tutorial:guide_intro:briefing",
+          "amount": 1
+        },
+        {
+          "id": "choose_direction",
+          "displayName": "Choose any route from the guide",
+          "type": "dialogue",
+          "target": "showcase_tutorial:guide_intro:directions",
+          "amount": 1
+        },
+        {
+          "id": "confirm_route",
+          "displayName": "Confirm the route with the guide",
+          "type": "dialogue",
+          "target": "showcase_tutorial:guide_intro:confirm",
+          "amount": 1
+        }
+      ],
+      "startEvents": [
+        {
+          "type": "setVariable",
+          "scope": "player",
+          "key": "showcase_stage",
+          "value": "briefing"
+        },
+        {
+          "type": "sendMessage",
+          "message": "&aMysticQuests showcase started. &fOpen &e/journal &for &e/quests &fto see the HUD and journal update."
+        },
+        {
+          "type": "notification",
+          "title": "Quest Started",
+          "body": "MysticQuests Showcase: First Steps",
+          "style": "Success"
+        }
+      ],
+      "completeEvents": [
+        {
+          "type": "setVariable",
+          "scope": "player",
+          "key": "showcase_stage",
+          "value": "complete"
+        },
+        {
+          "type": "addTag",
+          "scope": "entity",
+          "tag": "showcase_route_confirmed"
+        }
+      ],
+      "rewards": [
+        {
+          "type": "addTag",
+          "scope": "player",
+          "tag": "showcase_tutorial_complete"
+        },
+        {
+          "type": "modifyMoney",
+          "amount": 15
+        },
+        {
+          "type": "notification",
+          "title": "Showcase Complete",
+          "body": "You finished the entity conversation tutorial.",
+          "style": "Success"
+        },
+        {
+          "type": "sendMessage",
+          "message": "&6Showcase complete! &fTry &e/mquest state get player self &fto inspect your tags and variables."
+        }
+      ]
+    }
+  ]
+}

@@ -11,13 +11,15 @@ public record MysticQuestsConfig(
         String packagesPath,
         IntegrationConfig integrations,
         StateConfig state,
+        UiConfig ui,
         boolean debug) {
     public static MysticQuestsConfig defaults() {
         return new MysticQuestsConfig(
                 new StorageConfig("sqlite", "data/players", "data/mysticquests.db"),
                 "packages",
-                new IntegrationConfig(true, true, true, true, true),
+                new IntegrationConfig(true, true, true, true, true, true),
                 new StateConfig(true, true),
+                new UiConfig(true, UiConfig.DEFAULT_HUD_JOIN_DELAY_MILLIS),
                 false);
     }
 
@@ -40,6 +42,7 @@ public record MysticQuestsConfig(
                 packagesPath == null || packagesPath.isBlank() ? defaults.packagesPath : packagesPath,
                 integrations == null ? defaults.integrations : integrations.withDefaults(),
                 state == null ? defaults.state : state,
+                ui == null ? defaults.ui : ui.withDefaults(),
                 debug);
     }
 
@@ -58,6 +61,7 @@ public record MysticQuestsConfig(
             boolean placeholderApi,
             boolean mysticNameTags,
             boolean hyExtras,
+            Boolean hyCitizens,
             Boolean hyExtrasExportPlayerState) {
         IntegrationConfig withDefaults() {
             return new IntegrationConfig(
@@ -65,6 +69,7 @@ public record MysticQuestsConfig(
                     placeholderApi,
                     mysticNameTags,
                     hyExtras,
+                    hyCitizens == null ? true : hyCitizens,
                     hyExtrasExportPlayerState == null ? true : hyExtrasExportPlayerState);
         }
     }
@@ -72,5 +77,27 @@ public record MysticQuestsConfig(
     public record StateConfig(
             boolean migrateLegacyPlayerTags,
             boolean migrateLegacyPlayerVariables) {
+    }
+
+    /**
+     * @param questHud whether the pinned quest HUD is shown at all. Turn it off to keep players on
+     *         the server while a "Could not find document …" disconnect is being diagnosed: a failed
+     *         HUD append kicks the player, so a mod that cannot render its HUD is better off silent.
+     * @param hudJoinDelayMillis how long after a player is ready before the quest HUD is pushed.
+     *         A HUD sent on the ready tick itself arrives while the client is still registering the
+     *         asset pack's UI documents, and the append fails with "Could not find document …" for a
+     *         document the client already has on disk. Lower it if the HUD feels late; raise it if
+     *         that disconnect comes back.
+     */
+    public record UiConfig(Boolean questHud, Integer hudJoinDelayMillis) {
+        static final int DEFAULT_HUD_JOIN_DELAY_MILLIS = 3000;
+
+        UiConfig withDefaults() {
+            return new UiConfig(
+                    questHud == null || questHud,
+                    hudJoinDelayMillis == null || hudJoinDelayMillis < 0
+                            ? DEFAULT_HUD_JOIN_DELAY_MILLIS
+                            : hudJoinDelayMillis);
+        }
     }
 }

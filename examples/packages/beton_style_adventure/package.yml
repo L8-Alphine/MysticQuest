@@ -1,0 +1,4 @@
+enabled: true
+version: 1
+templates:
+  - adventure_defaults

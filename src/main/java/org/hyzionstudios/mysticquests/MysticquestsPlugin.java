@@ -2,6 +2,7 @@ package org.hyzionstudios.mysticquests;
 
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
+import org.hyzionstudios.mysticquests.service.ConversationService;
 
 import java.util.logging.Level;
 import javax.annotation.Nonnull;
@@ -11,6 +12,11 @@ public class MysticquestsPlugin extends JavaPlugin {
 
     public MysticquestsPlugin(@Nonnull JavaPluginInit init) {
         super(init);
+    }
+
+    @Override
+    protected void setup() {
+        ConversationService.registerInteractionPageSupplier(this);
     }
 
     @Override

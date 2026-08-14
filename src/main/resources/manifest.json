@@ -1,7 +1,7 @@
 {
   "Group": "org.hyzionstudios",
   "Name": "mysticquests",
-  "Version": "1.0.0",
+  "Version": "1.0.2",
   "Main": "org.hyzionstudios.mysticquests.MysticquestsPlugin",
   "ServerVersion": ">=0.5.0 <0.6.0",
   "Description": "Questing System that is Tag and Variable Driven",
