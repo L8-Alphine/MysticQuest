@@ -1,0 +1,21 @@
+{
+  "quests": [
+    {
+      "id": "hidden_keys",
+      "displayName": "The Hidden Keys",
+      "description": "Ten druid keys lie hidden around the temple, but only four answer to you. Find them.",
+      "objectives": [
+        {
+          "id": "keys",
+          "displayName": "Recover the druid keys that answer to you",
+          "type": "signal",
+          "signal": "hyzion:druid_temple.keys_complete",
+          "shared": true
+        }
+      ],
+      "rewards": [
+        { "type": "sendMessage", "message": "&aThe temple passage stands open to you." }
+      ]
+    }
+  ]
+}

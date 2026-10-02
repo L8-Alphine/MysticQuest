@@ -6,6 +6,8 @@ import org.hyzionstudios.mysticquests.model.ConversationDefinition;
 import org.hyzionstudios.mysticquests.model.ConversationEntityBinding;
 import org.hyzionstudios.mysticquests.model.ConversationNode;
 import org.hyzionstudios.mysticquests.integration.HyCitizensBridge.CitizenView;
+import org.hyzionstudios.mysticquests.integration.MysticGenerationBridge;
+import org.hyzionstudios.mysticquests.integration.MysticGenerationBridge.GenerationNpc;
 import org.hyzionstudios.mysticquests.ui.ConversationPage;
 import org.hyzionstudios.mysticquests.ui.UiDocuments;
 
@@ -45,6 +47,7 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import java.util.logging.Level;
@@ -63,6 +66,25 @@ public final class ConversationService {
     private final Map<String, Interactions> originalInteractions = new ConcurrentHashMap<>();
     private final Map<UUID, Long> lastReconcileNanos = new ConcurrentHashMap<>();
 
+    /**
+     * Hands out the token that says which page currently owns a player's session.
+     *
+     * <p>Needed because {@code PageManager.openCustomPage} dismisses the outgoing page <em>after</em>
+     * the replacement has been decided on: without a token, the old page's dismissal would clear the
+     * session the new page is about to render.
+     */
+    private final AtomicLong sessionTokens = new AtomicLong();
+
+    /** Null until MysticQuests has built the optional bridge, and when it is switched off. */
+    private volatile MysticGenerationBridge generationBridge;
+    private volatile VoicePlayer voicePlayer;
+
+    /** Plays a node's narrative voice line to the reader; bound by the narrative integration. */
+    @FunctionalInterface
+    public interface VoicePlayer {
+        void play(UUID playerId, String voice, String speakerEntity);
+    }
+
     public ConversationService(
             Supplier<LoadedContent> contentSupplier,
             PlayerQuestService questService,
@@ -72,6 +94,19 @@ public final class ConversationService {
         this.questService = questService;
         this.signalBus = signalBus;
         this.logger = logger;
+    }
+
+    /**
+     * Attaches the optional MysticGeneration bridge, enabling {@code generationDefinition} and
+     * {@code generationUuid} bindings. Bound after construction because the bridge needs this
+     * service's logger and lifecycle to already exist.
+     */
+    public void bindVoice(VoicePlayer voicePlayer) {
+        this.voicePlayer = voicePlayer;
+    }
+
+    public void bindGenerationSupport(MysticGenerationBridge generationBridge) {
+        this.generationBridge = generationBridge;
     }
 
     public void registerPlayer(UUID playerId, Ref<EntityStore> playerEntity) {
@@ -85,6 +120,10 @@ public final class ConversationService {
     public void unregisterPlayer(UUID playerId) {
         if (playerId != null) {
             onlinePlayers.remove(playerId);
+            // A player who logs out mid-conversation must come back able to talk again, and neither
+            // map is otherwise ever pruned.
+            sessions.remove(playerId);
+            lastReconcileNanos.remove(playerId);
         }
     }
 
@@ -164,18 +203,18 @@ public final class ConversationService {
         if (sessions.containsKey(playerRef.getUuid())) {
             return true;
         }
-        ConversationDefinition conversation = findConversation(target);
+        GenerationNpc npc = identify(event.getTargetRef());
+        ConversationDefinition conversation = findConversation(target, npc);
         if (conversation == null) {
             return false;
         }
-        ConversationNode node = node(conversation, conversation.start());
-        QuestTargetContext targetContext = entityContext(target);
-        if (node == null || !conditionsPass(playerRef.getUuid(), conversation, node.conditions(), targetContext)) {
+        QuestTargetContext targetContext = entityContext(target, npc);
+        ConversationNode node = openingNode(playerRef.getUuid(), conversation, targetContext);
+        if (node == null) {
             return false;
         }
-        sessions.put(playerRef.getUuid(), new ConversationSession(playerRef.getUuid(), conversation.packageId() + ":" + conversation.id(), node.id(), targetContext));
-        enterNode(playerRef.getUuid(), conversation, node, targetContext);
-        openPage(event.getPlayerRef(), event.getPlayerRef().getStore(), event.getPlayer(), playerRef);
+        long token = startSession(playerRef.getUuid(), conversation, node, targetContext);
+        openPage(event.getPlayerRef(), event.getPlayerRef().getStore(), event.getPlayer(), playerRef, token);
         return true;
     }
 
@@ -199,18 +238,18 @@ public final class ConversationService {
         if (sessions.containsKey(playerRef.getUuid())) {
             return true;
         }
-        ConversationDefinition conversation = findConversation(target);
+        GenerationNpc npc = identify(targetRef);
+        ConversationDefinition conversation = findConversation(target, npc);
         if (conversation == null) {
             return false;
         }
-        ConversationNode node = node(conversation, conversation.start());
-        QuestTargetContext targetContext = entityContext(target);
-        if (node == null || !conditionsPass(playerRef.getUuid(), conversation, node.conditions(), targetContext)) {
+        QuestTargetContext targetContext = entityContext(target, npc);
+        ConversationNode node = openingNode(playerRef.getUuid(), conversation, targetContext);
+        if (node == null) {
             return false;
         }
-        sessions.put(playerRef.getUuid(), new ConversationSession(playerRef.getUuid(), conversation.packageId() + ":" + conversation.id(), node.id(), targetContext));
-        enterNode(playerRef.getUuid(), conversation, node, targetContext);
-        openPage(event.getPlayerRef(), event.getPlayerRef().getStore(), event.getPlayer(), playerRef);
+        long token = startSession(playerRef.getUuid(), conversation, node, targetContext);
+        openPage(event.getPlayerRef(), event.getPlayerRef().getStore(), event.getPlayer(), playerRef, token);
         return true;
     }
 
@@ -225,9 +264,9 @@ public final class ConversationService {
         if (conversation == null) {
             return false;
         }
-        ConversationNode node = node(conversation, conversation.start());
         QuestTargetContext targetContext = hyCitizenContext(citizen);
-        if (node == null || !conditionsPass(playerRef.getUuid(), conversation, node.conditions(), targetContext)) {
+        ConversationNode node = openingNode(playerRef.getUuid(), conversation, targetContext);
+        if (node == null) {
             return false;
         }
         Ref<EntityStore> playerEntity = playerRef.getReference();
@@ -240,13 +279,8 @@ public final class ConversationService {
             if (player == null) {
                 return;
             }
-            sessions.put(playerRef.getUuid(), new ConversationSession(
-                    playerRef.getUuid(),
-                    conversation.packageId() + ":" + conversation.id(),
-                    node.id(),
-                    targetContext));
-            enterNode(playerRef.getUuid(), conversation, node, targetContext);
-            openPage(playerEntity, store, player, playerRef);
+            long token = startSession(playerRef.getUuid(), conversation, node, targetContext);
+            openPage(playerEntity, store, player, playerRef, token);
         };
         if (store.isInThread()) {
             action.run();
@@ -256,6 +290,15 @@ public final class ConversationService {
         return true;
     }
 
+    /**
+     * The page for an interaction the platform is about to open a custom UI for.
+     *
+     * <p>Called for the same key press that {@link #tryStart(PlayerInteractEvent)} and
+     * {@link #tryStart(PlayerMouseButtonEvent)} already see. When one of those has started the
+     * conversation, this must re-show the live session rather than start a second one — restarting
+     * would rewind the dialogue to its opening node and run that node's events a second time, which
+     * is what made conversations appear to repeat themselves.
+     */
     public CustomUIPage tryCreateInteractionPage(
             Ref<EntityStore> playerEntity,
             ComponentAccessor<EntityStore> accessor,
@@ -263,6 +306,10 @@ public final class ConversationService {
             InteractionContext interactionContext) {
         if (playerEntity == null || accessor == null || playerRef == null || interactionContext == null) {
             return null;
+        }
+        ConversationPage live = adoptSession(playerRef);
+        if (live != null) {
+            return live;
         }
         Ref<EntityStore> targetRef = interactionContext.getTargetEntity();
         if (targetRef == null || !targetRef.isValid()) {
@@ -272,20 +319,20 @@ public final class ConversationService {
         if (target == null || target instanceof Player) {
             return null;
         }
-        ConversationDefinition conversation = findConversation(target);
+        GenerationNpc npc = identify(accessor, targetRef);
+        ConversationDefinition conversation = findConversation(target, npc);
         // Appending a document this build does not ship disconnects the player, so probe builds that
         // strip UI documents simply have no conversations.
         if (conversation == null || !UiDocuments.isShipped(UiDocuments.CONVERSATION)) {
             return null;
         }
-        ConversationNode node = node(conversation, conversation.start());
-        QuestTargetContext targetContext = entityContext(target);
-        if (node == null || !conditionsPass(playerRef.getUuid(), conversation, node.conditions(), targetContext)) {
+        QuestTargetContext targetContext = entityContext(target, npc);
+        ConversationNode node = openingNode(playerRef.getUuid(), conversation, targetContext);
+        if (node == null) {
             return null;
         }
-        sessions.put(playerRef.getUuid(), new ConversationSession(playerRef.getUuid(), conversation.packageId() + ":" + conversation.id(), node.id(), targetContext));
-        enterNode(playerRef.getUuid(), conversation, node, targetContext);
-        return new ConversationPage(playerRef, playerRef.getUuid(), this);
+        long token = startSession(playerRef.getUuid(), conversation, node, targetContext);
+        return new ConversationPage(playerRef, playerRef.getUuid(), token, this);
     }
 
     public ConversationView view(UUID playerId) {
@@ -347,9 +394,25 @@ public final class ConversationService {
             end(playerId, playerEntity, store);
             return false;
         }
-        sessions.put(playerId, new ConversationSession(playerId, session.conversationId(), nextNode.id(), session.targetContext()));
+        // Advancing keeps the token: the same page is still showing this conversation.
+        sessions.put(playerId, session.atNode(nextNode.id()));
         enterNode(playerId, conversation, nextNode, session.targetContext());
         return true;
+    }
+
+    /**
+     * Drops the session belonging to a page the client has closed.
+     *
+     * <p>Without this a dismissed page left its session behind: {@code inConversation} stayed true
+     * for the rest of the login, and every later interaction with the NPC was swallowed by the
+     * already-in-a-conversation guard. Ignores a stale token so that replacing a page — which
+     * dismisses the outgoing one — cannot end the conversation the incoming page is showing.
+     */
+    public void pageDismissed(UUID playerId, long token) {
+        if (playerId == null) {
+            return;
+        }
+        sessions.computeIfPresent(playerId, (id, session) -> session.token() == token ? null : session);
     }
 
     public void end(UUID playerId, Ref<EntityStore> playerEntity, Store<EntityStore> store) {
@@ -395,11 +458,51 @@ public final class ConversationService {
         }
     }
 
-    private ConversationDefinition findConversation(Entity target) {
+    /**
+     * The conversation bound to an entity, most specific binding first.
+     *
+     * <p>A stable generation UUID names one NPC and so outranks a definition id, which names every
+     * NPC of that kind; both outrank the entity's own UUID, type, and display name, because those
+     * are the forms that break when a definition is republished.
+     */
+    private ConversationDefinition findConversation(Entity target, GenerationNpc npc) {
+        if (npc != null) {
+            ConversationDefinition byGeneration = findConversation(npc, MatchMode.GENERATION_UUID);
+            if (byGeneration != null) {
+                return byGeneration;
+            }
+            byGeneration = findConversation(npc, MatchMode.GENERATION_DEFINITION);
+            if (byGeneration != null) {
+                return byGeneration;
+            }
+        }
         return contentSupplier.get().conversations().values().stream()
                 .filter(conversation -> matches(conversation.entity(), target))
                 .findFirst()
                 .orElse(null);
+    }
+
+    private ConversationDefinition findConversation(GenerationNpc npc, MatchMode mode) {
+        return contentSupplier.get().conversations().values().stream()
+                .filter(conversation -> matchesGeneration(conversation.entity(), npc, mode))
+                .findFirst()
+                .orElse(null);
+    }
+
+    /** Chunk-local identity lookup, for the reconcile scan that already holds the chunk. */
+    private GenerationNpc identify(ArchetypeChunk<EntityStore> chunk, int index) {
+        MysticGenerationBridge bridge = generationBridge;
+        return bridge == null ? null : bridge.identify(chunk, index).orElse(null);
+    }
+
+    /** The identity of an entity the player is interacting with, or null when it is not generated. */
+    private GenerationNpc identify(Ref<EntityStore> ref) {
+        return ref == null || !ref.isValid() ? null : identify(ref.getStore(), ref);
+    }
+
+    private GenerationNpc identify(ComponentAccessor<EntityStore> accessor, Ref<EntityStore> ref) {
+        MysticGenerationBridge bridge = generationBridge;
+        return bridge == null ? null : bridge.identify(accessor, ref).orElse(null);
     }
 
     private ConversationDefinition findHyCitizenConversation(CitizenView citizen) {
@@ -452,10 +555,13 @@ public final class ConversationService {
                 if (entity == null || entity instanceof Player) {
                     continue;
                 }
+                GenerationNpc npc = identify(chunk, index);
                 ConversationEntityBinding matchedBinding = null;
                 for (ConversationDefinition conversation : conversations) {
                     ConversationEntityBinding binding = conversation.entity();
-                    if (matches(binding, entity)) {
+                    if (matches(binding, entity)
+                            || matchesGeneration(binding, npc, MatchMode.GENERATION_UUID)
+                            || matchesGeneration(binding, npc, MatchMode.GENERATION_DEFINITION)) {
                         matchedBinding = binding;
                         break;
                     }
@@ -567,6 +673,17 @@ public final class ConversationService {
         return typeMatches || nameMatches;
     }
 
+    private boolean matchesGeneration(ConversationEntityBinding binding, GenerationNpc npc, MatchMode mode) {
+        if (binding == null || npc == null) {
+            return false;
+        }
+        return switch (mode) {
+            case GENERATION_UUID -> equalsIgnoreCase(binding.generationUuid(), npc.uuid().toString());
+            case GENERATION_DEFINITION -> equalsIgnoreCase(binding.generationDefinition(), npc.definitionId());
+            default -> false;
+        };
+    }
+
     private boolean matchesHyCitizen(ConversationEntityBinding binding, CitizenView citizen, MatchMode mode) {
         if (binding == null || citizen == null) {
             return false;
@@ -576,6 +693,8 @@ public final class ConversationService {
             case HYCITIZENS_GROUP -> equalsIgnoreCase(binding.hyCitizensGroup(), citizen.group());
             case UUID -> equalsIgnoreCase(binding.uuid(), citizen.spawnedUuid());
             case NAME -> equalsIgnoreCase(binding.name(), citizen.name());
+            // A HyCitizens citizen is never a MysticGeneration NPC; the two mods spawn their own.
+            case GENERATION_UUID, GENERATION_DEFINITION -> false;
         };
     }
 
@@ -642,19 +761,58 @@ public final class ConversationService {
         return entity == null || entity.getUuid() == null ? null : entity.getUuid().toString();
     }
 
-    private void openPage(Ref<EntityStore> playerEntity, Store<EntityStore> store, Player player, PlayerRef playerRef) {
+    private void openPage(Ref<EntityStore> playerEntity, Store<EntityStore> store, Player player, PlayerRef playerRef, long token) {
         if (!UiDocuments.isShipped(UiDocuments.CONVERSATION)) {
             return;
         }
         try {
-            player.getPageManager().openCustomPage(playerEntity, store, new ConversationPage(playerRef, playerRef.getUuid(), this));
+            player.getPageManager().openCustomPage(playerEntity, store, new ConversationPage(playerRef, playerRef.getUuid(), token, this));
         } catch (RuntimeException exception) {
             logger.at(Level.WARNING).withCause(exception).log("Failed to open MysticQuests conversation page.");
         }
     }
 
+    /**
+     * Opens a session on {@code node}, runs that node's events, and returns the token identifying
+     * the page that will show it.
+     */
+    private long startSession(
+            UUID playerId,
+            ConversationDefinition conversation,
+            ConversationNode node,
+            QuestTargetContext targetContext) {
+        long token = sessionTokens.incrementAndGet();
+        sessions.put(playerId, new ConversationSession(
+                playerId,
+                conversation.packageId() + ":" + conversation.id(),
+                node.id(),
+                targetContext,
+                token));
+        enterNode(playerId, conversation, node, targetContext);
+        return token;
+    }
+
+    /**
+     * A page showing the player's existing conversation from wherever it has reached, or null when
+     * there is no session to show. Transfers ownership to the new page so that dismissing the one it
+     * replaces does not end the conversation.
+     */
+    private ConversationPage adoptSession(PlayerRef playerRef) {
+        ConversationSession session = sessions.get(playerRef.getUuid());
+        if (session == null || !UiDocuments.isShipped(UiDocuments.CONVERSATION)) {
+            return null;
+        }
+        long token = sessionTokens.incrementAndGet();
+        sessions.put(playerRef.getUuid(), session.ownedBy(token));
+        return new ConversationPage(playerRef, playerRef.getUuid(), token, this);
+    }
+
     private void enterNode(UUID playerId, ConversationDefinition conversation, ConversationNode node, QuestTargetContext targetContext) {
         questService.executeEvents(playerId, conversation.packageId(), node.events(), targetContext);
+        VoicePlayer voice = voicePlayer;
+        if (voice != null && node.voice() != null) {
+            voice.play(playerId, node.voice(), targetContext == null ? null : targetContext.entityId());
+        }
         String conversationId = conversation.packageId() + ":" + conversation.id();
         signalBus.publish(QuestSignal.simple(playerId, "dialogue", conversationId + ":" + node.id(), 1));
     }
@@ -678,6 +836,27 @@ public final class ConversationService {
         return true;
     }
 
+    /**
+     * The node {@code conversation} should open on for this player, or null when none of its entry
+     * points are available.
+     *
+     * <p>Candidates are tried in author order and the first whose conditions pass wins, so a
+     * conversation can greet a player who has finished the quest differently from one who has not
+     * started it. A conversation whose every candidate fails does not open at all — that is how a
+     * single conditioned entry point has always behaved, and content relies on it to make an NPC
+     * silent until something is true.
+     */
+    private ConversationNode openingNode(
+            UUID playerId, ConversationDefinition conversation, QuestTargetContext targetContext) {
+        for (String candidate : conversation.startCandidates()) {
+            ConversationNode node = node(conversation, candidate);
+            if (node != null && conditionsPass(playerId, conversation, node.conditions(), targetContext)) {
+                return node;
+            }
+        }
+        return null;
+    }
+
     private ConversationNode node(ConversationDefinition conversation, String nodeId) {
         if (nodeId == null || nodeId.isBlank()) {
             return null;
@@ -690,8 +869,8 @@ public final class ConversationService {
         return null;
     }
 
-    private QuestTargetContext entityContext(Entity target) {
-        return new QuestTargetContext(
+    private QuestTargetContext entityContext(Entity target, GenerationNpc npc) {
+        QuestTargetContext context = new QuestTargetContext(
                 target.getUuid() == null ? null : target.getUuid().toString(),
                 target.getClass().getSimpleName(),
                 target.getLegacyDisplayName(),
@@ -701,6 +880,9 @@ public final class ConversationService {
                 null,
                 null,
                 null);
+        return npc == null
+                ? context
+                : context.withGeneration(npc.definitionId(), npc.uuid().toString());
     }
 
     private QuestTargetContext hyCitizenContext(CitizenView citizen) {
@@ -747,11 +929,22 @@ public final class ConversationService {
     private enum MatchMode {
         HYCITIZENS_ID,
         HYCITIZENS_GROUP,
+        GENERATION_UUID,
+        GENERATION_DEFINITION,
         UUID,
         NAME
     }
 
-    private record ConversationSession(UUID playerId, String conversationId, String nodeId, QuestTargetContext targetContext) {
+    private record ConversationSession(
+            UUID playerId, String conversationId, String nodeId, QuestTargetContext targetContext, long token) {
+
+        ConversationSession atNode(String nextNodeId) {
+            return new ConversationSession(playerId, conversationId, nextNodeId, targetContext, token);
+        }
+
+        ConversationSession ownedBy(long newToken) {
+            return new ConversationSession(playerId, conversationId, nodeId, targetContext, newToken);
+        }
     }
 
     public record ConversationView(String speaker, String conversationId, String text, List<ConversationChoice> choices) {

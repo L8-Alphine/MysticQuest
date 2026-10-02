@@ -7,11 +7,13 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Collection;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 
@@ -26,7 +28,15 @@ public final class MysticPartyIntegration implements QuestPartyProvider, AutoClo
     private final Map<UUID, Set<UUID>> partyMembers = new ConcurrentHashMap<>();
     private final Map<UUID, UUID> partyByPlayer = new ConcurrentHashMap<>();
     private final Set<AutoCloseable> subscriptions = ConcurrentHashMap.newKeySet();
+    private final List<LifecycleListener> lifecycleListeners = new CopyOnWriteArrayList<>();
     private volatile QuestPartyProvider rpgProvider;
+
+    /** Party membership changes that party-owned story sessions must react to. */
+    public interface LifecycleListener {
+        void memberLeft(String partyId, UUID playerId);
+
+        void disbanded(String partyId, Set<UUID> members);
+    }
 
     public MysticPartyIntegration(HytaleLogger logger) {
         this.logger = logger;
@@ -56,6 +66,38 @@ public final class MysticPartyIntegration implements QuestPartyProvider, AutoClo
         }
         Set<UUID> members = partyMembers.get(partyId);
         return members == null || members.isEmpty() ? Set.of(actorId) : Set.copyOf(members);
+    }
+
+    /**
+     * The stable id of the player's party, which party-owned story sessions are keyed by. Only
+     * MysticGuilds supplies one: a MysticRPG provider reports members but no id, so on such a server
+     * party story sessions fall back to each player's own session.
+     */
+    public Optional<String> partyId(UUID playerId) {
+        UUID partyId = partyByPlayer.get(playerId);
+        return partyId == null ? Optional.empty() : Optional.of(partyId.toString());
+    }
+
+    /** Whether any party provider was found, so party scope can be reported as usable or not. */
+    public boolean available() {
+        return rpgProvider != null || !subscriptions.isEmpty();
+    }
+
+    /** Only MysticGuilds' lifecycle events carry a party id; party story sessions need one. */
+    public boolean supportsPartyIds() {
+        return !subscriptions.isEmpty();
+    }
+
+    /** Which providers are connected, for {@code /mq integrations}. */
+    public String providerName() {
+        if (rpgProvider != null && !subscriptions.isEmpty()) {
+            return "MysticRPG + MysticGuilds";
+        }
+        return rpgProvider != null ? "MysticRPG" : !subscriptions.isEmpty() ? "MysticGuilds" : "none";
+    }
+
+    public void addLifecycleListener(LifecycleListener listener) {
+        lifecycleListeners.add(listener);
     }
 
     private void resolveMysticRpgProvider() {
@@ -145,11 +187,28 @@ public final class MysticPartyIntegration implements QuestPartyProvider, AutoClo
             members.remove(playerId);
             if (members.isEmpty()) partyMembers.remove(partyId, members);
         }
+        if (partyId != null && playerId != null) {
+            notify(listener -> listener.memberLeft(partyId.toString(), playerId));
+        }
     }
 
     private void disband(UUID partyId) {
         Set<UUID> members = partyMembers.remove(partyId);
         if (members != null) members.forEach(playerId -> partyByPlayer.remove(playerId, partyId));
+        if (partyId != null) {
+            Set<UUID> former = members == null ? Set.of() : Set.copyOf(members);
+            notify(listener -> listener.disbanded(partyId.toString(), former));
+        }
+    }
+
+    private void notify(Consumer<LifecycleListener> event) {
+        for (LifecycleListener listener : lifecycleListeners) {
+            try {
+                event.accept(listener);
+            } catch (RuntimeException exception) {
+                logger.at(Level.WARNING).withCause(exception).log("A party lifecycle listener failed.");
+            }
+        }
     }
 
     @Override
@@ -162,6 +221,7 @@ public final class MysticPartyIntegration implements QuestPartyProvider, AutoClo
             }
         }
         subscriptions.clear();
+        lifecycleListeners.clear();
         partyMembers.clear();
         partyByPlayer.clear();
     }

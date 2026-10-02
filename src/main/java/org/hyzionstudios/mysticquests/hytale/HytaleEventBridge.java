@@ -1,6 +1,8 @@
 package org.hyzionstudios.mysticquests.hytale;
 
 import org.hyzionstudios.mysticquests.MysticQuestsRuntime;
+import org.hyzionstudios.mysticquests.integration.MysticGenerationBridge;
+import org.hyzionstudios.mysticquests.integration.MysticGenerationBridge.GenerationNpc;
 import org.hyzionstudios.mysticquests.service.QuestSignal;
 import org.hyzionstudios.mysticquests.service.QuestSignalBus;
 import org.hyzionstudios.mysticquests.service.ConversationService;
@@ -10,6 +12,8 @@ import org.hyzionstudios.mysticquests.service.QuestTargetContext;
 import org.hyzionstudios.mysticquests.ui.QuestHudService;
 
 import com.hypixel.hytale.builtin.triggervolumes.effect.TriggerEventType;
+import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.builtin.triggervolumes.event.TriggerVolumeEvent;
 import com.hypixel.hytale.server.core.event.events.player.PlayerCraftEvent;
 import com.hypixel.hytale.server.core.event.events.player.PlayerDisconnectEvent;
@@ -30,6 +34,7 @@ public final class HytaleEventBridge {
     private final ConversationService conversationService;
     private final QuestHudService hudService;
     private final PlayerSessionService sessionService;
+    private final MysticGenerationBridge generationBridge;
 
     public HytaleEventBridge(
             MysticQuestsRuntime runtime,
@@ -38,7 +43,8 @@ public final class HytaleEventBridge {
             PlayerQuestService questService,
             ConversationService conversationService,
             QuestHudService hudService,
-            PlayerSessionService sessionService) {
+            PlayerSessionService sessionService,
+            MysticGenerationBridge generationBridge) {
         this.runtime = runtime;
         this.plugin = plugin;
         this.signalBus = signalBus;
@@ -46,6 +52,7 @@ public final class HytaleEventBridge {
         this.conversationService = conversationService;
         this.hudService = hudService;
         this.sessionService = sessionService;
+        this.generationBridge = generationBridge;
     }
 
     public void register() {
@@ -62,6 +69,11 @@ public final class HytaleEventBridge {
         sessionService.register(event.getPlayerRef(), event.getPlayer());
         runtime.registerOnlinePlayer(event.getPlayer().getPlayerRef());
         conversationService.registerPlayer(event.getPlayer().getUuid(), event.getPlayerRef());
+        if (runtime.narrative() != null) {
+            // Restores the player's story sessions before anything can fire against them, and pays
+            // out puzzle rewards that could not land while they were away.
+            runtime.narrative().onJoin(event.getPlayer().getUuid());
+        }
         questService.startJoinQuests(event.getPlayer().getUuid());
         // Never reconcile() here: a HUD append on the ready tick is what disconnects the client with
         // "Could not find document …". reconcileAfterJoin holds it until the client has settled.
@@ -98,7 +110,14 @@ public final class HytaleEventBridge {
             if (entityTarget == null || entityTarget.isBlank()) {
                 entityTarget = event.getTargetEntity().getUuid().toString();
             }
-            signalBus.publish(QuestSignal.targeted(playerId, "interactEntity", entityTarget, 1, entityContext(event)));
+            GenerationNpc npc = identify(event);
+            QuestTargetContext context = entityContext(event, npc);
+            signalBus.publish(QuestSignal.targeted(playerId, "interactEntity", entityTarget, 1, context));
+            if (npc != null) {
+                // A second, separate signal rather than a different target on the first: existing
+                // interactEntity content keyed on display name must keep working unchanged.
+                signalBus.publish(QuestSignal.targeted(playerId, "interactNpc", npc.definitionId(), 1, context));
+            }
         }
         if (event.getTargetBlock() != null) {
             signalBus.publish(QuestSignal.targeted(playerId, "interactObject", event.getTargetBlock().toString(), 1, blockContext(event)));
@@ -108,6 +127,13 @@ public final class HytaleEventBridge {
     private void onTriggerVolume(TriggerVolumeEvent event) {
         UUID entityUuid = event.getEntityUuid();
         if (entityUuid == null) {
+            return;
+        }
+        // Logical activation decides first. A volume disabled for this player's session, the player
+        // or their party feeds neither puzzles nor triggerEnter/triggerExit objectives, while it keeps
+        // working for everyone else in the same place.
+        if (runtime.narrative() != null && !runtime.narrative().onTrigger(
+                event.getWorldName(), event.getVolumeId(), event.getTriggerEventType().name(), entityUuid)) {
             return;
         }
         if (event.getTriggerEventType() == TriggerEventType.ENTER) {
@@ -123,11 +149,31 @@ public final class HytaleEventBridge {
         runtime.unregisterOnlinePlayer(playerId);
         hudService.unregisterPlayer(playerId);
         conversationService.unregisterPlayer(playerId);
+        if (runtime.narrative() != null) {
+            // Writes and unloads the player's story sessions, so a transfer to another server that
+            // shares the narrative store picks them up exactly as they were left.
+            runtime.narrative().onQuit(playerId);
+        }
+        // Persist inside the disconnect rather than waiting out the debounce window, so a player who
+        // logs off immediately after a quest step does not lose it to a server stop seconds later.
+        runtime.flushState();
     }
 
-    private QuestTargetContext entityContext(PlayerInteractEvent event) {
+    /** The MysticGeneration identity of the interacted entity, or null when it has none. */
+    private GenerationNpc identify(PlayerInteractEvent event) {
+        if (generationBridge == null) {
+            return null;
+        }
+        Ref<EntityStore> targetRef = event.getTargetRef();
+        if (targetRef == null || !targetRef.isValid()) {
+            return null;
+        }
+        return generationBridge.identify(targetRef.getStore(), targetRef).orElse(null);
+    }
+
+    private QuestTargetContext entityContext(PlayerInteractEvent event, GenerationNpc npc) {
         String id = event.getTargetEntity().getUuid() == null ? null : event.getTargetEntity().getUuid().toString();
-        return new QuestTargetContext(
+        QuestTargetContext context = new QuestTargetContext(
                 id,
                 event.getTargetEntity().getClass().getSimpleName(),
                 event.getTargetEntity().getLegacyDisplayName(),
@@ -137,6 +183,9 @@ public final class HytaleEventBridge {
                 null,
                 null,
                 null);
+        return npc == null
+                ? context
+                : context.withGeneration(npc.definitionId(), npc.uuid().toString());
     }
 
     private QuestTargetContext blockContext(PlayerInteractEvent event) {

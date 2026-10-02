@@ -52,10 +52,10 @@ without the enclosing document's imports, so they cannot resolve `$MQ.@…`. The
 
 | File | Wired from | Status |
 | --- | --- | --- |
-| `Pages/JournalPage.ui` | `MysticQuestJournalPage` | Live. `/journal` quest log: Current / Completed / Abandoned tabs, clickable rows, Track and Abandon on Current. |
+| `Pages/JournalPage.ui` | `MysticQuestJournalPage` | Live. `/journal` quest log: Current / Completed / Abandoned tabs, clickable rows, Track and Abandon on Current. Objectives scroll under their step headings. |
 | `Pages/QuestMenuPage.ui` | `QuestMenuPage` | Live. `/quest` board: acceptable quests only, with an Accept action. |
 | `Pages/ConversationPage.ui` | `ConversationPage` | Live. Up to eight choices. |
-| `../Hud/MysticQuestsQuestHud.ui` | `QuestHud` | Tracked quest plus up to four objective rows. |
+| `../Hud/MysticQuestsQuestHud.ui` | `QuestHud` | Tracked quest: whole-quest progress plus the current step's objectives, up to five rows. |
 | `Pages/QuestCompletePage.ui` | — | **Design shell only, not wired.** No Java surface opens it. |
 | `Pages/ObjectiveToast.ui` | — | **Design shell only, not wired.** Progress feedback currently goes through `QuestNotificationService`. |
 | `Pages/AdminPanelPage.ui` | — | **Design shell only, not wired.** Admin operations are command-driven via `/mquest`. |
@@ -177,3 +177,57 @@ replaces.
 
 Every objective row renders its state with a glyph (`[x]` / `[ ]`) and a numeric counter in addition
 to colour, so the surface stays readable in monochrome.
+
+`service/StageView` is the same idea one level up: a quest's objectives grouped into the steps the
+author declared, each carrying its position (`STEP 2 OF 4`) and its own progress. Surfaces read
+`JournalEntry.currentStage()` rather than deciding for themselves which objectives matter, and
+`JournalEntry.grouped()` says whether to draw step furniture at all — a quest with one unnamed step
+is simply ungrouped. [Quest Steps](content-format.md#quest-steps) documents the authoring side.
+
+## Lists that grow past their panel
+
+A quest can carry a dozen objectives, and a fixed-height list silently draws them over whatever sits
+below it — in the journal, over the Track and Abandon buttons. Scrolling containers are
+`LayoutMode: TopScrolling` with `ScrollbarStyle: $Base.@DefaultScrollbarStyle`, and they need a
+bounded height to scroll *within*: `FlexWeight: 1` inside a parent that also flexes, so the list
+takes what the fixed rows around it leave. `#ObjectiveList` needed `#QuestDetails` to flex before it
+could. `UiMarkupTest.journalObjectiveListScrolls` holds all three parts together.
+
+The HUD is not scrollable — it takes no input — so it bounds its list by showing one step at a time
+and labelling the remainder (`+ 3 MORE`) instead of truncating in silence.
+
+## Opening a page from an NPC interaction
+
+A conversation NPC does not open its page from Java. `ConversationService.reconcileInteractables`
+puts an `Interactions` component on the entity with
+`setInteractionId(InteractionType.Use, "MysticQuests_Conversation")`, and the platform resolves that
+name through **two** shipped assets:
+
+| Asset | Purpose |
+|---|---|
+| `Server/Item/RootInteractions/MysticQuests/MysticQuests_Conversation.json` | Names the interaction chain the id refers to. |
+| `Server/Item/Interactions/MysticQuests/MysticQuests_Conversation.json` | The interaction itself — what pressing F actually does. |
+
+The second file must select the page supplier registered from Java:
+
+```json
+{
+  "Type": "OpenCustomUI",
+  "Page": {
+    "Id": "MysticQuestsConversation"
+  }
+}
+```
+
+`Page.Id` matches the name passed to
+`OpenCustomUIInteraction.registerCustomPageSupplier(plugin, …, "MysticQuestsConversation", …)`.
+`Id` is the discriminator key because `Page` is a `CodecMapCodec`, whose default key is `Id`;
+`Server/Item/Interactions/Tests/OpenCustomUI.json` in the base pack is the shipped example.
+
+**This failed silently once and is worth stating plainly.** The interaction shipped as
+`{"Type": "Interrupt"}`, which is a valid interaction that does nothing. Everything downstream
+looked correct — the entity became interactable, the client drew "Press F to talk", the binding
+matched, the page supplier was registered — and pressing F simply had no effect, with nothing logged
+at either end. The interaction hint comes from the `Interactions` component and is drawn whether or
+not the interaction behind it does anything, so **a visible prompt is not evidence the interaction
+is wired**.

@@ -1,18 +1,22 @@
 {
   "Group": "org.hyzionstudios",
   "Name": "mysticquests",
-  "Version": "1.0.2",
+  "Version": "1.0.3",
   "Main": "org.hyzionstudios.mysticquests.MysticquestsPlugin",
-  "ServerVersion": ">=0.5.0 <0.6.0",
+  "ServerVersion": ">=0.6.0 <0.7.0",
   "Description": "Questing System that is Tag and Variable Driven",
   "Authors": [
     {
       "Name": "Alphine"
     }
   ],
+  "Dependencies": {
+    "Hytale:TriggerVolumes": "*"
+  },
   "OptionalDependencies": {
     "HelpChat:PlaceholderAPI": "*",
-    "TheNewEconomy:VaultUnlocked": "*"
+    "TheNewEconomy:VaultUnlocked": "*",
+    "org.hyzionstudios:mysticgeneration": "*"
   },
   "IncludesAssetPack": true
 }

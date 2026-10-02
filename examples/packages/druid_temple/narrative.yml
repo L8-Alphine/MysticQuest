@@ -1,0 +1,106 @@
+# The four-of-ten druid key hunt from the MysticQuests 2.0 specification (§10.1).
+#
+# Each player, or each party when they are in one, gets four of the ten key locations, chosen at
+# random when they first touch the puzzle and stored with their story session. The other six do
+# nothing for them. Logging out, restarting the server or transferring between servers never
+# rerolls the choice.
+#
+# World setup:
+#   * Ten trigger volumes avalon:druid_key_1 .. avalon:druid_key_10. Give each the condition
+#     mysticquests:puzzle_input_available (Puzzle hyzion:druid_temple.hidden_keys, Input key_N), so its
+#     particles and sounds play only for players whose selection includes it.
+#   * One volume avalon:temple_passage carrying the condition mysticquests:trigger_enabled, disabled
+#     for everyone once with: /mquest narrative trigger self avalon:temple_passage disable global
+#     Solving the puzzle enables it for the solver's session only, which beats the global disable.
+
+tagSchemas:
+  - id: hyzion:druid_temple.keys_complete
+    scope: quest_session
+    description: This audience has recovered all of its keys.
+
+variableSchemas:
+  - id: hyzion:druid_temple.keys_found
+    type: integer
+    scope: quest_session
+    default: 0
+
+# Story audio (§13). Both ids are vanilla assets, so the example plays on a stock server; a quest pack
+# would ship its own voice SoundEvents and MusicContainers.
+media:
+  - id: hyzion:druid_temple.reveal
+    kind: stinger
+    sound: SFX_Discovery_Z1_Short
+    subtitle: "The stones answer."
+  - id: hyzion:druid_temple.temple_theme
+    kind: music
+    music: MC_Z1_Caves
+
+# A short scene when the temple opens (§17). Skipping it (/mquest skip) or disconnecting mid-scene
+# still restores the camera, because onEnd runs however the scene ends; the stinger is cosmetic, so
+# a skip drops it.
+cutscenes:
+  - id: hyzion:druid_temple.opening
+    story: hyzion:druid_temple
+    steps:
+      - { at: 0, type: setCamera, mode: third, locked: true }
+      - { at: 0.5, type: mysticquests:media.play, media: hyzion:druid_temple.reveal, cosmetic: true }
+    onEnd:
+      - { type: setCamera, mode: first }
+
+puzzles:
+  - id: hyzion:druid_temple.hidden_keys
+    story: hyzion:druid_temple
+    audience: auto
+    # A v1 condition, run through the compatibility bridge: keys only count while the quest is active.
+    requires:
+      type: questActive
+      quest: hidden_keys
+    inputs:
+      - { id: key_1, volume: "avalon:druid_key_1" }
+      - { id: key_2, volume: "avalon:druid_key_2" }
+      - { id: key_3, volume: "avalon:druid_key_3" }
+      - { id: key_4, volume: "avalon:druid_key_4" }
+      - { id: key_5, volume: "avalon:druid_key_5" }
+      - { id: key_6, volume: "avalon:druid_key_6" }
+      - { id: key_7, volume: "avalon:druid_key_7" }
+      - { id: key_8, volume: "avalon:druid_key_8" }
+      - { id: key_9, volume: "avalon:druid_key_9" }
+      - { id: key_10, volume: "avalon:druid_key_10" }
+    selection:
+      active: 4
+    rule: all
+    onInput:
+      - type: mysticquests:variable.increment
+        variable: hyzion:druid_temple.keys_found
+      - type: actionBar
+        message: "&6A druid key hums in your hand."
+    outputs:
+      - type: mysticquests:trigger.disable
+        scope: session
+        volumes:
+          - "avalon:druid_key_1"
+          - "avalon:druid_key_2"
+          - "avalon:druid_key_3"
+          - "avalon:druid_key_4"
+          - "avalon:druid_key_5"
+          - "avalon:druid_key_6"
+          - "avalon:druid_key_7"
+          - "avalon:druid_key_8"
+          - "avalon:druid_key_9"
+          - "avalon:druid_key_10"
+      - type: mysticquests:trigger.enable
+        scope: session
+        volume: "avalon:temple_passage"
+      - type: mysticquests:tag.add
+        tag: hyzion:druid_temple.keys_complete
+      - type: sendTitle
+        stepId: reveal_title
+        title: "&6The Temple Opens"
+        subtitle: "The druids remember you."
+      # Heard and scored only by this session's audience; players beside them keep their own music.
+      - type: mysticquests:cutscene.play
+        cutscene: hyzion:druid_temple.opening
+      - type: mysticquests:music.set
+        music: hyzion:druid_temple.temple_theme
+      - type: mysticquests:signal
+        signal: hyzion:druid_temple.keys_complete

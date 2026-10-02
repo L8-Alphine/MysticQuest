@@ -20,7 +20,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -28,7 +30,7 @@ import java.util.function.Supplier;
 public final class QuestAuthoringService {
     private static final Set<String> OBJECTIVE_TYPES = Set.of(
             "kill", "gather", "craft", "triggerEnter", "triggerExit", "interactEntity",
-            "interactObject", "reachLocation", "dialogue", "timer", "custom");
+            "interactObject", "interactNpc", "reachLocation", "dialogue", "timer", "custom");
 
     private final Path packagesDirectory;
     private final ObjectMapper mapper;
@@ -161,13 +163,18 @@ public final class QuestAuthoringService {
         boolean arrayRoot = originalRoot != null && originalRoot.isArray();
         ArrayNode quests = existingQuests(originalRoot);
 
+        ObjectNode replaced = null;
         for (int index = quests.size() - 1; index >= 0; index--) {
             if (questId.equals(quests.path(index).path("id").asText())) {
-                quests.remove(index);
+                JsonNode removed = quests.remove(index);
+                if (removed != null && removed.isObject()) {
+                    replaced = (ObjectNode) removed;
+                }
             }
         }
         ObjectNode questNode = mapper.valueToTree(quest);
         questNode.remove("packageId");
+        carryForwardStages(replaced, questNode);
         quests.add(questNode);
 
         JsonNode output;
@@ -196,6 +203,46 @@ public final class QuestAuthoringService {
             }
             throw new IOException("Quest was not saved: " + validationFailure.getMessage(), validationFailure);
         }
+    }
+
+    /**
+     * Keeps the step grouping the studio form has no inputs for.
+     *
+     * <p>The form edits four objectives' id, type, title, target and amount; a quest whose steps
+     * were written in package JSON would otherwise come back from a studio save flattened, its
+     * {@code stages} list gone and every objective's {@code stage} with it. Anything the draft does
+     * set wins — this only fills in what the form could not have carried.
+     */
+    private void carryForwardStages(ObjectNode replaced, ObjectNode questNode) {
+        if (replaced == null) {
+            return;
+        }
+        JsonNode stages = replaced.get("stages");
+        if (stages != null && stages.isArray() && !stages.isEmpty() && questNode.path("stages").isEmpty()) {
+            questNode.set("stages", stages.deepCopy());
+        }
+        Map<String, String> previousStages = new HashMap<>();
+        for (JsonNode objective : replaced.path("objectives")) {
+            String stage = textOrEmpty(objective.path("stage"));
+            String objectiveId = textOrEmpty(objective.path("id"));
+            if (!stage.isEmpty() && !objectiveId.isEmpty()) {
+                previousStages.put(objectiveId, stage);
+            }
+        }
+        for (JsonNode objective : questNode.path("objectives")) {
+            if (!objective.isObject() || !textOrEmpty(objective.path("stage")).isEmpty()) {
+                continue;
+            }
+            String stage = previousStages.get(textOrEmpty(objective.path("id")));
+            if (stage != null) {
+                ((ObjectNode) objective).put("stage", stage);
+            }
+        }
+    }
+
+    /** Text value, treating a missing or null node as absent rather than as the string "null". */
+    private String textOrEmpty(JsonNode node) {
+        return node != null && node.isTextual() ? node.asText().trim() : "";
     }
 
     private QuestDefinition buildQuest(QuestDraft draft, String questId) throws IOException {

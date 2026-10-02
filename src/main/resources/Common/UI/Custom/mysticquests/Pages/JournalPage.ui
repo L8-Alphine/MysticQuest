@@ -112,6 +112,7 @@ $Base.@Container {
       }
 
       Group #QuestDetails {
+        FlexWeight: 1;
         LayoutMode: Top;
 
         Group {
@@ -137,10 +138,18 @@ $Base.@Container {
           LayoutMode: Left;
           Label { Text: "OBJECTIVES"; Style: (...$MQ.@SectionTitleStyle, FontSize: 13); }
           Group { FlexWeight: 1; }
+          Label #ObjectiveSummary { Text: ""; Style: (...$MQ.@ProgressStyle, FontSize: 12); Anchor: (Right: 10); }
           Label { Text: "LIVE PROGRESS"; Style: (...$MQ.@SmallBoldStyle, FontSize: 9, TextColor: $MQ.@AccentBlue); }
         }
 
-        Group #ObjectiveList { LayoutMode: Top; }
+        // Quests run to a dozen objectives and more, so the list scrolls inside the panel rather
+        // than running past the Track and Abandon buttons below it.
+        Group #ObjectiveList {
+          FlexWeight: 1;
+          LayoutMode: TopScrolling;
+          ScrollbarStyle: $Base.@DefaultScrollbarStyle;
+          Padding: (Right: 4, Bottom: 4);
+        }
 
         Group {
           LayoutMode: Left;

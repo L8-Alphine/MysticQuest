@@ -50,7 +50,8 @@ exact objective progress, tracking, abandonment overrides, player tags, and play
 - `autoStart`: optional string. Use `"playerJoin"` as an alternative to `startOnJoin`.
 - `startTriggers`: optional string array. Include `"playerJoin"` to auto-start on join.
 - `startConditions`: typed condition array.
-- `objectives`: typed objective array.
+- `stages`: optional step list. See [Quest Steps](#quest-steps).
+- `objectives`: typed objective array. Each may name a `stage`.
 - `startEvents`: events run when the quest starts.
 - `completeEvents`: events run when all objectives complete.
 - `rewards`: completion reward events.
@@ -138,11 +139,17 @@ inventory is full.
 { "type": "giveItem", "item": "hytale:wooden_sword", "amount": 1 }
 ```
 
-`runCommand` dispatches as **the player**, so the server re-checks their permissions. Content files
-therefore cannot escalate past what the player could type themselves. Offline players are skipped.
+`runCommand` defaults to **the player**, so the server re-checks their permissions and skips offline
+players. Set `executeAs` to `console` only for trusted content that intentionally needs unrestricted
+server permissions. Commands resolve PlaceholderAPI placeholders first and MysticQuests placeholders
+second.
 
 ```json
 { "type": "runCommand", "command": "spawn" }
+```
+
+```json
+{ "type": "runCommand", "command": "give %player% hytale:gold_coin 5", "executeAs": "console" }
 ```
 
 ## Unsupported Types
@@ -154,11 +161,34 @@ silently vanishes.
 | Type | Kind | Reason |
 | --- | --- | --- |
 | `level` | condition | No level provider is integrated; gate on a variable or tag instead. |
-| `playerHidden` | condition | Use a `playerHiders` rule; visibility is pairwise rather than a player-only boolean. |
-| `custom` | condition and event | No custom provider is registered. |
-| `runForAll` | event | Use a real-time schedule for online-player fan-out. |
+| `custom` | condition and event | Register the type through `MysticQuestsRegistry` and use its id instead. |
+| `runForAll` | event | Multi-player fan-out is not implemented; use `party` or target `players`. |
 | `runIndependent` | event | Detached execution is not implemented. |
-| `hidePlayer`, `showPlayer` | event | Player visibility control is not implemented. |
+| `packetEffect` | event | Never did anything; use `sendTitle`, `actionBar`, or `setCamera`. |
+
+## Visibility
+
+`hidePlayer`, `showPlayer`, `hideEntity`, and `showEntity` events, the `playerHidden` and
+`entityHidden` conditions, and condition-driven `playerHiders` rules are all supported. Visibility is
+always pairwise — hidden *from* a particular viewer, never a global flag on the player.
+
+Three details are worth knowing when authoring:
+
+- **Hides stack by source.** An explicit `hidePlayer` event and a `playerHiders` rule can both hold
+  the same pair hidden, and the subject stays hidden until both let go. A rule that stops matching
+  therefore cannot cancel a hide a quest event applied on purpose.
+- **Nameplates follow the entity.** A hidden player's nameplate is suppressed along with their body,
+  including plates written by MysticNameTags, which uses the engine's own nameplate component.
+- **MysticVanish keeps priority.** Both mods hide players through the same shared engine set, so
+  MysticQuests never lifts a hide it did not place, and never lifts one while MysticVanish still
+  wants that player hidden. Set `integrations.mysticVanish` to `false` to opt out.
+
+A viewer who has the "show entity markers" client setting enabled is an engine-level exception: its
+hide pass returns early for them, so they keep seeing hidden players. MysticQuests logs this once per
+viewer rather than letting it read as a quest bug.
+
+Hides are scene state, not save state — everything a player had hidden is released when they
+disconnect, and every override is dropped on content reload.
 
 ## Conversations
 
@@ -203,6 +233,26 @@ Conversations are typed JSON definitions in `conversations.json`. They are UUID-
 }
 ```
 
+### Where a conversation opens
+
+`start` names the node the conversation opens on. It also accepts an **ordered list**, and the first
+candidate whose `conditions` pass is the one that opens:
+
+```json
+"start": ["after_quest", "during_quest", "hello"]
+```
+
+This is how an NPC greets a player differently once something has changed — quest taken, quest
+finished, tag set. With a single entry point, conditions on it could only refuse to open the
+conversation at all, so the NPC opened on the same line forever.
+
+Order is author order: put the narrowest condition first and an unconditional node last, or the
+fallback wins before the specific cases are reached. A conversation whose every candidate fails does
+not open at all — still the way to keep an NPC silent until something is true. Every candidate must
+name a real node; a typo is a load error rather than an NPC that goes quiet months later.
+
+`"start": "hello"` is unchanged and still means exactly what it did.
+
 Dialogue objectives receive signals for each node as `package:conversation:node`, and for completed conversations as `package:conversation`.
 
 Conversation-bound entities are automatically given Hytale's `Interactable` component for online players on join and after `/mquest reload`, so the normal interaction prompt appears and `PlayerInteractEvent` can open the conversation. The current generic entity API exposes interactability directly; custom per-player hint text is represented in package JSON for future/native NPC prompt integrations.
@@ -230,6 +280,69 @@ Builder helpers:
 - `/mquest hycitizens list [near]`
 - `/mquest hycitizens info <id>`
 - `/mquest hycitizens bind <conversation> <id>`
+
+### MysticGeneration NPC Bindings
+
+When MysticGeneration is installed and `integrations.mysticGeneration` is enabled, conversations may
+bind to NPCs authored in its Studio. Two fields are available, checked before the native entity
+fields:
+
+- `generationUuid` — one NPC, by the stable identity MysticGeneration assigns at spawn
+- `generationDefinition` — every NPC spawned from a definition, e.g. `hyzion:avalon_guard`
+
+Prefer these over `uuid`, `type`, and `name` for generated NPCs. Publishing a definition reloads its
+role by removing and re-adding every live entity of that kind, which gives each one a new entity
+UUID; a binding written against `uuid` stops matching at that point, while the two fields above
+survive it, along with chunk unload and restarts.
+
+```json
+{
+  "entity": {
+    "generationDefinition": "hyzion:avalon_guard",
+    "interactionHint": "talk",
+    "showPrompt": true
+  }
+}
+```
+
+Interacting with a generated NPC also raises an `interactNpc` objective signal whose target is the
+definition id, alongside the usual `interactEntity` signal. An `interactNpc` objective matches either
+the definition id or one NPC's stable identity:
+
+```json
+{ "id": "greet_guard", "type": "interactNpc", "target": "hyzion:avalon_guard", "amount": 1 }
+```
+
+Quests can also spawn and remove generated NPCs. `spawnNpc` takes a definition file name from
+MysticGeneration's `definitions/` directory; the definition must already be compiled, and must be
+staged or published rather than a draft. With no coordinates the NPC appears in front of the acting
+player. `variable` records the new NPC's stable identity in a player variable, which is the only way
+to address one specific NPC later when several share a definition.
+
+```json
+{ "type": "spawnNpc", "definition": "avalon_guard", "distance": 3, "variable": "escort_npc" }
+```
+
+```json
+{ "type": "despawnNpc", "target": "generation" }
+```
+
+`despawnNpc` removes the NPC and forgets any off-screen record of it, so a despawned NPC does not
+return when a player walks back into range. Its `target` accepts the selectors below; the default is
+`generation`, the NPC the trigger fired against.
+
+Two target selectors resolve MysticGeneration identities anywhere a `target` is accepted:
+
+- `generation` — the NPC the trigger fired against
+- `generation:<definition>` — every live NPC of that definition in the acting player's world
+
+These yield stable identities rather than entity UUIDs, so entity-scope tags and variables written
+against them survive a republished definition. Plain `context` still yields the live entity UUID,
+which is what visibility and targeting actions need.
+
+`generation:<definition>` only sees NPCs that are currently ticking. One that MysticGeneration has
+moved off-screen is not a target until a player brings it back into range, so use it for "every
+guard near the action" rather than as a world-wide census.
 
 ## Notifications
 
@@ -259,11 +372,63 @@ Use `sendMessage` events for colored player chat feedback. MysticQuests accepts 
 { "type": "sendMessage", "message": "&aQuest started: &#F5C842The Lost Tools" }
 ```
 
+## Quest Steps
+
+Long quests read badly as one flat list — thirteen objectives do not fit a HUD, and the four that do
+tell the player nothing about what comes after. Objectives can therefore be grouped into **steps**.
+The HUD shows the current step's objectives plus whole-quest progress; the journal shows every step
+as a heading over its objectives.
+
+```json
+{
+  "id": "new_horizons",
+  "displayName": "New Horizons",
+  "stages": [
+    { "id": "arrival", "displayName": "Speak with the Old One" },
+    { "id": "discover", "displayName": "Discover the Realm" },
+    { "id": "keepers", "displayName": "Seek the Seven Keepers" },
+    { "id": "avalon", "displayName": "The Path to Avalon" }
+  ],
+  "objectives": [
+    { "id": "old_one", "displayName": "Speak with the Old One", "type": "dialogue", "target": "hyzion:old_one", "stage": "arrival" },
+    { "id": "vote_crates", "displayName": "Visit the Vote Crates", "type": "reachLocation", "stage": "discover" },
+    { "id": "nexus_grounds", "displayName": "Discover the Nexus Portal Grounds", "type": "reachLocation" },
+    { "id": "quests_intro", "displayName": "Learn about Quests & Adventures", "type": "dialogue", "target": "hyzion:keeper_quests", "stage": "keepers" },
+    { "id": "nexus_gate", "displayName": "Enter Avalon through the Nexus Gate", "type": "triggerEnter", "target": "hyzion:nexus_gate", "stage": "avalon" }
+  ]
+}
+```
+
+The rules:
+
+- **An objective with no `stage` joins the step above it**, the way paragraphs fall under the last
+  heading. `nexus_grounds` above belongs to `discover` without repeating it. Objectives listed before
+  any stage is named form one leading group, shown as "Objectives".
+- **`stages` is optional.** Objectives may name stages the quest never declares; the steps are then
+  derived in the order they first appear, and each name is humanised from its id — `citadel_keepers`
+  shows as "Citadel Keepers". Declaring `stages` fixes the order and supplies real names.
+- **Once `stages` is declared, an objective naming a stage that is not in it fails the load**, since
+  that is a typo rather than a new step.
+- `"stages": ["arrival", "discover"]` is the short form of the same list of `{ "id": … }` objects.
+- Instruction-style packages name a step the same way: `mobkill Bandit 3 name:"Bandits" stage:hunt`.
+
+**Steps are presentation only.** They decide what the player is shown next, not what counts: an
+objective in a later step still advances when its signal arrives, and the quest completes when every
+objective is done regardless of grouping. A quest that declares no steps at all behaves exactly as it
+did before they existed.
+
+The in-game Quest Studio form has no step inputs. It preserves the steps of a quest it saves, but to
+edit them use the Package Scripts tab or the package files directly.
+
 ## Quest HUD
 
 MysticQuests shows one pinned active quest in a `CustomUIHud` while the player has active quests. If the player has not pinned a quest, the runtime picks the oldest active quest deterministically. Players can control the pin with `/mquest track <quest>` and `/mquest untrack`.
 
-Up to four objective rows are shown, each with a state glyph, the objective name, and its counter.
+The HUD shows whole-quest progress — `STEP 2 OF 4`, the step's name, `5 / 13`, and a meter — over up
+to five objective rows drawn from the **current step**: the first step with an objective still open,
+or the last step once everything is done. A step with more than five objectives says how many rows
+are hidden. A quest without steps has one implicit step, so its HUD shows the first five of its
+objectives and no step line.
 
 ## Command Surface
 
@@ -356,9 +521,11 @@ Volume scopes can omit `target` when they run from native trigger-volume objecti
 
 Convenience aliases are also accepted: `globalTag`, `entityTag`, `blockTag`, `volumeTag`, `globalVariable`, `entityVariable`, `blockVariable`, and `volumeVariable`. Player state remains authoritative in MysticQuests. When HyExtras is installed and export is enabled, player tags and variables are mirrored to HyExtras.
 
-## HyExtras Trigger Bridge
+## Trigger Volume Integration
 
-When HyExtras is installed, trigger configurations can use MysticQuests conditions and effects. MysticQuests converts HyExtras trigger context into the same target context used by quests, including player, entity, volume, and block data when HyExtras exposes it.
+Trigger configurations can use MysticQuests conditions and effects directly. MysticQuests converts
+the native trigger context into the same target context used by quests, including player, entity,
+volume, and block data.
 
 ```json
 {
@@ -378,7 +545,21 @@ When HyExtras is installed, trigger configurations can use MysticQuests conditio
 }
 ```
 
-Available HyExtras conditions are `mysticquests:has_tag` and `mysticquests:variable`. Available HyExtras effects are `mysticquests:add_tag`, `mysticquests:remove_tag`, `mysticquests:set_variable`, `mysticquests:remove_variable`, `mysticquests:increment_variable`, and `mysticquests:event`.
+Available trigger conditions are `mysticquests:has_tag` and `mysticquests:variable`. Available effects are `mysticquests:add_tag`, `mysticquests:remove_tag`, `mysticquests:set_variable`, `mysticquests:remove_variable`, `mysticquests:increment_variable`, `mysticquests:event`, `mysticquests:action`, `mysticquests:rich_message`, and `mysticquests:run_command`.
+
+Fixed-choice fields such as `Scope`, variable `Operator`, and rich-message `Audience` use editor
+dropdowns. Rich messages resolve PlaceholderAPI placeholders first, then MysticQuests script
+placeholders, and finally apply legacy `&` formatting and `&#RRGGBB` colors. Global messages resolve
+placeholders separately for each online player.
+
+```json
+{
+  "type": "mysticquests:rich_message",
+  "message": "&aWelcome %player%! You have &#F5C842%variable.coins% coins.",
+  "audience": "global",
+  "package": "tutorial"
+}
+```
 
 HyExtras volume tags remain separate from MysticQuests volume tags unless a trigger explicitly calls one of these bridge effects.
 

@@ -5,6 +5,7 @@ import org.hyzionstudios.mysticquests.model.ConversationDefinition;
 import org.hyzionstudios.mysticquests.model.EventDefinition;
 import org.hyzionstudios.mysticquests.model.ObjectiveDefinition;
 import org.hyzionstudios.mysticquests.model.QuestDefinition;
+import org.hyzionstudios.mysticquests.model.StageDefinition;
 import org.hyzionstudios.mysticquests.model.TypedConfig;
 import org.hyzionstudios.mysticquests.util.Json;
 
@@ -29,21 +30,24 @@ import java.util.function.BiConsumer;
 public final class QuestContentLoader {
     private static final Set<String> OBJECTIVE_TYPES = Set.of(
             "kill", "gather", "craft", "triggerEnter", "triggerExit", "interactEntity",
-            "interactObject", "reachLocation", "dialogue", "timer", "custom");
+            "interactObject", "interactNpc", "reachLocation", "dialogue", "timer", "custom", "signal");
+    /**
+     * Legacy aliases are rewritten onto the canonical {@code tag}/{@code variable} types by
+     * {@link ContentSchema} before validation, so they are not listed here. They stay accepted at
+     * runtime for definitions built in code.
+     */
     private static final Set<String> CONDITION_TYPES = Set.of(
-            "tag", "notTag", "globalTag", "entityTag", "blockTag",
-            "volumeTag",
+            "tag", "variable",
             "questCompleted", "questActive",
-            "variable", "globalVariable", "entityVariable", "blockVariable",
-            "volumeVariable",
             "permission", "economy", "inConversation", "inParty", "partySize",
+            "playerHidden", "entityHidden", "targetingPrevented", "nearEntity",
             "and", "or", "not", "ref");
     private static final Set<String> EVENT_TYPES = Set.of(
+            "tag", "variable",
             "giveItem", "removeItem", "runCommand", "sendMessage", "startQuest", "completeQuest",
-            "addTag", "removeTag", "setVariable", "removeVariable", "incrementVariable",
-            "globalTag", "globalVariable", "entityTag", "entityVariable", "blockTag", "blockVariable",
-            "volumeTag", "volumeVariable",
-            "modifyMoney", "packetEffect", "triggerHyExtrasEffect",
+            "modifyMoney", "triggerHyExtrasEffect",
+            "hidePlayer", "showPlayer", "hideEntity", "showEntity",
+            "preventTargeting", "allowTargeting", "setCamera", "sendTitle", "actionBar",
             "notification", "folder", "party", "if", "cancelConversation", "cancelQuest", "ref");
 
     /** Composite conditions whose children must themselves validate. */
@@ -55,14 +59,12 @@ public final class QuestContentLoader {
      */
     private static final Map<String, String> UNSUPPORTED_CONDITION_TYPES = Map.of(
             "level", "no level provider is integrated; gate on a variable or tag instead",
-            "playerHidden", "player visibility is not tracked by MysticQuests",
-            "custom", "no custom condition provider is registered");
+            "custom", "register a condition type through MysticQuestsRegistry and use its id instead");
     private static final Map<String, String> UNSUPPORTED_EVENT_TYPES = Map.of(
-            "runForAll", "multi-player fan-out is not implemented",
+            "runForAll", "multi-player fan-out is not implemented; use 'party' or target 'players'",
             "runIndependent", "detached execution is not implemented",
-            "hidePlayer", "player visibility control is not implemented",
-            "showPlayer", "player visibility control is not implemented",
-            "custom", "no custom event provider is registered");
+            "packetEffect", "never did anything; use sendTitle, actionBar, or setCamera",
+            "custom", "register an event type through MysticQuestsRegistry and use its id instead");
 
     private final ObjectMapper mapper;
     private final ObjectMapper yamlMapper;
@@ -94,6 +96,7 @@ public final class QuestContentLoader {
         Map<String, JsonNode> playerHiders = new LinkedHashMap<>();
         Map<String, JsonNode> constants = new LinkedHashMap<>();
         Map<String, PackageMetadata> metadata = new LinkedHashMap<>();
+        Map<String, JsonNode> narrativeSections = new LinkedHashMap<>();
         List<String> errors = new ArrayList<>();
 
         List<PackageRoot> packageRoots = discoverPackages(packagesPath);
@@ -136,12 +139,25 @@ public final class QuestContentLoader {
             readRawSection(merged.get("notifications"), packageRoot.id(), notifications, errors, packageRoot.directory());
             readRawSection(first(merged, "playerHiders", "player_hiders"), packageRoot.id(), playerHiders, errors, packageRoot.directory());
             readRawSection(merged.get("constants"), packageRoot.id(), constants, errors, packageRoot.directory());
+            // Narrative sections are validated by the narrative compiler, which needs every package's
+            // schemas before it can check any package's puzzles; this loader only carries them across.
+            ObjectNode narrative = mapper.createObjectNode();
+            for (String section : LoadedContent.NARRATIVE_SECTIONS) {
+                JsonNode value = merged.get(section);
+                if (value != null && !value.isNull()) {
+                    narrative.set(section, value.deepCopy());
+                }
+            }
+            if (!narrative.isEmpty()) {
+                narrativeSections.put(packageRoot.id(), narrative);
+            }
         }
 
         resolveObjectiveReferences(quests, objectives, errors);
         LoadedContent loaded = new LoadedContent(
                 packageIds, quests, conditions, events, objectives, conversations,
-                items, cancelers, schedules, functions, notifications, playerHiders, constants, metadata);
+                items, cancelers, schedules, functions, notifications, playerHiders, constants, metadata,
+                narrativeSections);
         validate(loaded, errors);
         if (!errors.isEmpty()) {
             throw new IOException("MysticQuests package validation failed:\n - " + String.join("\n - ", errors));
@@ -282,7 +298,10 @@ public final class QuestContentLoader {
         String base = extension < 0 ? name : name.substring(0, extension);
         return switch (base) {
             case "quests", "conditions", "events", "actions", "objectives", "conversations",
-                    "items", "cancelers", "cancel", "schedules", "functions", "notifications", "constants" -> base;
+                    "items", "cancelers", "cancel", "schedules", "functions", "notifications", "constants",
+                    "puzzles", "overlays", "speakers", "media", "cutscenes" -> base;
+            case "variableschemas" -> "variableSchemas";
+            case "tagschemas" -> "tagSchemas";
             default -> null;
         };
     }
@@ -353,6 +372,7 @@ public final class QuestContentLoader {
         if (node.isTextual()) {
             definition.put("packageScoped", mapper.getNodeFactory().booleanNode(true));
         }
+        ContentSchema.canonicalize(definition, ContentSchema.Kind.CONDITION);
         return definition;
     }
 
@@ -363,6 +383,7 @@ public final class QuestContentLoader {
         if (node.isTextual()) {
             definition.put("packageScoped", mapper.getNodeFactory().booleanNode(true));
         }
+        ContentSchema.canonicalize(definition, ContentSchema.Kind.EVENT);
         return definition;
     }
 
@@ -387,6 +408,9 @@ public final class QuestContentLoader {
             ObjectNode copy = ((ObjectNode) node).deepCopy();
             copy.putIfAbsent("id", mapper.getNodeFactory().textNode(id));
             normalizeReferenceArrays(copy);
+            // A quest's inline event and condition lists never pass through parseEvent/parseCondition,
+            // so they are rewritten here before Jackson binds them.
+            ContentSchema.canonicalizeTree(copy, ContentSchema.Kind.EVENT);
             QuestDefinition quest = mapper.convertValue(copy, QuestDefinition.class);
             quest.setPackageId(packageId);
             putUnique(packageId + ":" + quest.id(), quest, target, errors, source);
@@ -404,6 +428,7 @@ public final class QuestContentLoader {
             }
             ObjectNode copy = ((ObjectNode) node).deepCopy();
             copy.putIfAbsent("id", mapper.getNodeFactory().textNode(id));
+            ContentSchema.canonicalizeTree(copy, ContentSchema.Kind.EVENT);
             ConversationDefinition conversation = mapper.convertValue(copy, ConversationDefinition.class);
             conversation.setPackageId(packageId);
             putUnique(packageId + ":" + conversation.id(), conversation, target, errors, source);
@@ -453,6 +478,22 @@ public final class QuestContentLoader {
                 }
                 quest.set(field, normalized);
             }
+        }
+        // "stages": ["discover", "keepers"] is the short form of the same list of {"id": …} objects,
+        // for authors who only need the order and are happy with names derived from the ids.
+        JsonNode stageValues = quest.get("stages");
+        if (stageValues != null && stageValues.isArray()) {
+            ArrayNode normalized = mapper.createArrayNode();
+            for (JsonNode value : stageValues) {
+                if (value.isTextual()) {
+                    ObjectNode stage = mapper.createObjectNode();
+                    stage.put("id", value.asText());
+                    normalized.add(stage);
+                } else {
+                    normalized.add(value);
+                }
+            }
+            quest.set("stages", normalized);
         }
         JsonNode objectiveValues = quest.get("objectives");
         if (objectiveValues != null && objectiveValues.isArray()) {
@@ -606,6 +647,7 @@ public final class QuestContentLoader {
             validateTypedList(entry.getKey(), "complete event", quest.completeEvents(), EVENT_TYPES, errors);
             validateTypedList(entry.getKey(), "reward", quest.rewards(), EVENT_TYPES, errors);
             validateTypedList(entry.getKey(), "reaccept condition", quest.reacceptConditions(), CONDITION_TYPES, errors);
+            validateStages(entry.getKey(), quest, errors);
             validateObjectives(entry.getKey(), quest.objectives(), errors);
             if (quest.objectives().isEmpty()) {
                 errors.add(entry.getKey() + " must declare at least one objective");
@@ -712,9 +754,12 @@ public final class QuestContentLoader {
                 validateTypedList(conversationId + "/" + node.id(), "choice event", choice.events(), EVENT_TYPES, errors);
             }
         }
-        String start = conversation.start();
-        if (start != null && !nodeIds.contains(start)) {
-            errors.add(conversationId + " start node does not exist: " + start);
+        // Every candidate, not just the first: a typo in a later entry point would otherwise surface
+        // only as an NPC that silently declines to talk, once the earlier ones stop passing.
+        for (String start : conversation.startCandidates()) {
+            if (start != null && !nodeIds.contains(start)) {
+                errors.add(conversationId + " start node does not exist: " + start);
+            }
         }
         for (var node : conversation.nodes()) {
             for (var choice : node.choices()) {
@@ -722,6 +767,33 @@ public final class QuestContentLoader {
                 if (next != null && !next.isBlank() && !nodeIds.contains(next) && !next.equalsIgnoreCase("end")) {
                     errors.add(conversationId + "/" + node.id() + " choice points to missing node " + next);
                 }
+            }
+        }
+    }
+
+    /**
+     * Steps are optional, and objectives may name a stage no {@code stages} entry describes — that
+     * is the whole point of deriving steps from the objectives. Once a quest does declare stages
+     * though, an objective naming one that is not in the list is a typo, and a typo would silently
+     * split the quest into an extra step nobody wrote.
+     */
+    private void validateStages(String questId, QuestDefinition quest, List<String> errors) {
+        Set<String> declared = new LinkedHashSet<>();
+        for (StageDefinition stage : quest.stages()) {
+            String stageId = stage.id() == null ? "" : stage.id().trim();
+            if (stageId.isEmpty()) {
+                errors.add(questId + " contains a stage without id");
+            } else if (!declared.add(stageId)) {
+                errors.add(questId + " duplicates stage id " + stageId);
+            }
+        }
+        if (declared.isEmpty()) {
+            return;
+        }
+        for (ObjectiveDefinition objective : quest.objectives()) {
+            String stageId = objective.stage();
+            if (!stageId.isEmpty() && !declared.contains(stageId)) {
+                errors.add(questId + "/" + objective.id() + " names undeclared stage " + stageId);
             }
         }
     }
@@ -735,6 +807,9 @@ public final class QuestContentLoader {
                 errors.add(questId + " duplicates objective id " + objective.id());
             }
             validateType(questId + "/" + objective.id(), "objective", objective, OBJECTIVE_TYPES, errors);
+            if ("signal".equals(objective.type()) && objective.text("signal", objective.text("target", "")).isBlank()) {
+                errors.add(questId + "/" + objective.id() + " is a signal objective that names no \"signal\"");
+            }
         }
     }
 

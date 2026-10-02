@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -28,7 +29,15 @@ public record LoadedContent(
         Map<String, JsonNode> notifications,
         Map<String, JsonNode> playerHiders,
         Map<String, JsonNode> constants,
-        Map<String, PackageMetadata> packageMetadata) {
+        Map<String, PackageMetadata> packageMetadata,
+        Map<String, JsonNode> narrativeSections) {
+    /**
+     * Package sections compiled by the narrative runtime rather than this loader. Each value holds
+     * whichever of these the package defines, keyed by package id.
+     */
+    public static final List<String> NARRATIVE_SECTIONS = List.of(
+            "variableSchemas", "tagSchemas", "puzzles", "overlays", "speakers", "media", "cutscenes");
+
     public LoadedContent {
         packages = Collections.unmodifiableSet(new LinkedHashSet<>(packages));
         quests = Collections.unmodifiableMap(new LinkedHashMap<>(quests));
@@ -44,12 +53,13 @@ public record LoadedContent(
         playerHiders = Collections.unmodifiableMap(new LinkedHashMap<>(playerHiders));
         constants = Collections.unmodifiableMap(new LinkedHashMap<>(constants));
         packageMetadata = Collections.unmodifiableMap(new LinkedHashMap<>(packageMetadata));
+        narrativeSections = Collections.unmodifiableMap(new LinkedHashMap<>(narrativeSections));
     }
 
     public static LoadedContent empty() {
         return new LoadedContent(
                 Set.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(),
-                Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+                Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
     }
 
     public String resolveId(String packageId, String rawId) {

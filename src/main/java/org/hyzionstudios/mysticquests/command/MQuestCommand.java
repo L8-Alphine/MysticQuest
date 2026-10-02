@@ -2,12 +2,16 @@ package org.hyzionstudios.mysticquests.command;
 
 import org.hyzionstudios.mysticquests.MysticQuestsRuntime;
 import org.hyzionstudios.mysticquests.integration.HyCitizensBridge.CitizenView;
+import org.hyzionstudios.mysticquests.integration.IntegrationStatus;
 import org.hyzionstudios.mysticquests.model.EventDefinition;
 import org.hyzionstudios.mysticquests.service.QuestTargetContext;
 import org.hyzionstudios.mysticquests.service.ScopedStateService;
 import org.hyzionstudios.mysticquests.service.JournalEntry;
 import org.hyzionstudios.mysticquests.service.ObjectiveView;
 import org.hyzionstudios.mysticquests.service.QuestResult;
+import org.hyzionstudios.mysticquests.service.StageView;
+import org.hyzionstudios.mysticquests.narrative.cutscene.QuestCutsceneService;
+import org.hyzionstudios.mysticquests.service.VisibilityService;
 
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.hypixel.hytale.server.core.Message;
@@ -34,11 +38,14 @@ import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -60,6 +67,8 @@ public final class MQuestCommand extends AbstractCommand {
 
     private final MysticQuestsRuntime runtime;
     private final String defaultSubcommand;
+    private final NarrativeCommand narrative;
+    private final VisibilityCommand visibility;
 
     public MQuestCommand(MysticQuestsRuntime runtime) {
         this(runtime, "mquest", "");
@@ -68,6 +77,8 @@ public final class MQuestCommand extends AbstractCommand {
     public MQuestCommand(MysticQuestsRuntime runtime, String name, String defaultSubcommand) {
         super(name, "MysticQuests administration and journal commands");
         this.runtime = runtime;
+        this.narrative = new NarrativeCommand(runtime);
+        this.visibility = new VisibilityCommand(runtime);
         this.defaultSubcommand = defaultSubcommand == null ? "" : defaultSubcommand;
         setAllowsExtraArguments(true);
         if (defaultSubcommand.isBlank()) {
@@ -99,6 +110,7 @@ public final class MQuestCommand extends AbstractCommand {
             case "track" -> completed(track(context, args));
             case "untrack" -> completed(untrack(context));
             case "abandon" -> completed(abandon(context, args));
+            case "skip" -> completed(skip(context));
             case "reaccept" -> completed(reaccept(context, args));
             case "cancel" -> completed(cancel(context, args));
             case "entity" -> entity(context, args);
@@ -107,6 +119,15 @@ public final class MQuestCommand extends AbstractCommand {
             case "volume" -> completed(volume(context, args));
             case "hycitizens" -> hyCitizens(context, args);
             case "debug" -> completed(debug(context, args));
+            case "narrative" -> {
+                narrative.execute(context, args);
+                yield CompletableFuture.completedFuture(null);
+            }
+            case "visibility" -> {
+                visibility.execute(context, args);
+                yield CompletableFuture.completedFuture(null);
+            }
+            case "integrations" -> completed(integrations(context));
             default -> completed(sendHelp(context));
         };
         runtime.plugin().getTaskRegistry().registerTask(future);
@@ -123,6 +144,7 @@ public final class MQuestCommand extends AbstractCommand {
         }
         String[] raw = input.trim().split("\\s+");
         if (raw.length > 0 && (raw[0].equalsIgnoreCase("mquest")
+                || raw[0].equalsIgnoreCase("mq")
                 || raw[0].equalsIgnoreCase("journal")
                 || raw[0].equalsIgnoreCase("quest")
                 || raw[0].equalsIgnoreCase("quests"))) {
@@ -133,7 +155,7 @@ public final class MQuestCommand extends AbstractCommand {
 
     private boolean isSubcommand(String value) {
         return switch (value.toLowerCase()) {
-            case "reload", "admin", "editor", "studio", "start", "complete", "progress", "journal", "menu", "quest", "quests", "track", "untrack", "abandon", "reaccept", "cancel", "entity", "state", "block", "volume", "hycitizens", "debug" -> true;
+            case "reload", "admin", "editor", "studio", "start", "complete", "progress", "journal", "menu", "quest", "quests", "track", "untrack", "abandon", "reaccept", "cancel", "entity", "state", "block", "volume", "hycitizens", "debug", "narrative", "visibility", "integrations" -> true;
             default -> false;
         };
     }
@@ -234,6 +256,50 @@ public final class MQuestCommand extends AbstractCommand {
         debug.withOptionalArg("target", "Debug target", suggested("target", () -> List.of("package", "quest", "player")));
         debug.withOptionalArg("id", "ID", ArgTypes.STRING);
         addSubCommand(debug);
+
+        RouteCommand narrativeRoute = route("narrative");
+        narrativeRoute.withOptionalArg("view", "Narrative view", suggested("view", () -> NarrativeCommand.SUBCOMMANDS));
+        narrativeRoute.withOptionalArg("player", "Player UUID, name, or self", suggested("player", this::playerTargets));
+        narrativeRoute.withOptionalArg("id", "Puzzle id or world:volume", suggested("id", this::narrativeIds));
+        narrativeRoute.withOptionalArg("action", "Change to make",
+                suggested("action", () -> List.of("reset", "reroll", "enable", "disable", "clear")));
+        addSubCommand(narrativeRoute);
+
+        RouteCommand visibilityRoute = route("visibility");
+        RouteCommand bypass = route("bypass");
+        bypass.withOptionalArg("state", "on or off; omit to toggle", suggested("state", () -> List.of("on", "off")));
+        visibilityRoute.addSubCommand(bypass);
+        RouteCommand visibilityStatus = route("status");
+        visibilityStatus.withOptionalArg("player", "Player UUID, name, or self", suggested("player", this::playerTargets));
+        visibilityRoute.addSubCommand(visibilityStatus);
+        addSubCommand(visibilityRoute);
+        addSubCommand(route("integrations"));
+    }
+
+    /** Capability status of every optional integration, and what degrades without it. */
+    private Void integrations(CommandContext context) {
+        if (!requireAdmin(context, "mysticquests.command.admin.debug")) {
+            return null;
+        }
+        for (IntegrationStatus.Entry entry : IntegrationStatus.collect(runtime)) {
+            String color = switch (entry.state()) {
+                case ACTIVE -> GREEN;
+                case PARTIAL -> ORANGE;
+                case DISABLED, ABSENT -> MUTED;
+            };
+            send(context, entry.name() + ": " + entry.state() + " — " + entry.detail(), color);
+        }
+        return null;
+    }
+
+    private Collection<String> narrativeIds() {
+        if (runtime.narrative() == null) {
+            return List.of();
+        }
+        LinkedHashSet<String> ids = new LinkedHashSet<>();
+        runtime.narrative().runtime().content().puzzles().keySet().forEach(id -> ids.add(id.toString()));
+        ids.addAll(runtime.narrative().runtime().content().triggerBindings().keySet());
+        return ids;
     }
 
     private RouteCommand route(String name) {
@@ -457,10 +523,18 @@ public final class MQuestCommand extends AbstractCommand {
         for (JournalEntry entry : entries) {
             context.sendMessage(Message.join(
                     Message.raw(entry.displayName()).color(GOLD),
-                    Message.raw(" (" + entry.questId() + ")").color(MUTED)));
-            for (ObjectiveView objective : entry.objectives()) {
-                context.sendMessage(Message.join(
-                        Message.raw(" - " + objective.line()).color(objective.complete() ? GREEN : MUTED)));
+                    Message.raw(" (" + entry.questId() + ") " + entry.progressSummary()).color(MUTED)));
+            for (StageView stage : entry.stages()) {
+                if (entry.grouped()) {
+                    context.sendMessage(Message.join(
+                            Message.raw(" " + stage.stepLabel() + ": " + stage.displayName())
+                                    .color(stage.complete() ? GREEN : GOLD),
+                            Message.raw(" " + stage.progressLabel()).color(MUTED)));
+                }
+                for (ObjectiveView objective : stage.objectives()) {
+                    context.sendMessage(Message.join(
+                            Message.raw(" - " + objective.line()).color(objective.complete() ? GREEN : MUTED)));
+                }
             }
         }
     }
@@ -479,6 +553,33 @@ public final class MQuestCommand extends AbstractCommand {
         }
         QuestResult result = runtime.questService().trackQuest(context.sender().getUuid(), args[1]);
         result(context, result);
+        return null;
+    }
+
+    /** Skips the story cutscene the player is watching, when the scene allows it (§17.1). */
+    private Void skip(CommandContext context) {
+        if (!requirePermission(context, "mysticquests.command.journal")) {
+            return null;
+        }
+        if (!context.isPlayer()) {
+            warn(context, "Only players can skip a cutscene.");
+            return null;
+        }
+        if (runtime.narrative() == null) {
+            warn(context, "No cutscene is playing.");
+            return null;
+        }
+        UUID playerId = context.sender().getUuid();
+        // Finishing a scene runs its required steps, which may touch the player: do it on their world thread.
+        runtime.sessionService().runOnWorld(playerId, (entity, store) -> {
+            QuestCutsceneService.Outcome outcome = runtime.narrative().runtime().cutscenes().skip(playerId, false);
+            switch (outcome) {
+                case SKIPPED, FINISHED -> info(context, "Cutscene skipped.");
+                case NOT_SKIPPABLE -> warn(context, "This cutscene cannot be skipped.");
+                case PENDING -> warn(context, "The cutscene is finishing; try again in a moment.");
+                default -> warn(context, "No cutscene is playing.");
+            }
+        });
         return null;
     }
 
@@ -583,9 +684,49 @@ public final class MQuestCommand extends AbstractCommand {
                 }
                 info(context, "Active journal entries: " + runtime.questService().journal(playerId).size());
             }
-            default -> warn(context, "Unknown debug target.");
+            default -> {
+                UUID playerId = playerId(context, args[1]);
+                if (playerId != null) {
+                    debugPlayer(context, playerId, args.length >= 3 && args[2].equalsIgnoreCase("export"));
+                }
+            }
         }
         return null;
+    }
+
+    /**
+     * {@code /mq debug <player> [export]} (§21): the player's v1 quests and every narrative fact held
+     * about them, read without changing anything. {@code export} also writes the snapshot to
+     * {@code debug/} in the data directory, for attaching to a bug report.
+     */
+    private void debugPlayer(CommandContext context, UUID playerId, boolean export) {
+        Map<String, List<String>> snapshot = new LinkedHashMap<>();
+        snapshot.put("Quests (v1)", runtime.questService().journal(playerId).stream()
+                .map(entry -> entry.questId() + "  " + entry.displayName()).toList());
+        if (runtime.narrative() != null) {
+            snapshot.putAll(runtime.narrative().runtime().debug().snapshot(playerId));
+        }
+        info(context, "Debug snapshot for " + playerId + " (visibility reasons: /mq visibility status <player>)");
+        snapshot.forEach((section, lines) -> {
+            context.sendMessage(Message.raw(section + (lines.isEmpty() ? ": none" : ":")).color(GOLD));
+            lines.forEach(line -> context.sendMessage(Message.raw("  " + line).color(MUTED)));
+        });
+        if (!export) {
+            return;
+        }
+        try {
+            Path directory = runtime.dataDirectory().resolve("debug");
+            Files.createDirectories(directory);
+            Path file = directory.resolve(playerId + "-" + System.currentTimeMillis() + ".json");
+            Map<String, Object> document = new LinkedHashMap<>();
+            document.put("player", playerId.toString());
+            document.put("takenAt", Instant.now().toString());
+            document.put("sections", snapshot);
+            runtime.mapper().writerWithDefaultPrettyPrinter().writeValue(file.toFile(), document);
+            info(context, "Exported to " + runtime.dataDirectory().relativize(file));
+        } catch (IOException failure) {
+            error(context, "Export failed: " + failure.getMessage());
+        }
     }
 
     private UUID playerId(CommandContext context, String token) {
@@ -611,11 +752,17 @@ public final class MQuestCommand extends AbstractCommand {
                 Message.raw(" — quest log: current, completed, and abandoned quests").color(TEXT)));
         context.sendMessage(Message.join(
                 Message.raw("/mquest ").color(GOLD),
-                Message.raw("track, untrack, abandon, progress").color(TEXT)));
+                Message.raw("track, untrack, abandon, progress, skip (a story cutscene)").color(TEXT)));
         if (context.sender().hasPermission("mysticquests.admin")) {
             context.sendMessage(Message.join(
                     Message.raw("Admin: ").color(ORANGE),
-                    Message.raw("admin/editor, reload, start, complete, reaccept, entity, state, block, volume, hycitizens, debug").color(MUTED)));
+                    Message.raw("admin/editor, reload, start, complete, reaccept, entity, state, block, volume, hycitizens, debug, narrative, integrations").color(MUTED)));
+        }
+        if (context.sender().hasPermission(VisibilityService.BYPASS_PERMISSION)
+                || context.sender().hasPermission(VisibilityService.BYPASS_ALWAYS_PERMISSION)) {
+            context.sendMessage(Message.join(
+                    Message.raw("/mq visibility ").color(GOLD),
+                    Message.raw("bypass [on|off], status [player]").color(MUTED)));
         }
         return null;
     }

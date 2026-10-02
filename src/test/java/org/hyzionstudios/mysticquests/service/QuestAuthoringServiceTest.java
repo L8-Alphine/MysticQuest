@@ -63,6 +63,64 @@ class QuestAuthoringServiceTest {
         assertEquals("Introduction", loaded.get().quests().get("story:intro").displayName());
     }
 
+    /**
+     * The studio form has no stage inputs. Saving a quest through it must not flatten steps that
+     * were authored in the package file — losing them would silently rewrite what the HUD shows.
+     */
+    @Test
+    void publishingFromTheStudioKeepsStepsTheFormCannotEdit() throws IOException {
+        Path packages = Files.createDirectories(temp.resolve("packages"));
+        var mapper = Json.createMapper();
+        var loaded = new AtomicReference<>(LoadedContent.empty());
+        QuestContentLoader loader = new QuestContentLoader(mapper);
+        QuestAuthoringService service = new QuestAuthoringService(
+                packages, mapper, loaded::get, () -> {
+                    LoadedContent next = loader.load(packages);
+                    loaded.set(next);
+                    return next;
+                });
+
+        Files.createDirectories(packages.resolve("story"));
+        Files.writeString(packages.resolve("story/quests.json"), """
+                {
+                  "quests": [
+                    {
+                      "id": "intro",
+                      "displayName": "Introduction",
+                      "stages": [
+                        { "id": "discover", "displayName": "Discover Hyzion" },
+                        { "id": "keepers", "displayName": "Seek the Keepers" }
+                      ],
+                      "objectives": [
+                        { "id": "talk", "type": "dialogue", "target": "guide", "stage": "discover" },
+                        { "id": "seek", "type": "dialogue", "target": "keeper", "stage": "keepers" }
+                      ]
+                    }
+                  ]
+                }
+                """);
+        loaded.set(loader.load(packages));
+
+        service.save(new QuestAuthoringService.QuestDraft(
+                "story",
+                "intro",
+                "Introduction Rewritten",
+                "",
+                false,
+                "",
+                java.util.List.of(
+                        new QuestAuthoringService.ObjectiveDraft("talk", "dialogue", "Talk", "guide", 1),
+                        new QuestAuthoringService.ObjectiveDraft("seek", "dialogue", "Seek", "keeper", 1)),
+                "", "", "", "", "", ""));
+
+        var quest = loaded.get().quests().get("story:intro");
+        assertEquals("Introduction Rewritten", quest.displayName());
+        assertEquals(2, quest.stages().size());
+        assertEquals("Discover Hyzion", quest.stages().getFirst().displayName());
+        assertEquals("discover", quest.objectives().getFirst().stage());
+        assertEquals("keepers", quest.objectives().get(1).stage());
+    }
+
     @Test
     void sourceEditorRejectsTraversal() {
         QuestAuthoringService service = new QuestAuthoringService(

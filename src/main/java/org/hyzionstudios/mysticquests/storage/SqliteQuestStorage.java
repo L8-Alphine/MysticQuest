@@ -3,6 +3,10 @@ package org.hyzionstudios.mysticquests.storage;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import org.hyzionstudios.mysticquests.state.StateKey;
+import org.hyzionstudios.mysticquests.state.StateScope;
+import org.hyzionstudios.mysticquests.state.StateSnapshot;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -13,11 +17,19 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 public final class SqliteQuestStorage implements QuestStorage {
+    /** Bumped whenever the on-disk layout changes; see {@code migrateSchema}. */
+    private static final int SCHEMA_VERSION = 2;
+
     private final Connection connection;
     private final ObjectMapper mapper;
 
@@ -133,7 +145,12 @@ public final class SqliteQuestStorage implements QuestStorage {
                     )
                     """);
             statement.executeUpdate("""
-                    CREATE TABLE IF NOT EXISTS scoped_tags (
+                    CREATE TABLE IF NOT EXISTS mq_schema_version (
+                        version INTEGER NOT NULL
+                    )
+                    """);
+            statement.executeUpdate("""
+                    CREATE TABLE IF NOT EXISTS mq_state_tags (
                         scope TEXT NOT NULL,
                         owner_id TEXT NOT NULL,
                         tag TEXT NOT NULL,
@@ -141,7 +158,7 @@ public final class SqliteQuestStorage implements QuestStorage {
                     )
                     """);
             statement.executeUpdate("""
-                    CREATE TABLE IF NOT EXISTS scoped_variables (
+                    CREATE TABLE IF NOT EXISTS mq_state_variables (
                         scope TEXT NOT NULL,
                         owner_id TEXT NOT NULL,
                         name TEXT NOT NULL,
@@ -150,7 +167,7 @@ public final class SqliteQuestStorage implements QuestStorage {
                     )
                     """);
             statement.executeUpdate("""
-                    CREATE TABLE IF NOT EXISTS scoped_metadata (
+                    CREATE TABLE IF NOT EXISTS mq_state_metadata (
                         scope TEXT NOT NULL,
                         owner_id TEXT NOT NULL,
                         name TEXT NOT NULL,
@@ -158,43 +175,156 @@ public final class SqliteQuestStorage implements QuestStorage {
                         PRIMARY KEY (scope, owner_id, name)
                     )
                     """);
+            // Delta writes always address a single owner, so every state query filters on
+            // (scope, owner_id). Without these the writer degrades to a table scan per flush.
+            statement.executeUpdate("CREATE INDEX IF NOT EXISTS mq_state_tags_owner ON mq_state_tags(scope, owner_id)");
+            statement.executeUpdate("CREATE INDEX IF NOT EXISTS mq_state_variables_owner ON mq_state_variables(scope, owner_id)");
+            statement.executeUpdate("CREATE INDEX IF NOT EXISTS mq_state_metadata_owner ON mq_state_metadata(scope, owner_id)");
         }
+        migrateSchema();
     }
 
-    @Override
-    public synchronized ScopedStateData loadScopedState() throws IOException {
-        try {
-            ScopedStateData data = new ScopedStateData();
-            loadScopedTags(data);
-            loadScopedVariables(data);
-            loadScopedMetadata(data);
-            return data;
-        } catch (SQLException exception) {
-            throw new IOException("Failed to load MysticQuests scoped state", exception);
+    /**
+     * Brings a pre-existing database up to {@link #SCHEMA_VERSION}.
+     *
+     * <p>Version 1 kept scoped state in {@code scoped_tags}/{@code scoped_variables}/
+     * {@code scoped_metadata}, rewritten wholesale on every mutation. Version 2 moves it to the
+     * {@code mq_state_*} tables so writes can be per-owner. The legacy tables are renamed rather than
+     * dropped, so a server that needs to roll back to an older jar still has its data.
+     */
+    private void migrateSchema() throws SQLException {
+        int version = readSchemaVersion();
+        if (version >= SCHEMA_VERSION) {
+            return;
         }
-    }
-
-    @Override
-    public synchronized void saveScopedState(ScopedStateData data) throws IOException {
-        try {
+        if (version < 2 && tableExists("scoped_tags")) {
             connection.setAutoCommit(false);
             try (Statement statement = connection.createStatement()) {
-                statement.executeUpdate("DELETE FROM scoped_tags");
-                statement.executeUpdate("DELETE FROM scoped_variables");
-                statement.executeUpdate("DELETE FROM scoped_metadata");
+                statement.executeUpdate(
+                        "INSERT OR IGNORE INTO mq_state_tags(scope, owner_id, tag) "
+                                + "SELECT scope, owner_id, tag FROM scoped_tags");
+                statement.executeUpdate(
+                        "INSERT OR IGNORE INTO mq_state_variables(scope, owner_id, name, value) "
+                                + "SELECT scope, owner_id, name, value FROM scoped_variables");
+                statement.executeUpdate(
+                        "INSERT OR IGNORE INTO mq_state_metadata(scope, owner_id, name, value) "
+                                + "SELECT scope, owner_id, name, value FROM scoped_metadata");
+                statement.executeUpdate("ALTER TABLE scoped_tags RENAME TO scoped_tags_legacy");
+                statement.executeUpdate("ALTER TABLE scoped_variables RENAME TO scoped_variables_legacy");
+                statement.executeUpdate("ALTER TABLE scoped_metadata RENAME TO scoped_metadata_legacy");
+                connection.commit();
+            } catch (SQLException exception) {
+                connection.rollback();
+                throw exception;
+            } finally {
+                connection.setAutoCommit(true);
             }
-            saveScopedEntries("player", data.player());
-            saveScopedEntries("global", data.global());
-            saveScopedEntries("entity", data.entity());
-            saveScopedEntries("block", data.block());
-            saveScopedEntries("volume", data.volume());
+        }
+        writeSchemaVersion();
+    }
+
+    private int readSchemaVersion() throws SQLException {
+        try (Statement statement = connection.createStatement();
+             ResultSet rows = statement.executeQuery("SELECT version FROM mq_schema_version LIMIT 1")) {
+            return rows.next() ? rows.getInt("version") : 0;
+        }
+    }
+
+    private void writeSchemaVersion() throws SQLException {
+        try (Statement statement = connection.createStatement()) {
+            statement.executeUpdate("DELETE FROM mq_schema_version");
+            statement.executeUpdate("INSERT INTO mq_schema_version(version) VALUES (" + SCHEMA_VERSION + ")");
+        }
+    }
+
+    private boolean tableExists(String name) throws SQLException {
+        try (PreparedStatement statement =
+                     connection.prepareStatement("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")) {
+            statement.setString(1, name);
+            try (ResultSet rows = statement.executeQuery()) {
+                return rows.next();
+            }
+        }
+    }
+
+    @Override
+    public synchronized List<StateSnapshot> loadState() throws IOException {
+        try {
+            Map<StateKey, MutableState> accumulated = new LinkedHashMap<>();
+            readState("SELECT scope, owner_id, tag FROM mq_state_tags", rows ->
+                    state(accumulated, rows).tags.add(rows.getString("tag")));
+            readState("SELECT scope, owner_id, name, value FROM mq_state_variables", rows ->
+                    state(accumulated, rows).variables.put(rows.getString("name"), rows.getString("value")));
+            readState("SELECT scope, owner_id, name, value FROM mq_state_metadata", rows ->
+                    state(accumulated, rows).metadata.put(rows.getString("name"), rows.getString("value")));
+
+            List<StateSnapshot> snapshots = new ArrayList<>(accumulated.size());
+            accumulated.forEach((key, state) -> snapshots.add(
+                    new StateSnapshot(key, Set.copyOf(state.tags), Map.copyOf(state.variables), Map.copyOf(state.metadata))));
+            return snapshots;
+        } catch (SQLException exception) {
+            throw new IOException("Failed to load MysticQuests state", exception);
+        }
+    }
+
+    /**
+     * Rewrites only the owners handed in. Each owner's rows are deleted and reinserted inside one
+     * transaction, which keeps an owner atomically consistent while leaving every other owner on the
+     * server untouched.
+     */
+    @Override
+    public synchronized void writeState(Collection<StateSnapshot> snapshots) throws IOException {
+        if (snapshots.isEmpty()) {
+            return;
+        }
+        try {
+            connection.setAutoCommit(false);
+            try (PreparedStatement deleteTags = connection.prepareStatement(
+                         "DELETE FROM mq_state_tags WHERE scope = ? AND owner_id = ?");
+                 PreparedStatement deleteVariables = connection.prepareStatement(
+                         "DELETE FROM mq_state_variables WHERE scope = ? AND owner_id = ?");
+                 PreparedStatement deleteMetadata = connection.prepareStatement(
+                         "DELETE FROM mq_state_metadata WHERE scope = ? AND owner_id = ?");
+                 PreparedStatement insertTag = connection.prepareStatement(
+                         "INSERT OR REPLACE INTO mq_state_tags(scope, owner_id, tag) VALUES (?, ?, ?)");
+                 PreparedStatement insertVariable = connection.prepareStatement(
+                         "INSERT OR REPLACE INTO mq_state_variables(scope, owner_id, name, value) VALUES (?, ?, ?, ?)");
+                 PreparedStatement insertMetadata = connection.prepareStatement(
+                         "INSERT OR REPLACE INTO mq_state_metadata(scope, owner_id, name, value) VALUES (?, ?, ?, ?)")) {
+
+                for (StateSnapshot snapshot : snapshots) {
+                    String scope = snapshot.scope().id();
+                    String owner = snapshot.owner();
+                    bindOwner(deleteTags, scope, owner);
+                    bindOwner(deleteVariables, scope, owner);
+                    bindOwner(deleteMetadata, scope, owner);
+                    if (snapshot.isEmpty()) {
+                        continue;
+                    }
+                    for (String tag : snapshot.tags()) {
+                        insertTag.setString(1, scope);
+                        insertTag.setString(2, owner);
+                        insertTag.setString(3, tag);
+                        insertTag.addBatch();
+                    }
+                    bindNamedValues(insertVariable, scope, owner, snapshot.variables());
+                    bindNamedValues(insertMetadata, scope, owner, snapshot.metadata());
+                }
+
+                deleteTags.executeBatch();
+                deleteVariables.executeBatch();
+                deleteMetadata.executeBatch();
+                insertTag.executeBatch();
+                insertVariable.executeBatch();
+                insertMetadata.executeBatch();
+            }
             connection.commit();
         } catch (Exception exception) {
             try {
                 connection.rollback();
             } catch (SQLException ignored) {
             }
-            throw new IOException("Failed to save MysticQuests scoped state", exception);
+            throw new IOException("Failed to save MysticQuests state", exception);
         } finally {
             try {
                 connection.setAutoCommit(true);
@@ -203,71 +333,60 @@ public final class SqliteQuestStorage implements QuestStorage {
         }
     }
 
-    private void loadScopedTags(ScopedStateData data) throws SQLException {
-        try (PreparedStatement statement = connection.prepareStatement("SELECT scope, owner_id, tag FROM scoped_tags");
+    private static void bindOwner(PreparedStatement statement, String scope, String owner) throws SQLException {
+        statement.setString(1, scope);
+        statement.setString(2, owner);
+        statement.addBatch();
+    }
+
+    private static void bindNamedValues(
+            PreparedStatement statement,
+            String scope,
+            String owner,
+            Map<String, String> values) throws SQLException {
+        for (Map.Entry<String, String> value : values.entrySet()) {
+            statement.setString(1, scope);
+            statement.setString(2, owner);
+            statement.setString(3, value.getKey());
+            statement.setString(4, value.getValue());
+            statement.addBatch();
+        }
+    }
+
+    private void readState(String sql, StateRowReader reader) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(sql);
              ResultSet rows = statement.executeQuery()) {
             while (rows.next()) {
-                scopedEntry(data, rows.getString("scope"), rows.getString("owner_id")).tags().add(rows.getString("tag"));
+                reader.read(rows);
             }
         }
     }
 
-    private void loadScopedVariables(ScopedStateData data) throws SQLException {
-        try (PreparedStatement statement = connection.prepareStatement("SELECT scope, owner_id, name, value FROM scoped_variables");
-             ResultSet rows = statement.executeQuery()) {
-            while (rows.next()) {
-                scopedEntry(data, rows.getString("scope"), rows.getString("owner_id"))
-                        .variables()
-                        .put(rows.getString("name"), rows.getString("value"));
-            }
+    /**
+     * Rows for an unknown scope are skipped rather than failing the load, so a database written by a
+     * newer build that adds a scope still opens on an older jar.
+     */
+    private MutableState state(Map<StateKey, MutableState> accumulated, ResultSet rows) throws SQLException {
+        StateScope scope = StateScope.fromId(rows.getString("scope"));
+        if (scope == null) {
+            return DISCARD;
         }
+        return accumulated.computeIfAbsent(
+                StateKey.of(scope, rows.getString("owner_id")), ignored -> new MutableState());
     }
 
-    private void loadScopedMetadata(ScopedStateData data) throws SQLException {
-        try (PreparedStatement statement = connection.prepareStatement("SELECT scope, owner_id, name, value FROM scoped_metadata");
-             ResultSet rows = statement.executeQuery()) {
-            while (rows.next()) {
-                scopedEntry(data, rows.getString("scope"), rows.getString("owner_id"))
-                        .metadata()
-                        .put(rows.getString("name"), rows.getString("value"));
-            }
-        }
+    @FunctionalInterface
+    private interface StateRowReader {
+        void read(ResultSet rows) throws SQLException;
     }
 
-    private ScopedStateData.ScopedEntry scopedEntry(ScopedStateData data, String scope, String ownerId) {
-        return data.entries(scope).computeIfAbsent(ownerId, ignored -> new ScopedStateData.ScopedEntry());
-    }
+    /** Sink for rows in scopes this build does not know about. */
+    private static final MutableState DISCARD = new MutableState();
 
-    private void saveScopedEntries(String scope, Map<String, ScopedStateData.ScopedEntry> entries) throws SQLException {
-        try (PreparedStatement tagStatement = connection.prepareStatement("INSERT INTO scoped_tags(scope, owner_id, tag) VALUES (?, ?, ?)");
-             PreparedStatement variableStatement = connection.prepareStatement("INSERT INTO scoped_variables(scope, owner_id, name, value) VALUES (?, ?, ?, ?)");
-             PreparedStatement metadataStatement = connection.prepareStatement("INSERT INTO scoped_metadata(scope, owner_id, name, value) VALUES (?, ?, ?, ?)")) {
-            for (Map.Entry<String, ScopedStateData.ScopedEntry> entry : entries.entrySet()) {
-                for (String tag : entry.getValue().tags()) {
-                    tagStatement.setString(1, scope);
-                    tagStatement.setString(2, entry.getKey());
-                    tagStatement.setString(3, tag);
-                    tagStatement.addBatch();
-                }
-                for (Map.Entry<String, String> variable : entry.getValue().variables().entrySet()) {
-                    variableStatement.setString(1, scope);
-                    variableStatement.setString(2, entry.getKey());
-                    variableStatement.setString(3, variable.getKey());
-                    variableStatement.setString(4, variable.getValue());
-                    variableStatement.addBatch();
-                }
-                for (Map.Entry<String, String> metadata : entry.getValue().metadata().entrySet()) {
-                    metadataStatement.setString(1, scope);
-                    metadataStatement.setString(2, entry.getKey());
-                    metadataStatement.setString(3, metadata.getKey());
-                    metadataStatement.setString(4, metadata.getValue());
-                    metadataStatement.addBatch();
-                }
-            }
-            tagStatement.executeBatch();
-            variableStatement.executeBatch();
-            metadataStatement.executeBatch();
-        }
+    private static final class MutableState {
+        private final Set<String> tags = new LinkedHashSet<>();
+        private final Map<String, String> variables = new LinkedHashMap<>();
+        private final Map<String, String> metadata = new LinkedHashMap<>();
     }
 
     private void loadPlayerState(PlayerQuestData data) throws SQLException {

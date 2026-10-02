@@ -9,6 +9,8 @@ public final class ConversationNode {
     private List<ConditionDefinition> conditions = new ArrayList<>();
     private List<ConversationChoice> choices = new ArrayList<>();
     private List<EventDefinition> events = new ArrayList<>();
+    /** Optional narrative voice line played when the node is entered, e.g. {@code hyzion:old_man.warning_001}. */
+    private String voice;
 
     public String id() {
         return id;
@@ -40,6 +42,14 @@ public final class ConversationNode {
 
     public void setChoices(List<ConversationChoice> choices) {
         this.choices = choices == null ? new ArrayList<>() : choices;
+    }
+
+    public String voice() {
+        return voice == null || voice.isBlank() ? null : voice.trim();
+    }
+
+    public void setVoice(String voice) {
+        this.voice = voice;
     }
 
     public List<EventDefinition> events() {

@@ -28,12 +28,27 @@ public final class ConversationPage extends InteractiveCustomUIPage<Conversation
             .build();
 
     private final UUID playerId;
+    private final long sessionToken;
     private final ConversationService conversationService;
 
-    public ConversationPage(PlayerRef playerRef, UUID playerId, ConversationService conversationService) {
+    public ConversationPage(PlayerRef playerRef, UUID playerId, long sessionToken, ConversationService conversationService) {
         super(playerRef, CustomPageLifetime.CanDismissOrCloseThroughInteraction, EVENT_CODEC);
         this.playerId = playerId;
+        this.sessionToken = sessionToken;
         this.conversationService = conversationService;
+    }
+
+    /**
+     * Ends the conversation when the player closes the page.
+     *
+     * <p>This lifetime lets the client dismiss the page on its own, and the server hears about it
+     * only here. Leaving the session behind would keep the player permanently "in a conversation":
+     * the next interaction with the NPC is swallowed by the already-talking guard, and the dialogue
+     * would resume — or restart — instead of opening fresh.
+     */
+    @Override
+    public void onDismiss(Ref<EntityStore> playerEntity, Store<EntityStore> store) {
+        conversationService.pageDismissed(playerId, sessionToken);
     }
 
     @Override

@@ -2,6 +2,7 @@ package org.hyzionstudios.mysticquests.integration;
 
 import org.hyzionstudios.mysticquests.service.PlayerQuestService;
 
+import at.helpch.placeholderapi.PlaceholderAPI;
 import at.helpch.placeholderapi.expansion.PlaceholderExpansion;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 
@@ -25,6 +26,10 @@ final class PlaceholderExpansionFactory {
                 expansion.unregister();
             }
         };
+    }
+
+    static String resolve(PlayerRef playerRef, String text) {
+        return PlaceholderAPI.setPlaceholders(playerRef, text);
     }
 
     private static final class MysticQuestsExpansion extends PlaceholderExpansion {

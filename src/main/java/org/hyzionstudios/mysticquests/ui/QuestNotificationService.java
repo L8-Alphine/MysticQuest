@@ -84,6 +84,6 @@ public final class QuestNotificationService implements PlayerInventoryService.Qu
             return null;
         }
         int quantity = Math.max(1, event.integer("quantity", 1));
-        return new ItemWithAllMetadata(itemId, quantity, 0.0D, 0.0D, false, event.text("metadata", null));
+        return new ItemWithAllMetadata(itemId, quantity, 0.0D, 0.0D, 0, false, event.text("metadata", null));
     }
 }
