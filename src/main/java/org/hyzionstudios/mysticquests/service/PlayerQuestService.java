@@ -46,6 +46,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.function.ToIntFunction;
 import java.util.logging.Level;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -99,6 +100,7 @@ public final class PlayerQuestService {
     private final Map<UUID, PlayerQuestData> cache = new ConcurrentHashMap<>();
     private final Set<UUID> migratedPlayers = ConcurrentHashMap.newKeySet();
     private final List<Consumer<UUID>> changeListeners = new CopyOnWriteArrayList<>();
+    private volatile NarrativeScripts narrativeScripts;
 
     /**
      * Set once the conversation service exists. Kept as indirection because ConversationService
@@ -141,6 +143,15 @@ public final class PlayerQuestService {
     }
 
     /** Wires the conversation-dependent condition and event handlers once ConversationService exists. */
+    /**
+     * Connects the {@code narrative} event and condition to the 2.0 runtime. Deliberately absent from
+     * {@link #BUILT_IN_EVENT_TYPES} and {@link #BUILT_IN_CONDITION_TYPES}: narrative content reaching
+     * back into v1 must not be able to call narrative script again.
+     */
+    public void bindNarrativeScripts(NarrativeScripts scripts) {
+        this.narrativeScripts = scripts;
+    }
+
     public void bindConversationSupport(Predicate<UUID> inConversation, Consumer<UUID> cancelConversation) {
         this.conversationStateSupplier = () -> inConversation;
         this.conversationCanceller = cancelConversation;
@@ -262,6 +273,48 @@ public final class PlayerQuestService {
             if (isComplete(quest, activeQuest)) {
                 completeQuest(data, quest, signal.targetContext());
                 changed = false;
+            }
+        }
+        if (changed) {
+            save(data);
+        }
+    }
+
+    /** Whether any of the player's active quests has a {@code gather} objective; cheap, for the inventory hook. */
+    public boolean hasGatherObjectives(UUID playerId) {
+        PlayerQuestData data = data(playerId);
+        if (data.activeQuests().isEmpty()) {
+            return false;
+        }
+        LoadedContent content = contentSupplier.get();
+        for (ActiveQuestData active : data.activeQuests().values()) {
+            QuestDefinition quest = content.quests().get(active.questId());
+            if (quest != null && GatherProgress.has(quest)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Brings every active {@code gather} objective in line with what the player holds, completing
+     * quests whose objectives are then all done. See {@link GatherProgress}.
+     *
+     * @param held how many of an item id the player is holding right now
+     */
+    public void syncHeldItems(UUID playerId, ToIntFunction<String> held) {
+        PlayerQuestData data = data(playerId);
+        LoadedContent content = contentSupplier.get();
+        boolean changed = false;
+        for (ActiveQuestData active : new ArrayList<>(data.activeQuests().values())) {
+            QuestDefinition quest = content.quests().get(active.questId());
+            if (quest == null || !GatherProgress.sync(quest, active, held)) {
+                continue;
+            }
+            if (isComplete(quest, active)) {
+                completeQuest(data, quest);
+            } else {
+                changed = true;
             }
         }
         if (changed) {
@@ -877,6 +930,14 @@ public final class PlayerQuestService {
                 case "preventTargeting" -> applyTargeting(data.playerId(), event, targetContext, true);
                 case "allowTargeting" -> applyTargeting(data.playerId(), event, targetContext, false);
                 case "setCamera" -> applyCamera(data.playerId(), event, targetContext);
+                case NarrativeScripts.TYPE -> {
+                    NarrativeScripts scripts = narrativeScripts;
+                    if (scripts == null) {
+                        logSkipped(event.type());
+                    } else {
+                        scripts.run(data.playerId(), packageId, event, targetContext);
+                    }
+                }
                 case "sendTitle" -> applyTitle(data.playerId(), packageId, event, targetContext);
                 case "actionBar" -> applyActionBar(data.playerId(), packageId, event, targetContext);
                 default -> executeRegisteredEvent(data.playerId(), packageId, event, targetContext);
@@ -1392,6 +1453,7 @@ public final class PlayerQuestService {
                     data.playerId(),
                     condition.text("permission", condition.text("node", "")));
             case "inConversation" -> conversationStateSupplier.get().test(data.playerId());
+            case NarrativeScripts.TYPE -> narrativeScripts != null && narrativeScripts.test(data.playerId(), packageId, condition);
             case "inParty" -> partyMembers.apply(data.playerId()).size() > 1;
             case "partySize" -> compareNumber(
                     partyMembers.apply(data.playerId()).size(),

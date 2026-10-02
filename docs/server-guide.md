@@ -1,8 +1,9 @@
 # MysticQuests: Server Guide
 
 For server owners and staff: installing, upgrading to 2.0, configuring, permissions, staff tools and
-troubleshooting. Players want the [player guide](players.md); quest authors want the
-[narrative runtime guide](2.0/narrative-runtime.md) and the [content format](content-format.md).
+troubleshooting. Players want the [player guide](players.md); quest authors want
+[creating quests by hand](creating-quests.md), the [narrative runtime guide](2.0/narrative-runtime.md)
+and the [content format](content-format.md).
 
 ## Requirements
 
@@ -14,7 +15,7 @@ Optional mods. MysticQuests runs without any of them, and `/mq integrations` sho
 
 | Mod | Adds |
 |---|---|
-| MysticParty | Party stories: one shared session per party, with join, leave and disband handling. |
+| MysticRPG (party system) | Parties: shared objectives, `party` events, party conditions. 2.0 party stories also need a stable party id from it; until it supplies one they run per player (`/mq integrations` shows this). MysticGuilds parties are also recognised. |
 | MysticGeneration | Story NPCs spawned per session (`mysticquests:entity.spawn`). |
 | MysticVanish | Layered visibility: MysticQuests never reveals someone MysticVanish hides. |
 | MysticNameTags | Nameplates follow story visibility (needs NameTags' MysticQuests support). |
@@ -158,5 +159,7 @@ their own store, and 2.0 content reads it live.
 | Story music never plays | The Audio plugin is missing (logged once), or the music asset is not loaded. |
 | A player cannot see a quest NPC | It is probably a story entity owned by someone else's session; `/mq debug <player>` lists theirs. Staff can use bypass to see all. |
 | Party stories act solo | `/mq integrations`: is the party provider active and does it support party ids? |
+| A `gather` objective goes down | Expected: it counts held items, like Hytale's own gather quests, so dropping or using them lowers it until the quest completes. |
+| A `kill` objective never counts | The target must be the exact NPC role name (`/npc role` shows it), and only the killing blow counts. |
 | A player is stuck mid-story | `/mq debug <player>`, then rewind to a checkpoint or restart the story. |
 | "quarantined" in the log | See [Data and backups](#data-and-backups). |

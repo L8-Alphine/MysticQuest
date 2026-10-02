@@ -42,7 +42,7 @@ actions:
   reward: "giveItem hytale:gold_ingot 3"
 
 objectives:
-  hunt: "kill hytale:wolf 5 name:'Hunt wolves' shared:true"
+  hunt: "kill Wolf_Black 5 name:'Hunt wolves' shared:true"
 ```
 
 Single and double quotes preserve spaces. Backslash escapes include `\n`, `\r`, and `\t`. Named

@@ -38,7 +38,8 @@ Some quests run as a **story**: a version of the world that belongs to you, or t
 ## Playing with a party
 
 - When you are in a party, shared stories belong to the whole party: one set of puzzle keys, one
-  boss, one story for everyone in it.
+  boss, one story for everyone in it. (This needs the server's party system to support it; otherwise
+  each member plays their own copy.)
 - If you leave the party mid-story, you normally keep your own copy of where the party had got to
   and can carry on alone. Some servers choose to keep the story with the party instead.
 

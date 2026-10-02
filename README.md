@@ -4,7 +4,7 @@ Questing system that is tag and variable driven.
 
 A Hytale server mod built with Java.
 
-Guides: [players](docs/players.md) · [server owners and staff](docs/server-guide.md) · [quest authors](docs/2.0/narrative-runtime.md) · [content format](docs/content-format.md)
+Guides: [players](docs/players.md) · [server owners and staff](docs/server-guide.md) · [creating quests by hand](docs/creating-quests.md) · [writing 2.0 stories](docs/2.0/story-scripting.md) · [2.0 reference](docs/2.0/narrative-runtime.md) · [content format](docs/content-format.md)
 
 ## V1 Engine
 

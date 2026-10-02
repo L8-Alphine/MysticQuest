@@ -74,6 +74,17 @@ public final class MysticPartyIntegration implements QuestPartyProvider, AutoClo
      * party story sessions fall back to each player's own session.
      */
     public Optional<String> partyId(UUID playerId) {
+        QuestPartyProvider external = rpgProvider;
+        if (external != null && external != this) {
+            try {
+                Optional<String> id = external.partyId(playerId);
+                if (id != null && id.isPresent() && !id.get().isBlank()) {
+                    return id;
+                }
+            } catch (RuntimeException exception) {
+                logger.at(Level.WARNING).withCause(exception).log("MysticRPG party provider failed to report a party id.");
+            }
+        }
         UUID partyId = partyByPlayer.get(playerId);
         return partyId == null ? Optional.empty() : Optional.of(partyId.toString());
     }
@@ -83,9 +94,22 @@ public final class MysticPartyIntegration implements QuestPartyProvider, AutoClo
         return rpgProvider != null || !subscriptions.isEmpty();
     }
 
-    /** Only MysticGuilds' lifecycle events carry a party id; party story sessions need one. */
+    /**
+     * Whether party story sessions can be keyed: MysticGuilds' lifecycle events carry a party id, and
+     * a MysticRPG provider can supply one through {@link QuestPartyProvider#partyId}. A MysticRPG
+     * provider is assumed to when it overrides that method.
+     */
     public boolean supportsPartyIds() {
-        return !subscriptions.isEmpty();
+        QuestPartyProvider external = rpgProvider;
+        return !subscriptions.isEmpty() || (external != null && overridesPartyId(external));
+    }
+
+    private static boolean overridesPartyId(QuestPartyProvider provider) {
+        try {
+            return provider.getClass().getMethod("partyId", UUID.class).getDeclaringClass() != QuestPartyProvider.class;
+        } catch (NoSuchMethodException impossible) {
+            return false;
+        }
     }
 
     /** Which providers are connected, for {@code /mq integrations}. */

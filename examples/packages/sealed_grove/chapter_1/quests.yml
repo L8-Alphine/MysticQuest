@@ -1,0 +1,21 @@
+quests:
+  the_grove:
+    displayName: The Sealed Grove
+    description: Light the three runes and break the seal.
+    objectives:
+      - { id: meet, displayName: Speak with the Grove Warden, type: dialogue, target: "sealed_grove/chapter_1:warden" }
+      - { id: seal, displayName: Break the grove seal, type: signal, signal: "grove:seal_broken" }
+    startEvents:
+      # 2.0 script inside a v1 quest: switch on the story music for this player's (or party's) session
+      - type: narrative
+        story: grove:sealed_grove
+        actions:
+          - { type: mysticquests:music.set, music: grove:grove_theme }
+    completeEvents:
+      - type: narrative
+        story: grove:sealed_grove
+        actions:
+          - { type: mysticquests:music.clear }
+          - { type: mysticquests:variable.set, variable: grove:warden_trust, value: friendly }
+    rewards:
+      - { type: giveItem, item: Plant_Crop_Wheat_Item, amount: 3 }

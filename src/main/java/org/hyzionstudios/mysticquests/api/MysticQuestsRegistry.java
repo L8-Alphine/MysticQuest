@@ -37,12 +37,12 @@ public final class MysticQuestsRegistry {
             "notification", "folder", "party", "if", "cancelConversation", "cancelQuest", "ref",
             "addTag", "removeTag", "setVariable", "removeVariable", "incrementVariable",
             "hidePlayer", "showPlayer", "hideEntity", "showEntity", "spawnNpc", "despawnNpc",
-            "preventTargeting", "allowTargeting", "setCamera", "sendTitle", "actionBar");
+            "preventTargeting", "allowTargeting", "setCamera", "sendTitle", "actionBar", "narrative");
 
     private static final Set<String> RESERVED_CONDITION_TYPES = Set.of(
             "tag", "variable", "notTag", "questCompleted", "questActive", "permission", "economy",
             "inConversation", "inParty", "partySize", "and", "or", "not", "ref",
-            "playerHidden", "entityHidden", "targetingPrevented", "nearEntity");
+            "playerHidden", "entityHidden", "targetingPrevented", "nearEntity", "narrative");
 
     private final Map<String, QuestEventHandler> events = new ConcurrentHashMap<>();
     private final Map<String, QuestConditionHandler> conditions = new ConcurrentHashMap<>();

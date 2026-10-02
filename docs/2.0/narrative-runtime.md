@@ -65,6 +65,8 @@ narrative errors are logged as `SEVERE` and the narrative runtime starts empty, 
 mod's narrative types may not be registered yet. Fix the content, then run `/mquest reload`.
 
 A complete worked example is [examples/packages/druid_temple](../../examples/packages/druid_temple).
+For a tutorial, including running 2.0 script from v1 quests (the `narrative` event and condition)
+and laying out a story across nested chapter packages, see [writing 2.0 stories](story-scripting.md).
 
 ### 2.1 Identifiers
 
@@ -338,8 +340,9 @@ holds live engine handles: everything visible is rebuilt from it on join, restar
   includes the ledger, so rewards they earned in the party are not paid again. No copy is made if
   they already have their own session for that story. **Disband** forks every member and archives
   the party's sessions, so a reused party id starts fresh.
-- Party sessions need a party provider that supplies a stable id (MysticGuilds). With only MysticRPG
-  members, `auto` audiences fall back to each player's own session.
+- Party sessions need a party provider that supplies a stable id: MysticRPG's party system through
+  `QuestPartyProvider#partyId`, or MysticGuilds. Without one, `auto` audiences fall back to each
+  player's own session.
 
 ---
 

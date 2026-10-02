@@ -61,6 +61,7 @@ public final class NarrativeIntegration implements AutoCloseable {
     private final PlayerSessionService sessions;
     private final HytaleLogger logger;
     private final HytaleMedia media;
+    private final QuestScripts scripts;
 
     public NarrativeIntegration(
             Path dataDirectory,
@@ -109,6 +110,9 @@ public final class NarrativeIntegration implements AutoCloseable {
         this.media = new HytaleMedia(narrative, sessions, config.subtitles(),
                 problem -> logger.at(Level.WARNING).log(LOG_PREFIX + problem));
         narrative.media().bind(media, media, config.fallbackLocale());
+        // v1 quests and conversations run 2.0 script through the "narrative" event and condition.
+        this.scripts = new QuestScripts(narrative, problem -> logger.at(Level.WARNING).log(LOG_PREFIX + problem));
+        quests.bindNarrativeScripts(scripts);
     }
 
     public NarrativeRuntime runtime() {
@@ -128,6 +132,7 @@ public final class NarrativeIntegration implements AutoCloseable {
         DiagnosticReport report = new DiagnosticReport();
         NarrativeContent compiled = narrative.compile(content.narrativeSections(), versions, report);
         checkConversationVoices(content, compiled, report);
+        QuestScripts.validate(content, compiled, narrative::compileContext, report);
         if (report.hasErrors()) {
             throw new IOException("MysticQuests narrative validation failed:\n - "
                     + String.join("\n - ", report.errors().stream().map(Object::toString).toList()));
@@ -177,6 +182,7 @@ public final class NarrativeIntegration implements AutoCloseable {
 
     public void install(NarrativeContent compiled) {
         narrative.install(compiled);
+        scripts.clear();
         logger.at(Level.INFO).log(LOG_PREFIX + "Loaded " + compiled.puzzles().size() + " puzzles, "
                 + compiled.schemas().variables().size() + " variables, " + compiled.schemas().tags().size() + " tags.");
     }

@@ -41,14 +41,18 @@ public final class QuestContentLoader {
             "questCompleted", "questActive",
             "permission", "economy", "inConversation", "inParty", "partySize",
             "playerHidden", "entityHidden", "targetingPrevented", "nearEntity",
-            "and", "or", "not", "ref");
+            "and", "or", "not", "ref",
+            // 2.0 narrative condition trees; their contents are checked by the narrative compiler.
+            "narrative");
     private static final Set<String> EVENT_TYPES = Set.of(
             "tag", "variable",
             "giveItem", "removeItem", "runCommand", "sendMessage", "startQuest", "completeQuest",
             "modifyMoney", "triggerHyExtrasEffect",
             "hidePlayer", "showPlayer", "hideEntity", "showEntity",
             "preventTargeting", "allowTargeting", "setCamera", "sendTitle", "actionBar",
-            "notification", "folder", "party", "if", "cancelConversation", "cancelQuest", "ref");
+            "notification", "folder", "party", "if", "cancelConversation", "cancelQuest", "ref",
+            // 2.0 narrative action lists; their contents are checked by the narrative compiler.
+            "narrative");
 
     /** Composite conditions whose children must themselves validate. */
     private static final Set<String> COMPOSITE_CONDITION_TYPES = Set.of("and", "or", "not");

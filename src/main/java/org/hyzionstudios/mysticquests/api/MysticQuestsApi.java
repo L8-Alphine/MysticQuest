@@ -15,6 +15,7 @@ import org.hyzionstudios.mysticquests.state.StateKey;
 import org.hyzionstudios.mysticquests.state.StateScope;
 
 import javax.annotation.Nullable;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -86,6 +87,25 @@ public final class MysticQuestsApi {
         this.registry = registry;
         this.eventBus = eventBus;
         this.narrative = narrative;
+    }
+
+    /**
+     * For party providers whose events MysticQuests cannot subscribe to (MysticRPG): report that a
+     * player left a party, so the configured {@code partyExitPolicy} can give them their own copy of
+     * the party's active stories. {@code partyId} is the id the provider returns from
+     * {@link QuestPartyProvider#partyId}.
+     */
+    public void partyMemberLeft(String partyId, UUID player) {
+        if (narrative != null && partyId != null && player != null) {
+            narrative.onPartyMemberLeft(partyId, player);
+        }
+    }
+
+    /** Report that a party disbanded; each listed member keeps or loses its stories per the exit policy. */
+    public void partyDisbanded(String partyId, Collection<UUID> members) {
+        if (narrative != null && partyId != null && members != null) {
+            narrative.onPartyDisbanded(partyId, members);
+        }
     }
 
     /** Publishes this instance as the singleton. Called by the runtime once everything is wired. */

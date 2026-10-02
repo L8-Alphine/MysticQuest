@@ -5,6 +5,7 @@ import org.hyzionstudios.mysticquests.config.MysticQuestsConfig;
 import org.hyzionstudios.mysticquests.content.LoadedContent;
 import org.hyzionstudios.mysticquests.content.QuestContentLoader;
 import org.hyzionstudios.mysticquests.event.MysticQuestsEventBus;
+import org.hyzionstudios.mysticquests.hytale.GatherObjectiveSystem;
 import org.hyzionstudios.mysticquests.hytale.HytaleEventBridge;
 import org.hyzionstudios.mysticquests.state.EntityIndexService;
 import org.hyzionstudios.mysticquests.state.MysticStateStore;
@@ -183,6 +184,9 @@ public final class MysticQuestsRuntime implements AutoCloseable {
                     content::get, questService, sessionService, visibility, eventBus);
             // Reconcile only the player whose quest state changed, not every pair on the server.
             this.questService.addChangeListener(visibilityService::reconcilePlayer);
+            // A quest that just started counts gather items the player already holds.
+            this.questService.addChangeListener(player -> sessionService.runOnWorld(player,
+                    (entity, store) -> GatherObjectiveSystem.sync(questService, entity, store)));
             // Types were registered in setup(), before any volume could decode. This only binds the
             // services those types call into when a volume fires.
             new MysticTriggerVolumeRegistrar(plugin.getLogger()).bindServices(scopedStateService, questService);
@@ -435,6 +439,11 @@ public final class MysticQuestsRuntime implements AutoCloseable {
 
     public MysticVanishBridge vanishBridge() {
         return vanishBridge;
+    }
+
+    /** Where objective signals are published; null until the runtime has started. */
+    public QuestSignalBus signalBus() {
+        return signalBus;
     }
 
     public MysticGenerationBridge generationBridge() {

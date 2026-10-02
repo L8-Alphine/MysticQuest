@@ -1,0 +1,24 @@
+conversations:
+  warden:
+    speaker: Grove Warden
+    entity: { name: Grove Warden }
+    start: [thanks, waiting, hello]         # first node whose conditions pass opens
+    nodes:
+      - id: thanks
+        conditions:
+          # a 2.0 condition inside v1 dialogue: has this player's story broken the seal?
+          - type: narrative
+            story: grove:sealed_grove
+            condition: { type: tag, tag: grove:seal_broken }
+        text: "The grove breathes again. Thank you."
+      - id: waiting
+        conditions: [ { type: questActive, quest: the_grove } ]
+        text: "The runes still sleep. North, east and south."
+      - id: hello
+        text: "Few find this grove. Will you help me wake it?"
+        choices:
+          - text: "I will."
+            events: [ { type: startQuest, quest: the_grove } ]
+            next: end
+          - text: "Not today."
+            next: end

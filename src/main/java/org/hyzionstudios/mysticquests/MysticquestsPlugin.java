@@ -4,6 +4,8 @@ import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
 import org.hyzionstudios.mysticquests.hytale.EntityIndexSystem;
 import org.hyzionstudios.mysticquests.hytale.EntityVisibilitySystem;
+import org.hyzionstudios.mysticquests.hytale.GatherObjectiveSystem;
+import org.hyzionstudios.mysticquests.hytale.KillObjectiveSystem;
 import org.hyzionstudios.mysticquests.hytale.NameplateVisibilitySystem;
 import org.hyzionstudios.mysticquests.hytale.StoryEntitySystems;
 import org.hyzionstudios.mysticquests.narrative.entity.StoryEntityRegistry;
@@ -62,6 +64,12 @@ public class MysticquestsPlugin extends JavaPlugin {
                 new NameplateVisibilitySystem(() -> runtime == null ? null : runtime.visibility()));
         getEntityStoreRegistry().registerSystem(
                 new TargetingPreventionSystem(() -> runtime == null ? null : runtime.targeting()));
+        // Feeds kill objectives from the engine's death systems, the hook MysticRPG's xp award uses.
+        getEntityStoreRegistry().registerSystem(new KillObjectiveSystem(
+                () -> runtime == null ? null : runtime.signalBus(),
+                () -> runtime == null ? null : runtime.generationBridge()));
+        // Gather objectives count held items on every inventory change, as Hytale's own gather tasks do.
+        getEntityStoreRegistry().registerSystem(new GatherObjectiveSystem(() -> runtime == null ? null : runtime.questService()));
     }
 
     private StoryEntityRegistry storyEntities() {

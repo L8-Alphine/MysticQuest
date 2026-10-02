@@ -190,6 +190,11 @@ public final class NarrativeRuntime implements AutoCloseable {
         overlays.rebind();
     }
 
+    /** A compile context over one release's schemas, for narrative script embedded in other content. */
+    public CompileContext compileContext(NarrativeContent release, String packageId) {
+        return new CompileContext(release.schemas(), settings.scopes(), conditionTypes, actionTypes, packageId);
+    }
+
     private NarrativeContentCompiler compiler() {
         return new NarrativeContentCompiler(settings.scopes(), conditionTypes, actionTypes, settings.openNamespaces(),
                 media.catalog(), media.fallbackLocale());
