@@ -1,0 +1,34 @@
+# Chapter 1: three runes, a seal that opens only for whoever lit them, and a short scene.
+
+overlays:
+  - id: grove:seal
+    entity: "uuid:00000000-0000-4000-8000-000000000a11"   # replace with your seal entity's UUID
+    default: present                                        # blocks everyone until it opens for them
+
+cutscenes:
+  - id: grove:seal_opening
+    story: grove:sealed_grove
+    steps:
+      - { at: 0, type: setCamera, mode: third, locked: true }
+      - { at: 0.5, type: mysticquests:media.play, media: grove:seal_breaks, cosmetic: true }
+      - { at: 1, type: mysticquests:overlay.hide, overlay: grove:seal }
+    onEnd:
+      - { type: setCamera, mode: first }    # runs even if the scene is skipped
+
+puzzles:
+  - id: grove:runes
+    story: grove:sealed_grove
+    audience: auto                          # the party if in one, else the player
+    requires: { type: questActive, quest: the_grove }   # a v1 condition, checked through the bridge
+    inputs:
+      - { id: north, volume: "avalon:grove_rune_north" }
+      - { id: east, volume: "avalon:grove_rune_east" }
+      - { id: south, volume: "avalon:grove_rune_south" }
+    rule: all
+    onInput:
+      - { type: mysticquests:variable.increment, variable: grove:runes_lit }
+      - { type: actionBar, message: "&aA rune flares to life." }      # a v1 event, run through the bridge
+    outputs:
+      - { type: mysticquests:tag.add, tag: grove:seal_broken }
+      - { type: mysticquests:cutscene.play, cutscene: grove:seal_opening }
+      - { type: mysticquests:signal, signal: grove:seal_broken }    # completes the v1 "seal" objective

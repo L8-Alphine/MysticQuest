@@ -13,6 +13,7 @@ public final class QuestDefinition {
     private String autoStart;
     private List<String> startTriggers = new ArrayList<>();
     private List<ConditionDefinition> startConditions = new ArrayList<>();
+    private List<StageDefinition> stages = new ArrayList<>();
     private List<ObjectiveDefinition> objectives = new ArrayList<>();
     private List<EventDefinition> startEvents = new ArrayList<>();
     private List<EventDefinition> completeEvents = new ArrayList<>();
@@ -93,6 +94,19 @@ public final class QuestDefinition {
 
     public void setStartConditions(List<ConditionDefinition> startConditions) {
         this.startConditions = startConditions == null ? new ArrayList<>() : startConditions;
+    }
+
+    /**
+     * Optional named steps, in the order the player works through them. Objectives name one with
+     * their own {@code stage} field; see {@link StageDefinition} for what happens when they name a
+     * stage this list does not describe.
+     */
+    public List<StageDefinition> stages() {
+        return stages;
+    }
+
+    public void setStages(List<StageDefinition> stages) {
+        this.stages = stages == null ? new ArrayList<>() : stages;
     }
 
     public List<ObjectiveDefinition> objectives() {

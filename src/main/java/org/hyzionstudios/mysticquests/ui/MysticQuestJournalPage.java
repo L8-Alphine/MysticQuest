@@ -3,6 +3,7 @@ package org.hyzionstudios.mysticquests.ui;
 import org.hyzionstudios.mysticquests.service.JournalEntry;
 import org.hyzionstudios.mysticquests.service.ObjectiveView;
 import org.hyzionstudios.mysticquests.service.PlayerQuestService;
+import org.hyzionstudios.mysticquests.service.StageView;
 import org.hyzionstudios.mysticquests.storage.PlayerQuestData;
 
 import com.hypixel.hytale.codec.Codec;
@@ -114,6 +115,7 @@ public final class MysticQuestJournalPage extends InteractiveCustomUIPage<Mystic
         builder.set("#SelectedQuestName.Text", selected.displayName());
         builder.set("#SelectedQuestId.Text", selected.questId());
         builder.set("#SelectedQuestDescription.Text", selected.description());
+        builder.set("#ObjectiveSummary.Text", selected.progressLabel());
 
         appendQuestRows(builder, eventBuilder, entries);
         appendObjectiveRows(builder, selected);
@@ -186,10 +188,68 @@ public final class MysticQuestJournalPage extends InteractiveCustomUIPage<Mystic
         }
     }
 
+    /**
+     * Objectives under their step headings, or as one flat list when the quest declares no steps.
+     * Row ids stay unique across the whole list, not per step, because the page appends them all
+     * into one container.
+     */
     private void appendObjectiveRows(UICommandBuilder builder, JournalEntry entry) {
-        for (int index = 0; index < entry.objectives().size(); index++) {
-            builder.appendInline("#ObjectiveList", objectiveRow("ObjectiveRow" + index, entry.objectives().get(index)));
+        int row = 0;
+        for (StageView stage : entry.stages()) {
+            if (entry.grouped()) {
+                builder.appendInline("#ObjectiveList", stageHeader("ObjectiveStage" + stage.index(), stage));
+            }
+            for (ObjectiveView objective : stage.objectives()) {
+                builder.appendInline("#ObjectiveList", objectiveRow("ObjectiveRow" + row, objective));
+                row++;
+            }
         }
+    }
+
+    private String stageHeader(String headerId, StageView stage) {
+        boolean complete = stage.complete();
+        String accent = complete ? MysticQuestsTheme.ACCENT_GREEN : MysticQuestsTheme.ACCENT_GOLD;
+        return """
+                Group #%s {
+                  Anchor: (Height: 26, Top: 6, Bottom: 4);
+                  LayoutMode: Left;
+                  Padding: (Horizontal: 4);
+
+                  Group {
+                    Anchor: (Width: 3, Right: 8);
+                    Background: %s;
+                  }
+
+                  Label #%sStep {
+                    Text: "%s";
+                    Style: (FontSize: 9, RenderBold: true, LetterSpacing: 1, TextColor: %s);
+                    Anchor: (Width: 74, Right: 6);
+                  }
+
+                  Label #%sName {
+                    Text: "%s";
+                    Style: (FontSize: 13, RenderBold: true, TextColor: %s, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 10);
+                    FlexWeight: 1;
+                  }
+
+                  Label #%sProgress {
+                    Text: "%s";
+                    Style: (FontSize: 11, RenderBold: true, TextColor: %s);
+                    Anchor: (Width: 46, Left: 8);
+                  }
+                }
+                """.formatted(
+                headerId,
+                accent,
+                headerId,
+                uiText(stage.stepLabel()),
+                accent,
+                headerId,
+                uiText(stage.displayName()),
+                MysticQuestsTheme.TEXT_PRIMARY,
+                headerId,
+                uiText(stage.progressLabel()),
+                accent);
     }
 
     private String questRow(String rowId, boolean selected, String title, String progress) {

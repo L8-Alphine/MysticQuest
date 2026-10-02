@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 public record MysticQuestsConfig(
         StorageConfig storage,
@@ -12,15 +13,17 @@ public record MysticQuestsConfig(
         IntegrationConfig integrations,
         StateConfig state,
         UiConfig ui,
-        boolean debug) {
+        boolean debug,
+        NarrativeConfig narrative) {
     public static MysticQuestsConfig defaults() {
         return new MysticQuestsConfig(
                 new StorageConfig("sqlite", "data/players", "data/mysticquests.db"),
                 "packages",
-                new IntegrationConfig(true, true, true, true, true, true),
-                new StateConfig(true, true),
+                new IntegrationConfig(true, true, true, true, true, true, true, true),
+                new StateConfig(true, true, StateConfig.DEFAULT_SAVE_INTERVAL_MILLIS),
                 new UiConfig(true, UiConfig.DEFAULT_HUD_JOIN_DELAY_MILLIS),
-                false);
+                false,
+                NarrativeConfig.DEFAULTS);
     }
 
     public static MysticQuestsConfig load(Path dataDirectory, ObjectMapper mapper) throws IOException {
@@ -41,9 +44,52 @@ public record MysticQuestsConfig(
                 storage == null ? defaults.storage : storage.withDefaults(),
                 packagesPath == null || packagesPath.isBlank() ? defaults.packagesPath : packagesPath,
                 integrations == null ? defaults.integrations : integrations.withDefaults(),
-                state == null ? defaults.state : state,
+                state == null ? defaults.state : state.withDefaults(),
                 ui == null ? defaults.ui : ui.withDefaults(),
-                debug);
+                debug,
+                narrative == null ? defaults.narrative : narrative.withDefaults());
+    }
+
+    /**
+     * The 2.0 narrative runtime: sessions, typed state, logical trigger activation, puzzles.
+     *
+     * @param serverId this server's stable id. It owns server-scope state and global trigger
+     *         overrides, and is recorded on every session it touches. Give each server on a network
+     *         its own id, and never change it once players have state, or that state becomes
+     *         unreachable.
+     * @param dataPath where narrative documents are stored, relative to the data directory. Point
+     *         several servers at one shared location to carry sessions across server transfers.
+     * @param flushIntervalMillis how often pending narrative changes are written; quit and shutdown
+     *         always write immediately
+     * @param partyExitPolicy {@code fork} (a leaver keeps a solo copy of the party's stories) or
+     *         {@code detach} (the story stays with the party)
+     * @param openNamespaces namespaces where undeclared tags and variables are accepted, besides
+     *         {@code legacy}. Meant for migration only: in an open namespace a typo creates a new
+     *         variable instead of failing the reload.
+     */
+    public record NarrativeConfig(
+            String serverId,
+            String dataPath,
+            Integer flushIntervalMillis,
+            String partyExitPolicy,
+            List<String> openNamespaces,
+            /* Where subtitles appear: chat, title or off. */
+            String subtitles,
+            /* The locale every localised voice line must have; heard when the player's own is missing. */
+            String fallbackLocale) {
+        static final NarrativeConfig DEFAULTS =
+                new NarrativeConfig("default", "data/narrative", 1000, "fork", List.of(), "chat", "en-US");
+
+        NarrativeConfig withDefaults() {
+            return new NarrativeConfig(
+                    serverId == null || serverId.isBlank() ? DEFAULTS.serverId : serverId,
+                    dataPath == null || dataPath.isBlank() ? DEFAULTS.dataPath : dataPath,
+                    flushIntervalMillis == null || flushIntervalMillis <= 0 ? DEFAULTS.flushIntervalMillis : flushIntervalMillis,
+                    partyExitPolicy == null || partyExitPolicy.isBlank() ? DEFAULTS.partyExitPolicy : partyExitPolicy,
+                    openNamespaces == null ? DEFAULTS.openNamespaces : List.copyOf(openNamespaces),
+                    subtitles == null || subtitles.isBlank() ? DEFAULTS.subtitles : subtitles,
+                    fallbackLocale == null || fallbackLocale.isBlank() ? DEFAULTS.fallbackLocale : fallbackLocale);
+        }
     }
 
     public record StorageConfig(String type, String jsonPath, String sqlitePath) {
@@ -56,13 +102,24 @@ public record MysticQuestsConfig(
         }
     }
 
+    /**
+     * @param mysticGeneration whether quests may bind to NPCs authored in MysticGeneration's Studio.
+     *         On by default and harmless when that mod is absent — the bridge simply never binds —
+     *         so this exists to switch the integration off on a server that runs both mods but wants
+     *         them kept apart.
+     * @param mysticVanish whether quest visibility defers to MysticVanish. Both mods hide players
+     *         through the same shared engine set, so with this off MysticQuests can lift a vanish it
+     *         did not apply. On by default; turn it off only to reproduce that older behaviour.
+     */
     public record IntegrationConfig(
             boolean vaultUnlocked,
             boolean placeholderApi,
             boolean mysticNameTags,
             boolean hyExtras,
             Boolean hyCitizens,
-            Boolean hyExtrasExportPlayerState) {
+            Boolean hyExtrasExportPlayerState,
+            Boolean mysticGeneration,
+            Boolean mysticVanish) {
         IntegrationConfig withDefaults() {
             return new IntegrationConfig(
                     vaultUnlocked,
@@ -70,13 +127,33 @@ public record MysticQuestsConfig(
                     mysticNameTags,
                     hyExtras,
                     hyCitizens == null ? true : hyCitizens,
-                    hyExtrasExportPlayerState == null ? true : hyExtrasExportPlayerState);
+                    hyExtrasExportPlayerState == null ? true : hyExtrasExportPlayerState,
+                    mysticGeneration == null ? true : mysticGeneration,
+                    mysticVanish == null ? true : mysticVanish);
         }
     }
 
+    /**
+     * @param saveIntervalMillis how often pending tag and variable changes are flushed to storage.
+     *         State mutations are coalesced per owner inside this window instead of writing on every
+     *         change, so a quest that updates a counter every tick costs one write per window rather
+     *         than one per tick. Disconnect and shutdown always flush synchronously regardless, so
+     *         raising this trades crash-loss window for fewer writes, not correctness on clean stop.
+     */
     public record StateConfig(
             boolean migrateLegacyPlayerTags,
-            boolean migrateLegacyPlayerVariables) {
+            boolean migrateLegacyPlayerVariables,
+            Integer saveIntervalMillis) {
+        static final int DEFAULT_SAVE_INTERVAL_MILLIS = 1000;
+
+        StateConfig withDefaults() {
+            return new StateConfig(
+                    migrateLegacyPlayerTags,
+                    migrateLegacyPlayerVariables,
+                    saveIntervalMillis == null || saveIntervalMillis <= 0
+                            ? DEFAULT_SAVE_INTERVAL_MILLIS
+                            : saveIntervalMillis);
+        }
     }
 
     /**

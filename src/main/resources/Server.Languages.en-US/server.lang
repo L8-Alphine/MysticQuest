@@ -1,0 +1,308 @@
+# MysticQuests — English trigger-volume editor translations
+# Hytale prepends the file stem, so these keys are available as "server.<key>".
+
+# Effect and condition names
+customUI.triggerVolumeEffectEditor.effectType.mysticquests:action = Run MysticQuests Action
+customUI.triggerVolumeEffectEditor.effectType.mysticquests:add_tag = Add MysticQuests Tag
+customUI.triggerVolumeEffectEditor.effectType.mysticquests:remove_tag = Remove MysticQuests Tag
+customUI.triggerVolumeEffectEditor.effectType.mysticquests:set_variable = Set MysticQuests Variable
+customUI.triggerVolumeEffectEditor.effectType.mysticquests:remove_variable = Remove MysticQuests Variable
+customUI.triggerVolumeEffectEditor.effectType.mysticquests:increment_variable = Increment MysticQuests Variable
+customUI.triggerVolumeEffectEditor.effectType.mysticquests:event = Run MysticQuests Event
+customUI.triggerVolumeEffectEditor.effectType.mysticquests:rich_message = Send Rich Message
+customUI.triggerVolumeEffectEditor.effectType.mysticquests:run_command = Run Command
+customUI.triggerVolumeEffectEditor.conditionType.mysticquests:has_tag = MysticQuests Has Tag
+customUI.triggerVolumeEffectEditor.conditionType.mysticquests:variable = MysticQuests Variable
+
+# Shared scope fields. Each registered type needs its own keys because the editor includes the type ID.
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Scope = State Scope
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Scope.tooltip = State owner used by the action: player, global, entity, block, or volume. Most actions should use player.
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Scope.placeholder = player
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Target = Scope Target
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Target.tooltip = Optional explicit owner for the selected scope. Leave blank to use the triggering player, entity, block, or volume.
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Target.placeholder = Optional target ID
+
+customUI.triggerVolumeEffectEditor.field.mysticquests:add_tag.Scope = State Scope
+customUI.triggerVolumeEffectEditor.field.mysticquests:add_tag.Scope.tooltip = Owner of the tag: player, global, entity, block, volume, or quest.
+customUI.triggerVolumeEffectEditor.field.mysticquests:add_tag.Scope.placeholder = player
+customUI.triggerVolumeEffectEditor.field.mysticquests:add_tag.Target = Scope Target
+customUI.triggerVolumeEffectEditor.field.mysticquests:add_tag.Target.tooltip = Optional explicit owner for the selected scope. Leave blank to use the trigger context.
+customUI.triggerVolumeEffectEditor.field.mysticquests:add_tag.Target.placeholder = Optional target ID
+
+customUI.triggerVolumeEffectEditor.field.mysticquests:remove_tag.Scope = State Scope
+customUI.triggerVolumeEffectEditor.field.mysticquests:remove_tag.Scope.tooltip = Owner of the tag: player, global, entity, block, volume, or quest.
+customUI.triggerVolumeEffectEditor.field.mysticquests:remove_tag.Scope.placeholder = player
+customUI.triggerVolumeEffectEditor.field.mysticquests:remove_tag.Target = Scope Target
+customUI.triggerVolumeEffectEditor.field.mysticquests:remove_tag.Target.tooltip = Optional explicit owner for the selected scope. Leave blank to use the trigger context.
+customUI.triggerVolumeEffectEditor.field.mysticquests:remove_tag.Target.placeholder = Optional target ID
+
+customUI.triggerVolumeEffectEditor.field.mysticquests:set_variable.Scope = State Scope
+customUI.triggerVolumeEffectEditor.field.mysticquests:set_variable.Scope.tooltip = Owner of the variable: player, global, entity, block, volume, or quest.
+customUI.triggerVolumeEffectEditor.field.mysticquests:set_variable.Scope.placeholder = player
+customUI.triggerVolumeEffectEditor.field.mysticquests:set_variable.Target = Scope Target
+customUI.triggerVolumeEffectEditor.field.mysticquests:set_variable.Target.tooltip = Optional explicit owner for the selected scope. Leave blank to use the trigger context.
+customUI.triggerVolumeEffectEditor.field.mysticquests:set_variable.Target.placeholder = Optional target ID
+
+customUI.triggerVolumeEffectEditor.field.mysticquests:remove_variable.Scope = State Scope
+customUI.triggerVolumeEffectEditor.field.mysticquests:remove_variable.Scope.tooltip = Owner of the variable: player, global, entity, block, volume, or quest.
+customUI.triggerVolumeEffectEditor.field.mysticquests:remove_variable.Scope.placeholder = player
+customUI.triggerVolumeEffectEditor.field.mysticquests:remove_variable.Target = Scope Target
+customUI.triggerVolumeEffectEditor.field.mysticquests:remove_variable.Target.tooltip = Optional explicit owner for the selected scope. Leave blank to use the trigger context.
+customUI.triggerVolumeEffectEditor.field.mysticquests:remove_variable.Target.placeholder = Optional target ID
+
+customUI.triggerVolumeEffectEditor.field.mysticquests:increment_variable.Scope = State Scope
+customUI.triggerVolumeEffectEditor.field.mysticquests:increment_variable.Scope.tooltip = Owner of the variable: player, global, entity, block, volume, or quest.
+customUI.triggerVolumeEffectEditor.field.mysticquests:increment_variable.Scope.placeholder = player
+customUI.triggerVolumeEffectEditor.field.mysticquests:increment_variable.Target = Scope Target
+customUI.triggerVolumeEffectEditor.field.mysticquests:increment_variable.Target.tooltip = Optional explicit owner for the selected scope. Leave blank to use the trigger context.
+customUI.triggerVolumeEffectEditor.field.mysticquests:increment_variable.Target.placeholder = Optional target ID
+
+customUI.triggerVolumeEffectEditor.field.mysticquests:event.Scope = State Scope
+customUI.triggerVolumeEffectEditor.field.mysticquests:event.Scope.tooltip = State owner passed to the event: player, global, entity, block, volume, or quest.
+customUI.triggerVolumeEffectEditor.field.mysticquests:event.Scope.placeholder = player
+customUI.triggerVolumeEffectEditor.field.mysticquests:event.Target = Scope Target
+customUI.triggerVolumeEffectEditor.field.mysticquests:event.Target.tooltip = Optional explicit owner for the selected scope. Leave blank to use the trigger context.
+customUI.triggerVolumeEffectEditor.field.mysticquests:event.Target.placeholder = Optional target ID
+
+customUI.triggerVolumeEffectEditor.field.mysticquests:has_tag.Scope = State Scope
+customUI.triggerVolumeEffectEditor.field.mysticquests:has_tag.Scope.tooltip = Owner of the tag to test: player, global, entity, block, volume, or quest.
+customUI.triggerVolumeEffectEditor.field.mysticquests:has_tag.Scope.placeholder = player
+customUI.triggerVolumeEffectEditor.field.mysticquests:has_tag.Target = Scope Target
+customUI.triggerVolumeEffectEditor.field.mysticquests:has_tag.Target.tooltip = Optional explicit owner for the selected scope. Leave blank to use the trigger context.
+customUI.triggerVolumeEffectEditor.field.mysticquests:has_tag.Target.placeholder = Optional target ID
+
+customUI.triggerVolumeEffectEditor.field.mysticquests:variable.Scope = State Scope
+customUI.triggerVolumeEffectEditor.field.mysticquests:variable.Scope.tooltip = Owner of the variable to compare: player, global, entity, block, volume, or quest.
+customUI.triggerVolumeEffectEditor.field.mysticquests:variable.Scope.placeholder = player
+customUI.triggerVolumeEffectEditor.field.mysticquests:variable.Target = Scope Target
+customUI.triggerVolumeEffectEditor.field.mysticquests:variable.Target.tooltip = Optional explicit owner for the selected scope. Leave blank to use the trigger context.
+customUI.triggerVolumeEffectEditor.field.mysticquests:variable.Target.placeholder = Optional target ID
+
+# Dropdown labels for every state scope field
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Scope.option.player = Player
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Scope.option.global = Global
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Scope.option.entity = Entity
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Scope.option.block = Block
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Scope.option.volume = Trigger Volume
+customUI.triggerVolumeEffectEditor.field.mysticquests:add_tag.Scope.option.player = Player
+customUI.triggerVolumeEffectEditor.field.mysticquests:add_tag.Scope.option.global = Global
+customUI.triggerVolumeEffectEditor.field.mysticquests:add_tag.Scope.option.entity = Entity
+customUI.triggerVolumeEffectEditor.field.mysticquests:add_tag.Scope.option.block = Block
+customUI.triggerVolumeEffectEditor.field.mysticquests:add_tag.Scope.option.volume = Trigger Volume
+customUI.triggerVolumeEffectEditor.field.mysticquests:remove_tag.Scope.option.player = Player
+customUI.triggerVolumeEffectEditor.field.mysticquests:remove_tag.Scope.option.global = Global
+customUI.triggerVolumeEffectEditor.field.mysticquests:remove_tag.Scope.option.entity = Entity
+customUI.triggerVolumeEffectEditor.field.mysticquests:remove_tag.Scope.option.block = Block
+customUI.triggerVolumeEffectEditor.field.mysticquests:remove_tag.Scope.option.volume = Trigger Volume
+customUI.triggerVolumeEffectEditor.field.mysticquests:set_variable.Scope.option.player = Player
+customUI.triggerVolumeEffectEditor.field.mysticquests:set_variable.Scope.option.global = Global
+customUI.triggerVolumeEffectEditor.field.mysticquests:set_variable.Scope.option.entity = Entity
+customUI.triggerVolumeEffectEditor.field.mysticquests:set_variable.Scope.option.block = Block
+customUI.triggerVolumeEffectEditor.field.mysticquests:set_variable.Scope.option.volume = Trigger Volume
+customUI.triggerVolumeEffectEditor.field.mysticquests:remove_variable.Scope.option.player = Player
+customUI.triggerVolumeEffectEditor.field.mysticquests:remove_variable.Scope.option.global = Global
+customUI.triggerVolumeEffectEditor.field.mysticquests:remove_variable.Scope.option.entity = Entity
+customUI.triggerVolumeEffectEditor.field.mysticquests:remove_variable.Scope.option.block = Block
+customUI.triggerVolumeEffectEditor.field.mysticquests:remove_variable.Scope.option.volume = Trigger Volume
+customUI.triggerVolumeEffectEditor.field.mysticquests:increment_variable.Scope.option.player = Player
+customUI.triggerVolumeEffectEditor.field.mysticquests:increment_variable.Scope.option.global = Global
+customUI.triggerVolumeEffectEditor.field.mysticquests:increment_variable.Scope.option.entity = Entity
+customUI.triggerVolumeEffectEditor.field.mysticquests:increment_variable.Scope.option.block = Block
+customUI.triggerVolumeEffectEditor.field.mysticquests:increment_variable.Scope.option.volume = Trigger Volume
+customUI.triggerVolumeEffectEditor.field.mysticquests:event.Scope.option.player = Player
+customUI.triggerVolumeEffectEditor.field.mysticquests:event.Scope.option.global = Global
+customUI.triggerVolumeEffectEditor.field.mysticquests:event.Scope.option.entity = Entity
+customUI.triggerVolumeEffectEditor.field.mysticquests:event.Scope.option.block = Block
+customUI.triggerVolumeEffectEditor.field.mysticquests:event.Scope.option.volume = Trigger Volume
+customUI.triggerVolumeEffectEditor.field.mysticquests:has_tag.Scope.option.player = Player
+customUI.triggerVolumeEffectEditor.field.mysticquests:has_tag.Scope.option.global = Global
+customUI.triggerVolumeEffectEditor.field.mysticquests:has_tag.Scope.option.entity = Entity
+customUI.triggerVolumeEffectEditor.field.mysticquests:has_tag.Scope.option.block = Block
+customUI.triggerVolumeEffectEditor.field.mysticquests:has_tag.Scope.option.volume = Trigger Volume
+customUI.triggerVolumeEffectEditor.field.mysticquests:variable.Scope.option.player = Player
+customUI.triggerVolumeEffectEditor.field.mysticquests:variable.Scope.option.global = Global
+customUI.triggerVolumeEffectEditor.field.mysticquests:variable.Scope.option.entity = Entity
+customUI.triggerVolumeEffectEditor.field.mysticquests:variable.Scope.option.block = Block
+customUI.triggerVolumeEffectEditor.field.mysticquests:variable.Scope.option.volume = Trigger Volume
+
+# Generic action fields
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Action = Action Type
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Action.tooltip = MysticQuests event type to execute, such as addTag, setVariable, sendTitle, hidePlayer, or an event registered by another mod.
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Action.placeholder = e.g. sendTitle
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Viewer = Viewer Selector
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Viewer.tooltip = Optional viewer selector used by visibility actions. Leave blank to use the action's default viewer.
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Viewer.placeholder = e.g. self
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Tag = Tag Name
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Tag.tooltip = Tag supplied to tag actions. The selected scope and target determine who owns it.
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Tag.placeholder = e.g. entered_ruins
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Key = Variable Name
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Key.tooltip = Variable name supplied to variable actions.
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Key.placeholder = e.g. visits
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Value = Value
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Value.tooltip = Text value supplied to the selected action or custom event.
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Value.placeholder = e.g. true
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Amount = Amount
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Amount.tooltip = Whole-number amount supplied to actions such as incrementVariable. Defaults to 1.
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Mode = Mode
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Mode.tooltip = Optional mode supplied to actions that support modes, such as camera or packet actions.
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Mode.placeholder = Action-specific mode
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Message = Message / Title
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Message.tooltip = Main text supplied to message and title actions.
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Message.placeholder = e.g. Welcome to the ruins!
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Subtitle = Subtitle
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Subtitle.tooltip = Optional secondary text supplied to title actions.
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Subtitle.placeholder = e.g. Find the sealed gate
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Locked = Locked
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Locked.tooltip = Optional boolean supplied to actions that lock or unlock a state.
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Package = Package ID
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Package.tooltip = Package namespace used to resolve unqualified MysticQuests action references.
+customUI.triggerVolumeEffectEditor.field.mysticquests:action.Package.placeholder = e.g. tutorial
+
+# Tag effects
+customUI.triggerVolumeEffectEditor.field.mysticquests:add_tag.Tag = Tag Name
+customUI.triggerVolumeEffectEditor.field.mysticquests:add_tag.Tag.tooltip = MysticQuests tag to add to the selected state owner.
+customUI.triggerVolumeEffectEditor.field.mysticquests:add_tag.Tag.placeholder = e.g. entered_ruins
+customUI.triggerVolumeEffectEditor.field.mysticquests:remove_tag.Tag = Tag Name
+customUI.triggerVolumeEffectEditor.field.mysticquests:remove_tag.Tag.tooltip = MysticQuests tag to remove from the selected state owner.
+customUI.triggerVolumeEffectEditor.field.mysticquests:remove_tag.Tag.placeholder = e.g. entered_ruins
+
+# Variable effects
+customUI.triggerVolumeEffectEditor.field.mysticquests:set_variable.Key = Variable Name
+customUI.triggerVolumeEffectEditor.field.mysticquests:set_variable.Key.tooltip = MysticQuests variable to set for the selected state owner.
+customUI.triggerVolumeEffectEditor.field.mysticquests:set_variable.Key.placeholder = e.g. visits
+customUI.triggerVolumeEffectEditor.field.mysticquests:set_variable.Value = Value
+customUI.triggerVolumeEffectEditor.field.mysticquests:set_variable.Value.tooltip = Text value to store in the variable.
+customUI.triggerVolumeEffectEditor.field.mysticquests:set_variable.Value.placeholder = e.g. 1
+customUI.triggerVolumeEffectEditor.field.mysticquests:remove_variable.Key = Variable Name
+customUI.triggerVolumeEffectEditor.field.mysticquests:remove_variable.Key.tooltip = MysticQuests variable to delete from the selected state owner.
+customUI.triggerVolumeEffectEditor.field.mysticquests:remove_variable.Key.placeholder = e.g. visits
+customUI.triggerVolumeEffectEditor.field.mysticquests:increment_variable.Key = Variable Name
+customUI.triggerVolumeEffectEditor.field.mysticquests:increment_variable.Key.tooltip = Numeric MysticQuests variable to change. A missing variable is treated as zero.
+customUI.triggerVolumeEffectEditor.field.mysticquests:increment_variable.Key.placeholder = e.g. visits
+customUI.triggerVolumeEffectEditor.field.mysticquests:increment_variable.Amount = Amount
+customUI.triggerVolumeEffectEditor.field.mysticquests:increment_variable.Amount.tooltip = Whole number to add. Use a negative value to decrement. Defaults to 1.
+
+# Generic event effect
+customUI.triggerVolumeEffectEditor.field.mysticquests:event.Event = Event Type
+customUI.triggerVolumeEffectEditor.field.mysticquests:event.Event.tooltip = MysticQuests event type to execute, such as addTag, setVariable, sendMessage, or a registered custom event.
+customUI.triggerVolumeEffectEditor.field.mysticquests:event.Event.placeholder = e.g. addTag
+customUI.triggerVolumeEffectEditor.field.mysticquests:event.Tag = Tag Name
+customUI.triggerVolumeEffectEditor.field.mysticquests:event.Tag.tooltip = Optional tag supplied to the event.
+customUI.triggerVolumeEffectEditor.field.mysticquests:event.Tag.placeholder = e.g. entered_ruins
+customUI.triggerVolumeEffectEditor.field.mysticquests:event.Key = Variable Name
+customUI.triggerVolumeEffectEditor.field.mysticquests:event.Key.tooltip = Optional variable name supplied to the event.
+customUI.triggerVolumeEffectEditor.field.mysticquests:event.Key.placeholder = e.g. visits
+customUI.triggerVolumeEffectEditor.field.mysticquests:event.Value = Value
+customUI.triggerVolumeEffectEditor.field.mysticquests:event.Value.tooltip = Optional text value supplied to the event.
+customUI.triggerVolumeEffectEditor.field.mysticquests:event.Value.placeholder = e.g. true
+customUI.triggerVolumeEffectEditor.field.mysticquests:event.Amount = Amount
+customUI.triggerVolumeEffectEditor.field.mysticquests:event.Amount.tooltip = Optional whole-number amount supplied to the event. Defaults to 1.
+customUI.triggerVolumeEffectEditor.field.mysticquests:event.Package = Package ID
+customUI.triggerVolumeEffectEditor.field.mysticquests:event.Package.tooltip = Package namespace used to resolve unqualified event references.
+customUI.triggerVolumeEffectEditor.field.mysticquests:event.Package.placeholder = e.g. tutorial
+
+# Conditions
+customUI.triggerVolumeEffectEditor.field.mysticquests:has_tag.Tag = Tag Name
+customUI.triggerVolumeEffectEditor.field.mysticquests:has_tag.Tag.tooltip = MysticQuests tag that must exist on the selected state owner.
+customUI.triggerVolumeEffectEditor.field.mysticquests:has_tag.Tag.placeholder = e.g. entered_ruins
+customUI.triggerVolumeEffectEditor.field.mysticquests:has_tag.Invert = Invert
+customUI.triggerVolumeEffectEditor.field.mysticquests:has_tag.Invert.tooltip = When enabled, the condition passes only when the selected state owner does not have the tag.
+
+customUI.triggerVolumeEffectEditor.field.mysticquests:variable.Key = Variable Name
+customUI.triggerVolumeEffectEditor.field.mysticquests:variable.Key.tooltip = MysticQuests variable to compare on the selected state owner.
+customUI.triggerVolumeEffectEditor.field.mysticquests:variable.Key.placeholder = e.g. visits
+customUI.triggerVolumeEffectEditor.field.mysticquests:variable.Operator = Operator
+customUI.triggerVolumeEffectEditor.field.mysticquests:variable.Operator.tooltip = Comparison operator: eq, ne, gt, gte, lt, lte, or exists.
+customUI.triggerVolumeEffectEditor.field.mysticquests:variable.Operator.placeholder = eq
+customUI.triggerVolumeEffectEditor.field.mysticquests:variable.Operator.option.eq = Equals
+customUI.triggerVolumeEffectEditor.field.mysticquests:variable.Operator.option.ne = Does Not Equal
+customUI.triggerVolumeEffectEditor.field.mysticquests:variable.Operator.option.gt = Greater Than
+customUI.triggerVolumeEffectEditor.field.mysticquests:variable.Operator.option.gte = Greater Than or Equal
+customUI.triggerVolumeEffectEditor.field.mysticquests:variable.Operator.option.lt = Less Than
+customUI.triggerVolumeEffectEditor.field.mysticquests:variable.Operator.option.lte = Less Than or Equal
+customUI.triggerVolumeEffectEditor.field.mysticquests:variable.Operator.option.exists = Exists
+customUI.triggerVolumeEffectEditor.field.mysticquests:variable.Value = Compare Value
+customUI.triggerVolumeEffectEditor.field.mysticquests:variable.Value.tooltip = Value to compare against. It is ignored by the exists operator.
+customUI.triggerVolumeEffectEditor.field.mysticquests:variable.Value.placeholder = e.g. 1
+customUI.triggerVolumeEffectEditor.field.mysticquests:variable.Invert = Invert
+customUI.triggerVolumeEffectEditor.field.mysticquests:variable.Invert.tooltip = When enabled, reverses the comparison result.
+
+# Rich message effect
+customUI.triggerVolumeEffectEditor.field.mysticquests:rich_message.Message = Message
+customUI.triggerVolumeEffectEditor.field.mysticquests:rich_message.Message.tooltip = Chat message to send. Supports PlaceholderAPI percent placeholders, MysticQuests placeholders such as %player% and %variable.key%, legacy formatting such as &a and &l, and hex colors such as &#55FF55.
+customUI.triggerVolumeEffectEditor.field.mysticquests:rich_message.Message.placeholder = e.g. &aWelcome %player%! You have %variable.coins% coins.
+customUI.triggerVolumeEffectEditor.field.mysticquests:rich_message.Audience = Audience
+customUI.triggerVolumeEffectEditor.field.mysticquests:rich_message.Audience.tooltip = Send to the player who triggered the volume or to every online player. Global messages resolve placeholders separately for each recipient.
+customUI.triggerVolumeEffectEditor.field.mysticquests:rich_message.Audience.option.player = Triggering Player
+customUI.triggerVolumeEffectEditor.field.mysticquests:rich_message.Audience.option.global = All Online Players
+customUI.triggerVolumeEffectEditor.field.mysticquests:rich_message.Package = Package ID
+customUI.triggerVolumeEffectEditor.field.mysticquests:rich_message.Package.tooltip = Optional package namespace used by MysticQuests script placeholders such as %quest.id% and %condition.id%.
+customUI.triggerVolumeEffectEditor.field.mysticquests:rich_message.Package.placeholder = e.g. tutorial
+
+# Command effect
+customUI.triggerVolumeEffectEditor.field.mysticquests:run_command.Command = Command
+customUI.triggerVolumeEffectEditor.field.mysticquests:run_command.Command.tooltip = Command to run without a leading slash. Supports PlaceholderAPI percent placeholders and MysticQuests placeholders such as %player%, %player.uuid%, and %variable.key%.
+customUI.triggerVolumeEffectEditor.field.mysticquests:run_command.Command.placeholder = e.g. give %player% hytale:gold_coin 5
+customUI.triggerVolumeEffectEditor.field.mysticquests:run_command.ExecuteAs = Execute As
+customUI.triggerVolumeEffectEditor.field.mysticquests:run_command.ExecuteAs.tooltip = Player runs with the triggering player's permissions and is skipped when that player is offline. Console has unrestricted server permissions.
+customUI.triggerVolumeEffectEditor.field.mysticquests:run_command.ExecuteAs.option.player = Triggering Player
+customUI.triggerVolumeEffectEditor.field.mysticquests:run_command.ExecuteAs.option.console = Server Console
+customUI.triggerVolumeEffectEditor.field.mysticquests:run_command.Package = Package ID
+customUI.triggerVolumeEffectEditor.field.mysticquests:run_command.Package.tooltip = Optional package namespace used by MysticQuests placeholders such as %quest.id% and %condition.id%.
+customUI.triggerVolumeEffectEditor.field.mysticquests:run_command.Package.placeholder = e.g. tutorial
+
+# Narrative runtime: per-audience activation and puzzles
+customUI.triggerVolumeEffectEditor.effectType.mysticquests:puzzle_input = Feed MysticQuests Puzzle Input
+customUI.triggerVolumeEffectEditor.effectType.mysticquests:puzzle_reset = Reset MysticQuests Puzzle
+customUI.triggerVolumeEffectEditor.effectType.mysticquests:cutscene_play = Play MysticQuests Cutscene
+customUI.triggerVolumeEffectEditor.effectType.mysticquests:trigger_state = Set MysticQuests Trigger State
+customUI.triggerVolumeEffectEditor.conditionType.mysticquests:trigger_enabled = MysticQuests Trigger Enabled
+customUI.triggerVolumeEffectEditor.conditionType.mysticquests:puzzle_input_available = MysticQuests Puzzle Input Available
+
+customUI.triggerVolumeEffectEditor.field.mysticquests:puzzle_input.Puzzle = Puzzle ID
+customUI.triggerVolumeEffectEditor.field.mysticquests:puzzle_input.Puzzle.tooltip = Namespaced id of the puzzle, as declared under puzzles in a quest package.
+customUI.triggerVolumeEffectEditor.field.mysticquests:puzzle_input.Puzzle.placeholder = e.g. hyzion:druid_temple.hidden_keys
+customUI.triggerVolumeEffectEditor.field.mysticquests:puzzle_input.Input = Input ID
+customUI.triggerVolumeEffectEditor.field.mysticquests:puzzle_input.Input.tooltip = The puzzle input this volume feeds. Inputs not selected for the triggering player's audience do nothing.
+customUI.triggerVolumeEffectEditor.field.mysticquests:puzzle_input.Input.placeholder = e.g. key_3
+customUI.triggerVolumeEffectEditor.field.mysticquests:puzzle_input.Release = Release Input
+customUI.triggerVolumeEffectEditor.field.mysticquests:puzzle_input.Release.tooltip = Release a toggleable input instead of activating it, for example on EXIT from a pressure plate.
+
+customUI.triggerVolumeEffectEditor.field.mysticquests:puzzle_reset.Puzzle = Puzzle ID
+customUI.triggerVolumeEffectEditor.field.mysticquests:puzzle_reset.Puzzle.tooltip = Namespaced id of the puzzle to start a new round of, for the triggering player's audience.
+customUI.triggerVolumeEffectEditor.field.mysticquests:puzzle_reset.Puzzle.placeholder = e.g. hyzion:fire_trial.switches
+customUI.triggerVolumeEffectEditor.field.mysticquests:puzzle_reset.Reroll = Reroll Selection
+customUI.triggerVolumeEffectEditor.field.mysticquests:puzzle_reset.Reroll.tooltip = Also draw a new random selection of active inputs. Off keeps the audience's current selection.
+
+customUI.triggerVolumeEffectEditor.field.mysticquests:trigger_state.Volume = Volume
+customUI.triggerVolumeEffectEditor.field.mysticquests:trigger_state.Volume.tooltip = The volume to change, as world:volumeId. Leave blank for this volume.
+customUI.triggerVolumeEffectEditor.field.mysticquests:trigger_state.Volume.placeholder = Optional world:volumeId
+customUI.triggerVolumeEffectEditor.field.mysticquests:trigger_state.State = State
+customUI.triggerVolumeEffectEditor.field.mysticquests:trigger_state.State.tooltip = Enable or disable the volume for the chosen audience, or clear the override so the next level decides.
+customUI.triggerVolumeEffectEditor.field.mysticquests:trigger_state.State.option.enable = Enable
+customUI.triggerVolumeEffectEditor.field.mysticquests:trigger_state.State.option.disable = Disable
+customUI.triggerVolumeEffectEditor.field.mysticquests:trigger_state.State.option.clear = Clear Override
+customUI.triggerVolumeEffectEditor.field.mysticquests:trigger_state.Scope = Audience
+customUI.triggerVolumeEffectEditor.field.mysticquests:trigger_state.Scope.tooltip = Who the change applies to. Only Everyone affects other players. The gated volume needs the MysticQuests Trigger Enabled condition.
+customUI.triggerVolumeEffectEditor.field.mysticquests:trigger_state.Scope.option.session = Player's Story Sessions
+customUI.triggerVolumeEffectEditor.field.mysticquests:trigger_state.Scope.option.player = Triggering Player
+customUI.triggerVolumeEffectEditor.field.mysticquests:trigger_state.Scope.option.party = Player's Party
+customUI.triggerVolumeEffectEditor.field.mysticquests:trigger_state.Scope.option.global = Everyone
+
+customUI.triggerVolumeEffectEditor.field.mysticquests:trigger_enabled.Volume = Volume
+customUI.triggerVolumeEffectEditor.field.mysticquests:trigger_enabled.Volume.tooltip = Check another volume's MysticQuests state, as world:volumeId. Leave blank to check this volume.
+customUI.triggerVolumeEffectEditor.field.mysticquests:trigger_enabled.Volume.placeholder = Optional world:volumeId
+customUI.triggerVolumeEffectEditor.field.mysticquests:trigger_enabled.Invert = Invert
+customUI.triggerVolumeEffectEditor.field.mysticquests:trigger_enabled.Invert.tooltip = Pass when the volume is disabled for the triggering player instead.
+
+customUI.triggerVolumeEffectEditor.field.mysticquests:puzzle_input_available.Puzzle = Puzzle ID
+customUI.triggerVolumeEffectEditor.field.mysticquests:puzzle_input_available.Puzzle.tooltip = Namespaced id of the puzzle the input belongs to.
+customUI.triggerVolumeEffectEditor.field.mysticquests:puzzle_input_available.Puzzle.placeholder = e.g. hyzion:druid_temple.hidden_keys
+customUI.triggerVolumeEffectEditor.field.mysticquests:puzzle_input_available.Input = Input ID
+customUI.triggerVolumeEffectEditor.field.mysticquests:puzzle_input_available.Input.tooltip = Passes while this input is selected for the triggering player's audience and not yet activated.
+customUI.triggerVolumeEffectEditor.field.mysticquests:puzzle_input_available.Input.placeholder = e.g. key_3
+customUI.triggerVolumeEffectEditor.field.mysticquests:puzzle_input_available.Invert = Invert
+customUI.triggerVolumeEffectEditor.field.mysticquests:puzzle_input_available.Invert.tooltip = Pass when the input is not available instead.
+customUI.triggerVolumeEffectEditor.field.mysticquests:cutscene_play.Cutscene = Cutscene ID
+customUI.triggerVolumeEffectEditor.field.mysticquests:cutscene_play.Cutscene.tooltip = Namespaced id of the cutscene to play for the triggering player's audience.
+customUI.triggerVolumeEffectEditor.field.mysticquests:cutscene_play.Cutscene.placeholder = e.g. hyzion:druid_temple.awakening

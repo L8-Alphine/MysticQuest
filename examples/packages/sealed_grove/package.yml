@@ -1,0 +1,9 @@
+# A two-chapter story showing 2.0 scripting on top of v1 quests, and nested packages.
+#
+#   sealed_grove/              package "sealed_grove": shared story content (shared/narrative.yml)
+#     chapter_1/               child package "sealed_grove/chapter_1" (it has its own package.yml)
+#     chapter_2/               child package "sealed_grove/chapter_2"
+#
+# World setup for chapter 1: three trigger volumes avalon:grove_rune_north, _east and _south, and a
+# seal entity with HardCollision whose UUID replaces the placeholder in chapter_1/narrative.yml.
+version: 1.0.0

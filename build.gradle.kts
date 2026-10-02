@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "org.hyzionstudios"
-version = "1.0.2"
+version = "1.0.3"
 
 repositories {
     mavenCentral()
@@ -21,7 +21,7 @@ val resolvedServerJar = hytaleServerJarPath.ifBlank { "$hytaleInstallPath/Server
 
 dependencies {
     // Hytale Server API from official Maven repository
-    compileOnly("com.hypixel.hytale:Server:0.5.6")
+    compileOnly("com.hypixel.hytale:Server:0.6.8")
 
     // VaultUnlocked
     compileOnly("net.cfh.vault:VaultUnlocked:2.18.3")
@@ -37,6 +37,10 @@ dependencies {
     testImplementation(platform("org.junit:junit-bom:6.1.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
+    // compileOnly deps are not inherited by the test source set, so tests covering anything whose
+    // signature mentions a Hytale type (loggers, refs, packets) cannot compile without this.
+    testImplementation("com.hypixel.hytale:Server:0.6.8")
 }
 
 java {
@@ -103,4 +107,8 @@ tasks.register("cleanDeploy") {
 
 tasks.named("deployMod") {
     mustRunAfter("clean")
+    // shadowJar publishes with an empty classifier, so it writes the same path as the plain jar
+    // task. Without this ordering, `gradlew build deployMod` fails validation because deployMod
+    // reads a file jar also produces.
+    mustRunAfter("jar")
 }

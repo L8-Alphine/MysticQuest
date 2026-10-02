@@ -1,0 +1,30 @@
+# Story-wide 2.0 content. Schemas are global, so both chapters can use them.
+
+tagSchemas:
+  - id: grove:seal_broken
+    scope: quest_session            # lives in the story session: one per player, or per party
+    description: This audience broke the grove seal.
+
+variableSchemas:
+  - id: grove:runes_lit
+    type: integer
+    scope: quest_session
+    default: 0
+  - id: grove:warden_trust
+    type: enum
+    values: [wary, friendly]
+    scope: player                   # follows the player into later chapters
+    default: wary
+
+speakers:
+  - id: grove:warden
+    name: Grove Warden
+
+media:
+  - id: grove:seal_breaks
+    kind: stinger
+    sound: SFX_Discovery_Z1_Short   # vanilla sound, so the example plays on a stock server
+    subtitle: "The seal shatters."
+  - id: grove:grove_theme
+    kind: music
+    music: MC_Z1_Caves

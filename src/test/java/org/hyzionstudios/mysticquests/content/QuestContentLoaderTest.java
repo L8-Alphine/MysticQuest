@@ -128,6 +128,65 @@ final class QuestContentLoaderTest {
     }
 
     @Test
+    void loadsStepsAndTheirShortForm() throws IOException {
+        Path packageDir = Files.createDirectories(tempDir.resolve("story"));
+        Files.writeString(packageDir.resolve("quests.json"), """
+                [
+                  {
+                    "id": "declared",
+                    "stages": [
+                      { "id": "discover", "displayName": "Discover Hyzion" }
+                    ],
+                    "objectives": [
+                      { "id": "look", "type": "reachLocation", "stage": "discover" }
+                    ]
+                  },
+                  {
+                    "id": "short_form",
+                    "stages": ["discover", "keepers"],
+                    "objectives": [
+                      { "id": "look", "type": "reachLocation", "stage": "keepers" }
+                    ]
+                  }
+                ]
+                """);
+
+        LoadedContent content = new QuestContentLoader(Json.createMapper()).load(tempDir);
+
+        assertEquals("Discover Hyzion", content.quests().get("story:declared").stages().getFirst().displayName());
+        assertEquals("discover", content.quests().get("story:declared").objectives().getFirst().stage());
+        // The short form carries only ids; the display name falls back to the id.
+        assertEquals(List.of("discover", "keepers"),
+                content.quests().get("story:short_form").stages().stream().map(stage -> stage.id()).toList());
+        assertEquals("keepers", content.quests().get("story:short_form").stages().get(1).displayName());
+    }
+
+    /**
+     * A quest may leave stages undeclared and have them derived from its objectives, but once it
+     * declares them a misspelled reference would quietly add a step nobody wrote.
+     */
+    @Test
+    void rejectsObjectivesNamingAnUndeclaredStage() throws IOException {
+        Path packageDir = Files.createDirectories(tempDir.resolve("broken"));
+        Files.writeString(packageDir.resolve("quests.json"), """
+                [
+                  {
+                    "id": "typo",
+                    "stages": [{ "id": "discover" }],
+                    "objectives": [
+                      { "id": "look", "type": "reachLocation", "stage": "discovr" }
+                    ]
+                  }
+                ]
+                """);
+
+        IOException exception = assertThrows(IOException.class,
+                () -> new QuestContentLoader(Json.createMapper()).load(tempDir));
+
+        assertTrue(exception.getMessage().contains("undeclared stage discovr"), exception.getMessage());
+    }
+
+    @Test
     void rejectsUnknownObjectiveTypesBeforeRegistrySwap() throws IOException {
         Path packageDir = Files.createDirectories(tempDir.resolve("broken"));
         Files.writeString(packageDir.resolve("quests.json"), """
@@ -181,8 +240,114 @@ final class QuestContentLoaderTest {
         LoadedContent content = new QuestContentLoader(Json.createMapper()).load(tempDir);
 
         assertEquals("Village Elder", content.conversations().get("tutorial:elder_intro").speaker());
-        assertEquals("hello", content.conversations().get("tutorial:elder_intro").start());
+        assertEquals(List.of("hello"),
+                content.conversations().get("tutorial:elder_intro").startCandidates());
         assertEquals("NpcEntity", content.conversations().get("tutorial:elder_intro").entity().type());
+    }
+
+    /**
+     * An NPC has to be able to open differently once something has changed, which is what an ordered
+     * list of entry points buys. The single-string form is the same content it always was.
+     */
+    @Test
+    void acceptsSeveralConversationEntryPointsInAuthorOrder() throws IOException {
+        Path packageDir = Files.createDirectories(tempDir.resolve("tutorial"));
+        Files.writeString(packageDir.resolve("conversations.json"), """
+                {
+                  "conversations": [
+                    {
+                      "id": "elder_intro",
+                      "start": ["after_quest", "during_quest", "hello"],
+                      "nodes": [
+                        {
+                          "id": "after_quest",
+                          "text": "Thanks again.",
+                          "conditions": [ { "type": "tag", "tag": "tutorial_complete" } ]
+                        },
+                        {
+                          "id": "during_quest",
+                          "text": "Found them yet?",
+                          "conditions": [ { "type": "tag", "tag": "tutorial_started" } ]
+                        },
+                        { "id": "hello", "text": "Welcome." }
+                      ]
+                    }
+                  ]
+                }
+                """);
+
+        LoadedContent content = new QuestContentLoader(Json.createMapper()).load(tempDir);
+
+        assertEquals(List.of("after_quest", "during_quest", "hello"),
+                content.conversations().get("tutorial:elder_intro").startCandidates());
+    }
+
+    /** A typo in a later entry point is a load error, not an NPC that goes quiet months later. */
+    @Test
+    void rejectsAnEntryPointThatNamesNoNode() throws IOException {
+        Path packageDir = Files.createDirectories(tempDir.resolve("tutorial"));
+        Files.writeString(packageDir.resolve("conversations.json"), """
+                {
+                  "conversations": [
+                    {
+                      "id": "elder_intro",
+                      "start": ["hello", "after_qeust"],
+                      "nodes": [ { "id": "hello", "text": "Welcome." } ]
+                    }
+                  ]
+                }
+                """);
+
+        IOException exception = assertThrows(IOException.class,
+                () -> new QuestContentLoader(Json.createMapper()).load(tempDir));
+
+        assertTrue(exception.getMessage().contains("start node does not exist: after_qeust"));
+    }
+
+    /**
+     * MysticGeneration NPCs are bound by definition or stable identity rather than by the entity
+     * fields, which a republished definition invalidates.
+     */
+    @Test
+    void loadsMysticGenerationConversationBindingsAndObjectives() throws IOException {
+        Path packageDir = Files.createDirectories(tempDir.resolve("tutorial"));
+        Files.writeString(packageDir.resolve("conversations.json"), """
+                {
+                  "conversations": [
+                    {
+                      "id": "guard_intro",
+                      "speaker": "Avalon Guard",
+                      "start": "hello",
+                      "entity": {
+                        "generationDefinition": "hyzion:avalon_guard",
+                        "generationUuid": "4d6b1f3a-2c55-4f0e-9a1b-77c0d2e4b5a6"
+                      },
+                      "nodes": [
+                        { "id": "hello", "text": "Halt." }
+                      ]
+                    }
+                  ]
+                }
+                """);
+        Files.writeString(packageDir.resolve("quests.json"), """
+                [
+                  {
+                    "id": "meet_the_guard",
+                    "objectives": [
+                      { "id": "greet", "type": "interactNpc", "target": "hyzion:avalon_guard" }
+                    ]
+                  }
+                ]
+                """);
+
+        LoadedContent content = new QuestContentLoader(Json.createMapper()).load(tempDir);
+
+        assertEquals("hyzion:avalon_guard",
+                content.conversations().get("tutorial:guard_intro").entity().generationDefinition());
+        assertEquals("4d6b1f3a-2c55-4f0e-9a1b-77c0d2e4b5a6",
+                content.conversations().get("tutorial:guard_intro").entity().generationUuid());
+        assertEquals("hyzion:avalon_guard", content.quests().get("tutorial:meet_the_guard")
+                .objectives().get(0).text("target", ""));
     }
 
     @Test
@@ -291,7 +456,7 @@ final class QuestContentLoaderTest {
                     "id": "silently_ignored",
                     "startConditions": [ { "type": "level", "value": 10 } ],
                     "objectives": [ { "id": "talk", "type": "dialogue", "target": "x", "amount": 1 } ],
-                    "rewards": [ { "type": "hidePlayer" } ]
+                    "rewards": [ { "type": "packetEffect" } ]
                   }
                 ]
                 """);
@@ -299,7 +464,41 @@ final class QuestContentLoaderTest {
         IOException exception = assertThrows(IOException.class, () -> new QuestContentLoader(Json.createMapper()).load(tempDir));
 
         assertTrue(exception.getMessage().contains("unsupported start condition type 'level'"), exception.getMessage());
-        assertTrue(exception.getMessage().contains("unsupported reward type 'hidePlayer'"), exception.getMessage());
+        assertTrue(exception.getMessage().contains("unsupported reward type 'packetEffect'"), exception.getMessage());
+    }
+
+    /**
+     * Visibility, targeting, and screen packets used to be rejected as unimplemented. They are real
+     * event and condition types now, so content using them must load.
+     */
+    @Test
+    void acceptsVisibilityTargetingAndPacketTypes() throws IOException {
+        Path packageDir = Files.createDirectories(tempDir.resolve("scene"));
+        Files.writeString(packageDir.resolve("quests.json"), """
+                [
+                  {
+                    "id": "cutscene",
+                    "startConditions": [ { "type": "playerHidden", "target": "self" } ],
+                    "objectives": [ { "id": "talk", "type": "dialogue", "target": "x", "amount": 1 } ],
+                    "startEvents": [
+                      { "type": "hidePlayer", "target": "players" },
+                      { "type": "preventTargeting" },
+                      { "type": "setCamera", "mode": "third", "locked": true },
+                      { "type": "sendTitle", "title": "Chapter One" }
+                    ],
+                    "rewards": [
+                      { "type": "showPlayer", "target": "players" },
+                      { "type": "allowTargeting" },
+                      { "type": "actionBar", "message": "Done" }
+                    ]
+                  }
+                ]
+                """);
+
+        LoadedContent content = new QuestContentLoader(Json.createMapper()).load(tempDir);
+
+        assertEquals(4, content.quests().get("scene:cutscene").startEvents().size());
+        assertEquals(3, content.quests().get("scene:cutscene").rewards().size());
     }
 
     @Test

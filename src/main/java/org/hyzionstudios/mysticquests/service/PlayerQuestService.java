@@ -2,16 +2,30 @@ package org.hyzionstudios.mysticquests.service;
 
 import org.hyzionstudios.mysticquests.content.LoadedContent;
 import org.hyzionstudios.mysticquests.integration.HyExtrasBridge;
+import org.hyzionstudios.mysticquests.integration.MysticGenerationBridge;
 import org.hyzionstudios.mysticquests.integration.VaultUnlockedEconomyBridge;
 import org.hyzionstudios.mysticquests.model.ConditionDefinition;
 import org.hyzionstudios.mysticquests.model.EventDefinition;
 import org.hyzionstudios.mysticquests.model.ObjectiveDefinition;
+import org.hyzionstudios.mysticquests.api.QuestActionContext;
+import org.hyzionstudios.mysticquests.api.QuestConditionHandler;
+import org.hyzionstudios.mysticquests.api.QuestEventHandler;
 import org.hyzionstudios.mysticquests.model.QuestDefinition;
+import org.hyzionstudios.mysticquests.model.TypedConfig;
+import org.hyzionstudios.mysticquests.state.StateKey;
+import org.hyzionstudios.mysticquests.state.StateScope;
 import org.hyzionstudios.mysticquests.packet.QuestPacketService;
 import org.hyzionstudios.mysticquests.storage.ActiveQuestData;
 import org.hyzionstudios.mysticquests.storage.PlayerQuestData;
 import org.hyzionstudios.mysticquests.storage.QuestStorage;
 import org.hyzionstudios.mysticquests.ui.QuestNotificationService;
+
+import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.math.vector.Transform;
+import com.hypixel.hytale.server.core.universe.PlayerRef;
+import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+
+import org.joml.Vector3d;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -20,6 +34,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -27,9 +42,11 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.function.ToIntFunction;
 import java.util.logging.Level;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -37,10 +54,39 @@ import java.util.concurrent.ThreadLocalRandom;
 
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.server.core.command.system.CommandManager;
+import com.hypixel.hytale.server.core.console.ConsoleSender;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 
 public final class PlayerQuestService {
+    /**
+     * Every event type {@link #executeEvents} dispatches itself, before falling through to the
+     * registry. Keep in step with that switch: the narrative v1 bridge validates against this list,
+     * so a type missing here is refused in narrative content even though quests can run it.
+     */
+    public static final Set<String> BUILT_IN_EVENT_TYPES = Set.of(
+            "tag", "variable", "addTag", "globalTag", "entityTag", "blockTag", "volumeTag", "removeTag",
+            "setVariable", "globalVariable", "entityVariable", "blockVariable", "volumeVariable",
+            "removeVariable", "incrementVariable", "startQuest", "completeQuest", "modifyMoney",
+            "triggerHyExtrasEffect", "notification", "sendMessage", "giveItem", "removeItem", "runCommand",
+            "cancelConversation", "cancelQuest", "folder", "party", "if", "ref", "hidePlayer", "hideEntity",
+            "showPlayer", "showEntity", "spawnNpc", "despawnNpc", "preventTargeting", "allowTargeting",
+            "setCamera", "sendTitle", "actionBar");
+
+    /** Every condition type {@link #evaluateCondition} handles itself; the same contract as above. */
+    public static final Set<String> BUILT_IN_CONDITION_TYPES = Set.of(
+            "tag", "globalTag", "entityTag", "blockTag", "volumeTag", "notTag", "questCompleted",
+            "questActive", "variable", "globalVariable", "entityVariable", "blockVariable", "volumeVariable",
+            "economy", "and", "or", "not", "ref", "permission", "inConversation", "inParty", "partySize",
+            "playerHidden", "entityHidden", "targetingPrevented", "nearEntity");
+
     private static final Pattern SCRIPT_PLACEHOLDER = Pattern.compile("(?<!\\\\)%([^%]+)%");
+    /** Seconds a {@code sendTitle} stays on screen when the author does not say. */
+    private static final BigDecimal DEFAULT_TITLE_DURATION = BigDecimal.valueOf(3);
+    /** How far in front of the player a spawned NPC lands when content gives no coordinates. */
+    private static final BigDecimal DEFAULT_SPAWN_DISTANCE = BigDecimal.valueOf(2);
+    /** Seconds a {@code sendTitle} spends fading in and out when the author does not say. */
+    private static final BigDecimal DEFAULT_TITLE_FADE = BigDecimal.valueOf(0.5);
+
     private final Supplier<LoadedContent> contentSupplier;
     private final QuestStorage storage;
     private final ScopedStateService scopedStateService;
@@ -54,6 +100,7 @@ public final class PlayerQuestService {
     private final Map<UUID, PlayerQuestData> cache = new ConcurrentHashMap<>();
     private final Set<UUID> migratedPlayers = ConcurrentHashMap.newKeySet();
     private final List<Consumer<UUID>> changeListeners = new CopyOnWriteArrayList<>();
+    private volatile NarrativeScripts narrativeScripts;
 
     /**
      * Set once the conversation service exists. Kept as indirection because ConversationService
@@ -63,6 +110,14 @@ public final class PlayerQuestService {
     private volatile Consumer<UUID> conversationCanceller = playerId -> {
     };
     private volatile Function<UUID, java.util.Collection<UUID>> partyMembers = playerId -> Set.of(playerId);
+    private volatile BiFunction<UUID, String, String> externalTextResolver = (playerId, text) -> text;
+
+    /**
+     * Null until the runtime has built the services these actions need. Actions that require them
+     * are skipped with a warning rather than throwing, so a partially-started server degrades
+     * instead of failing a quest mid-flight.
+     */
+    private volatile QuestActionServices actionServices;
 
     public PlayerQuestService(
             Supplier<LoadedContent> contentSupplier,
@@ -88,6 +143,15 @@ public final class PlayerQuestService {
     }
 
     /** Wires the conversation-dependent condition and event handlers once ConversationService exists. */
+    /**
+     * Connects the {@code narrative} event and condition to the 2.0 runtime. Deliberately absent from
+     * {@link #BUILT_IN_EVENT_TYPES} and {@link #BUILT_IN_CONDITION_TYPES}: narrative content reaching
+     * back into v1 must not be able to call narrative script again.
+     */
+    public void bindNarrativeScripts(NarrativeScripts scripts) {
+        this.narrativeScripts = scripts;
+    }
+
     public void bindConversationSupport(Predicate<UUID> inConversation, Consumer<UUID> cancelConversation) {
         this.conversationStateSupplier = () -> inConversation;
         this.conversationCanceller = cancelConversation;
@@ -95,6 +159,16 @@ public final class PlayerQuestService {
 
     public void bindPartySupport(Function<UUID, java.util.Collection<UUID>> partyMembers) {
         this.partyMembers = partyMembers;
+    }
+
+    /** Adds optional third-party placeholder expansion without making it a required dependency. */
+    public void bindExternalTextResolver(BiFunction<UUID, String, String> resolver) {
+        this.externalTextResolver = resolver == null ? (playerId, text) -> text : resolver;
+    }
+
+    /** Attaches visibility, targeting, target selection, and the extension registry. */
+    public void bindActionServices(QuestActionServices services) {
+        this.actionServices = services;
     }
 
     public void addChangeListener(Consumer<UUID> listener) {
@@ -206,6 +280,48 @@ public final class PlayerQuestService {
         }
     }
 
+    /** Whether any of the player's active quests has a {@code gather} objective; cheap, for the inventory hook. */
+    public boolean hasGatherObjectives(UUID playerId) {
+        PlayerQuestData data = data(playerId);
+        if (data.activeQuests().isEmpty()) {
+            return false;
+        }
+        LoadedContent content = contentSupplier.get();
+        for (ActiveQuestData active : data.activeQuests().values()) {
+            QuestDefinition quest = content.quests().get(active.questId());
+            if (quest != null && GatherProgress.has(quest)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Brings every active {@code gather} objective in line with what the player holds, completing
+     * quests whose objectives are then all done. See {@link GatherProgress}.
+     *
+     * @param held how many of an item id the player is holding right now
+     */
+    public void syncHeldItems(UUID playerId, ToIntFunction<String> held) {
+        PlayerQuestData data = data(playerId);
+        LoadedContent content = contentSupplier.get();
+        boolean changed = false;
+        for (ActiveQuestData active : new ArrayList<>(data.activeQuests().values())) {
+            QuestDefinition quest = content.quests().get(active.questId());
+            if (quest == null || !GatherProgress.sync(quest, active, held)) {
+                continue;
+            }
+            if (isComplete(quest, active)) {
+                completeQuest(data, quest);
+            } else {
+                changed = true;
+            }
+        }
+        if (changed) {
+            save(data);
+        }
+    }
+
     public List<JournalEntry> journal(UUID playerId) {
         PlayerQuestData data = data(playerId);
         LoadedContent content = contentSupplier.get();
@@ -292,7 +408,6 @@ public final class PlayerQuestService {
             data.setTrackedQuestId(null);
             normalizeTrackedQuest(data);
         }
-        packetService.clearPlayer(playerId);
         save(data);
         return QuestResult.success("Abandoned quest: " + (quest == null ? questId : quest.displayName()));
     }
@@ -359,7 +474,6 @@ public final class PlayerQuestService {
         if (!changed) {
             return QuestResult.failure("No stored state for quest: " + questId);
         }
-        packetService.clearPlayer(playerId);
         save(data);
         return QuestResult.success("Reset quest state: " + questId);
     }
@@ -588,6 +702,25 @@ public final class PlayerQuestService {
         return resolved.replace("\\%", "%");
     }
 
+    /**
+     * Sends rich chat to the triggering player or every online player.
+     *
+     * <p>PlaceholderAPI runs first so third-party percent placeholders are not consumed by the
+     * MysticQuests script-placeholder parser. MysticQuests placeholders and legacy/hex color codes
+     * are then resolved independently for each recipient.
+     */
+    public void sendRichMessage(UUID triggeringPlayer, String packageId, String message, boolean global) {
+        Iterable<UUID> recipients = global ? sessionService.onlinePlayerIds() : List.of(triggeringPlayer);
+        for (UUID recipient : recipients) {
+            String externallyResolved = externalTextResolver.apply(recipient, message == null ? "" : message);
+            String resolved = resolveText(
+                    recipient,
+                    packageId == null ? "" : packageId,
+                    externallyResolved == null ? "" : externallyResolved);
+            notificationService.sendChat(recipient, resolved, "#EEF3FC");
+        }
+    }
+
     private String scriptPlaceholder(UUID playerId, String packageId, String rawExpression) {
         String expression = rawExpression;
         String effectivePackage = packageId;
@@ -746,7 +879,6 @@ public final class PlayerQuestService {
         }
         executeEvents(data, quest.packageId(), quest, quest.completeEvents(), targetContext);
         executeEvents(data, quest.packageId(), quest, quest.rewards(), targetContext);
-        packetService.clearPlayer(data.playerId());
         save(data);
         return QuestResult.success("Completed quest: " + quest.displayName());
     }
@@ -764,15 +896,18 @@ public final class PlayerQuestService {
             Set<String> referenceStack) {
         for (EventDefinition event : events) {
             switch (event.type()) {
-                case "addTag", "globalTag", "entityTag", "blockTag", "volumeTag" -> addTag(data, packageId, event, targetContext);
-                case "removeTag" -> removeTag(data, packageId, event, targetContext);
-                case "setVariable", "globalVariable", "entityVariable", "blockVariable", "volumeVariable" -> setVariable(data, packageId, quest, event, targetContext);
-                case "removeVariable" -> scopedStateService.removeVariable(data.playerId(), event, targetContext);
-                case "incrementVariable" -> scopedStateService.incrementVariable(data.playerId(), event, targetContext);
+                // Canonical state types; the loader rewrites every legacy alias onto these, so the
+                // aliases below only fire for definitions built in code (commands, trigger volumes).
+                case "tag" -> applyTag(data, packageId, event, targetContext, event.text("op", "add"));
+                case "variable" -> applyVariable(data, packageId, quest, event, targetContext, event.text("op", "set"));
+                case "addTag", "globalTag", "entityTag", "blockTag", "volumeTag" -> applyTag(data, packageId, event, targetContext, "add");
+                case "removeTag" -> applyTag(data, packageId, event, targetContext, "remove");
+                case "setVariable", "globalVariable", "entityVariable", "blockVariable", "volumeVariable" -> applyVariable(data, packageId, quest, event, targetContext, "set");
+                case "removeVariable" -> applyVariable(data, packageId, quest, event, targetContext, "remove");
+                case "incrementVariable" -> applyVariable(data, packageId, quest, event, targetContext, "increment");
                 case "startQuest" -> startQuest(data.playerId(), resolve(packageId, event.text("quest", "")));
                 case "completeQuest" -> completeQuest(data.playerId(), resolve(packageId, event.text("quest", "")));
                 case "modifyMoney" -> economyBridge.modify(data.playerId(), event.text("account", data.playerId().toString()), event.decimal("amount", BigDecimal.ZERO));
-                case "packetEffect" -> packetService.rememberEffect(data.playerId(), event.text("effect", event.text("id", "packetEffect")));
                 case "triggerHyExtrasEffect" -> hyExtrasBridge.trigger(event.text("action", ""), data.playerId());
                 case "notification" -> sendNotification(data.playerId(), packageId, event);
                 case "sendMessage" -> notificationService.sendChat(
@@ -781,14 +916,31 @@ public final class PlayerQuestService {
                         event.text("color", event.text("messageColor", "#EEF3FC")));
                 case "giveItem" -> inventoryService.give(data.playerId(), resolveItemEvent(packageId, event));
                 case "removeItem" -> inventoryService.remove(data.playerId(), resolveItemEvent(packageId, event));
-                case "runCommand" -> runCommand(data.playerId(), event);
+                case "runCommand" -> runCommand(data.playerId(), packageId, event);
                 case "cancelConversation" -> conversationCanceller.accept(data.playerId());
                 case "cancelQuest" -> cancelQuest(data.playerId(), packageId, event.text("canceler", event.text("id", "")));
                 case "folder" -> executeEvents(data, packageId, quest, event.children("events", EventDefinition::new), targetContext, referenceStack);
                 case "party" -> executePartyEvents(data.playerId(), packageId, event.children("events", EventDefinition::new), targetContext);
                 case "if" -> executeConditional(data, packageId, quest, event, targetContext, referenceStack);
                 case "ref" -> executeEventReference(data, packageId, quest, event, targetContext, referenceStack);
-                default -> logger.at(Level.WARNING).log("Unknown event type at execution: " + event.type());
+                case "hidePlayer", "hideEntity" -> applyVisibility(data.playerId(), event, targetContext, true);
+                case "showPlayer", "showEntity" -> applyVisibility(data.playerId(), event, targetContext, false);
+                case "spawnNpc" -> spawnGeneratedNpc(data, event, targetContext);
+                case "despawnNpc" -> despawnGeneratedNpc(data.playerId(), event, targetContext);
+                case "preventTargeting" -> applyTargeting(data.playerId(), event, targetContext, true);
+                case "allowTargeting" -> applyTargeting(data.playerId(), event, targetContext, false);
+                case "setCamera" -> applyCamera(data.playerId(), event, targetContext);
+                case NarrativeScripts.TYPE -> {
+                    NarrativeScripts scripts = narrativeScripts;
+                    if (scripts == null) {
+                        logSkipped(event.type());
+                    } else {
+                        scripts.run(data.playerId(), packageId, event, targetContext);
+                    }
+                }
+                case "sendTitle" -> applyTitle(data.playerId(), packageId, event, targetContext);
+                case "actionBar" -> applyActionBar(data.playerId(), packageId, event, targetContext);
+                default -> executeRegisteredEvent(data.playerId(), packageId, event, targetContext);
             }
         }
     }
@@ -845,57 +997,367 @@ public final class PlayerQuestService {
      * Dispatches a console-style command as the player, so the server re-checks their permissions.
      * Content files therefore cannot escalate past what the player could type themselves.
      */
-    private void runCommand(UUID playerId, EventDefinition event) {
+    private void runCommand(UUID playerId, String packageId, EventDefinition event) {
         String command = event.text("command", event.text("value", ""));
-        if (command.isBlank()) {
+        String executeAs = event.text("executeAs", event.text("as", "player"));
+        runCommand(playerId, packageId, command, executeAs.equalsIgnoreCase("console"));
+    }
+
+    /** Runs a placeholder-aware command as the player or as the permission-unrestricted console. */
+    public void runCommand(UUID playerId, String packageId, String command, boolean console) {
+        if (command == null || command.isBlank()) {
             return;
         }
-        PlayerRef playerRef = sessionService.playerRef(playerId);
-        if (playerRef == null) {
+        String externallyResolved = externalTextResolver.apply(playerId, command);
+        String resolved = resolveText(
+                playerId,
+                packageId == null ? "" : packageId,
+                externallyResolved == null ? "" : externallyResolved);
+        String normalized = resolved.startsWith("/") ? resolved.substring(1) : resolved;
+        PlayerRef playerRef = console ? null : sessionService.playerRef(playerId);
+        if (!console && playerRef == null) {
             logger.at(Level.FINE).log("Skipped runCommand for offline player " + playerId + ".");
             return;
         }
         try {
-            CommandManager.get().handleCommand(playerRef, command.startsWith("/") ? command.substring(1) : command);
+            CommandManager.get().handleCommand(console ? ConsoleSender.INSTANCE : playerRef, normalized);
         } catch (RuntimeException exception) {
-            logger.at(Level.WARNING).withCause(exception).log("Failed to run quest command for " + playerId + ".");
+            logger.at(Level.WARNING).withCause(exception)
+                    .log("Failed to run quest command as " + (console ? "console" : "player " + playerId) + ".");
         }
     }
 
-    private void addTag(PlayerQuestData data, String packageId, EventDefinition event, QuestTargetContext targetContext) {
-        event = packageScopedTag(packageId, event);
-        String scope = effectiveScope(event);
-        scopedStateService.addTag(data.playerId(), event, targetContext);
-        if (scope.equals("player")) {
-            data.tags().add(event.text("tag", ""));
+    /**
+     * Hides or shows one or more subjects from one or more viewers.
+     *
+     * <p>{@code target} selects what is hidden and defaults to whatever the trigger fired against;
+     * {@code viewer} selects who stops seeing it and defaults to the acting player. Both accept the
+     * full {@link TargetSelector} syntax, so "hide every guard from the whole party" is one event.
+     */
+    private void applyVisibility(UUID playerId, EventDefinition event, QuestTargetContext targetContext, boolean hide) {
+        QuestActionServices services = actionServices;
+        if (services == null) {
+            logSkipped(event.type());
+            return;
+        }
+        List<UUID> viewers = services.targets().resolve(event.text("viewer", "self"), playerId, targetContext);
+        List<UUID> subjects = services.targets().resolve(event.text("target", "context"), playerId, targetContext);
+        for (UUID viewer : viewers) {
+            for (UUID subject : subjects) {
+                if (hide) {
+                    services.visibility().hide(viewer, subject);
+                } else {
+                    services.visibility().show(viewer, subject);
+                }
+            }
         }
     }
 
-    private void removeTag(PlayerQuestData data, String packageId, EventDefinition event, QuestTargetContext targetContext) {
-        event = packageScopedTag(packageId, event);
-        String scope = effectiveScope(event);
-        scopedStateService.removeTag(data.playerId(), event, targetContext);
-        if (scope.equals("player")) {
-            data.tags().remove(event.text("tag", ""));
+    /**
+     * Spawns a MysticGeneration NPC from an authored definition.
+     *
+     * <p>Placed in front of the acting player unless explicit coordinates are given, which is what a
+     * quest-giver appearing mid-conversation wants. The spawn is MysticGeneration's own, so the NPC
+     * arrives with a stable identity already attached; {@code variable} captures that identity into
+     * a player variable so a later step can find this exact NPC again — without it, content spawning
+     * two of the same definition has no way to tell them apart.
+     */
+    private void spawnGeneratedNpc(PlayerQuestData data, EventDefinition event, QuestTargetContext targetContext) {
+        QuestActionServices services = actionServices;
+        if (services == null) {
+            logSkipped(event.type());
+            return;
+        }
+        MysticGenerationBridge generation = services.generation();
+        if (generation == null || !generation.available()) {
+            logger.at(Level.FINE).log("Skipped spawnNpc: MysticGeneration is not available.");
+            return;
+        }
+        String definition = event.text("definition", event.text("npc", ""));
+        if (definition.isBlank()) {
+            logger.at(Level.WARNING).log("A spawnNpc action named no definition.");
+            return;
+        }
+        PlayerRef playerRef = sessionService.playerRef(data.playerId());
+        if (playerRef == null) {
+            return;
+        }
+        Ref<EntityStore> playerEntity = playerRef.getReference();
+        if (playerEntity == null || !playerEntity.isValid()) {
+            return;
+        }
+        Transform transform = playerRef.getTransform();
+        if (transform == null) {
+            return;
+        }
+        Vector3d position = spawnPosition(event, transform);
+        float yaw = (float) event.decimal("yaw", BigDecimal.valueOf(transform.getRotation().yaw())).doubleValue();
+        String variable = event.text("variable", "");
+        generation.spawn(playerEntity.getStore(), definition, position, yaw, npc -> {
+            if (!variable.isBlank()) {
+                scopedStateService.setVariable(
+                        ScopedStateService.normalizeScope("player"),
+                        data.playerId().toString(),
+                        variable,
+                        npc.uuid().toString());
+            }
+        });
+    }
+
+    /** Explicit coordinates when content gives them, otherwise just in front of the player. */
+    private Vector3d spawnPosition(EventDefinition event, Transform transform) {
+        if (event.text("x").isPresent() && event.text("y").isPresent() && event.text("z").isPresent()) {
+            return new Vector3d(
+                    event.decimal("x", BigDecimal.ZERO).doubleValue(),
+                    event.decimal("y", BigDecimal.ZERO).doubleValue(),
+                    event.decimal("z", BigDecimal.ZERO).doubleValue());
+        }
+        double distance = event.decimal("distance", DEFAULT_SPAWN_DISTANCE).doubleValue();
+        return new Vector3d(transform.getPosition())
+                .add(new Vector3d(transform.getDirection()).mul(distance));
+    }
+
+    /**
+     * Removes generated NPCs, by default the one the trigger fired against.
+     *
+     * <p>Targets resolve to MysticGeneration identities rather than entity UUIDs, so
+     * {@code generation:<definition>} despawns every NPC of a kind and a captured variable despawns
+     * exactly the one a quest spawned earlier.
+     */
+    private void despawnGeneratedNpc(UUID playerId, EventDefinition event, QuestTargetContext targetContext) {
+        QuestActionServices services = actionServices;
+        if (services == null) {
+            logSkipped(event.type());
+            return;
+        }
+        MysticGenerationBridge generation = services.generation();
+        if (generation == null || !generation.available()) {
+            logger.at(Level.FINE).log("Skipped despawnNpc: MysticGeneration is not available.");
+            return;
+        }
+        PlayerRef playerRef = sessionService.playerRef(playerId);
+        Ref<EntityStore> playerEntity = playerRef == null ? null : playerRef.getReference();
+        if (playerEntity == null || !playerEntity.isValid()) {
+            return;
+        }
+        for (UUID npc : services.targets().resolve(event.text("target", "generation"), playerId, targetContext)) {
+            generation.despawn(playerEntity.getStore(), npc);
         }
     }
 
-    private void setVariable(PlayerQuestData data, String packageId, QuestDefinition quest, EventDefinition event, QuestTargetContext targetContext) {
-        String scope = effectiveScope(event);
+    /** Grants or removes protection from NPC targeting. Defaults to the acting player. */
+    private void applyTargeting(UUID playerId, EventDefinition event, QuestTargetContext targetContext, boolean prevent) {
+        QuestActionServices services = actionServices;
+        if (services == null) {
+            logSkipped(event.type());
+            return;
+        }
+        for (UUID subject : services.targets().resolve(event, playerId, targetContext)) {
+            if (prevent) {
+                services.targeting().protectPlayer(subject);
+            } else {
+                services.targeting().unprotectPlayer(subject);
+            }
+        }
+    }
+
+    private void applyCamera(UUID playerId, EventDefinition event, QuestTargetContext targetContext) {
+        QuestActionServices services = actionServices;
+        if (services == null) {
+            logSkipped(event.type());
+            return;
+        }
+        QuestPacketService.CameraMode mode = QuestPacketService.parseCameraMode(event.text("mode", "first"));
+        boolean locked = event.bool("locked", false);
+        for (UUID subject : services.targets().resolve(event, playerId, targetContext)) {
+            packetService.setCamera(subject, mode, locked);
+        }
+    }
+
+    private void applyTitle(UUID playerId, String packageId, EventDefinition event, QuestTargetContext targetContext) {
+        QuestActionServices services = actionServices;
+        if (services == null) {
+            logSkipped(event.type());
+            return;
+        }
+        String title = event.text("title", event.text("text", ""));
+        String subtitle = event.text("subtitle", "");
+        float duration = (float) event.decimal("duration", DEFAULT_TITLE_DURATION).doubleValue();
+        float fadeIn = (float) event.decimal("fadeIn", DEFAULT_TITLE_FADE).doubleValue();
+        float fadeOut = (float) event.decimal("fadeOut", DEFAULT_TITLE_FADE).doubleValue();
+        String color = event.text("color", "");
+        for (UUID subject : services.targets().resolve(event, playerId, targetContext)) {
+            packetService.sendTitle(
+                    subject,
+                    resolveText(subject, packageId, title),
+                    subtitle.isBlank() ? null : resolveText(subject, packageId, subtitle),
+                    duration,
+                    fadeIn,
+                    fadeOut,
+                    color);
+        }
+    }
+
+    private void applyActionBar(UUID playerId, String packageId, EventDefinition event, QuestTargetContext targetContext) {
+        QuestActionServices services = actionServices;
+        if (services == null) {
+            logSkipped(event.type());
+            return;
+        }
+        String message = event.text("message", event.text("text", ""));
+        String color = event.text("color", "");
+        for (UUID subject : services.targets().resolve(event, playerId, targetContext)) {
+            packetService.sendActionBar(subject, resolveText(subject, packageId, message), color);
+        }
+    }
+
+    /**
+     * Last stop for an unrecognised event type: a type another mod registered through the public API.
+     * A handler that throws is contained here so the remaining events in the list still run.
+     */
+    private void executeRegisteredEvent(
+            UUID playerId,
+            String packageId,
+            EventDefinition event,
+            QuestTargetContext targetContext) {
+        QuestActionServices services = actionServices;
+        QuestEventHandler handler = services == null ? null : services.registry().event(event.type());
+        if (handler == null) {
+            logger.at(Level.WARNING).log("Unknown event type at execution: " + event.type());
+            return;
+        }
+        try {
+            handler.execute(actionContext(playerId, packageId, event, targetContext));
+        } catch (RuntimeException exception) {
+            logger.at(Level.WARNING).withCause(exception)
+                    .log("Registered MysticQuests event '" + event.type() + "' failed.");
+        }
+    }
+
+    private QuestActionContext actionContext(
+            UUID playerId,
+            String packageId,
+            TypedConfig definition,
+            QuestTargetContext targetContext) {
+        return new QuestActionContext(
+                playerId,
+                packageId,
+                definition,
+                targetContext == null ? QuestTargetContext.none() : targetContext,
+                text -> resolveText(playerId, packageId, text));
+    }
+
+    private void logSkipped(String type) {
+        logger.at(Level.WARNING).log(
+                "Skipped MysticQuests event '" + type + "': runtime services are not attached yet.");
+    }
+
+    /** Applies a canonical {@code tag} event. {@code op} is {@code add} or {@code remove}. */
+    private void applyTag(
+            PlayerQuestData data,
+            String packageId,
+            EventDefinition event,
+            QuestTargetContext targetContext,
+            String op) {
+        EventDefinition scoped = packageScopedTag(packageId, event);
+        boolean remove = op.equalsIgnoreCase("remove");
+        if (remove) {
+            scopedStateService.removeTag(data.playerId(), scoped, targetContext);
+        } else {
+            scopedStateService.addTag(data.playerId(), scoped, targetContext);
+        }
+        // Player-scope tags are mirrored onto the player record, which older content and the
+        // journal still read from.
+        if (effectiveScope(scoped).equals("player")) {
+            String tag = scoped.text("tag", "");
+            if (remove) {
+                data.tags().remove(tag);
+            } else {
+                data.tags().add(tag);
+            }
+        }
+    }
+
+    /** Applies a canonical {@code variable} event. {@code op} is {@code set}, {@code remove}, or {@code increment}. */
+    private void applyVariable(
+            PlayerQuestData data,
+            String packageId,
+            QuestDefinition quest,
+            EventDefinition event,
+            QuestTargetContext targetContext,
+            String op) {
         String key = event.text("key", event.text("name", ""));
-        String value = event.text("value", "");
         if (key.isBlank()) {
             return;
         }
-        if (scope.equals("quest")) {
-            String questId = quest == null ? resolve(packageId, event.text("quest", "")) : quest.packageId() + ":" + quest.id();
-            data.questVariables().computeIfAbsent(questId, ignored -> new ConcurrentHashMap<>()).put(key, value);
-        } else {
-            scopedStateService.setVariable(data.playerId(), event, targetContext);
-            if (scope.equals("player")) {
-                data.playerVariables().put(key, value);
+        if (isQuestScope(event)) {
+            applyQuestVariable(data, packageId, quest, event, key, op);
+            return;
+        }
+        String scope = effectiveScope(event);
+        switch (op.toLowerCase(Locale.ROOT)) {
+            case "remove" -> {
+                scopedStateService.removeVariable(data.playerId(), event, targetContext);
+                if (scope.equals("player")) {
+                    data.playerVariables().remove(key);
+                }
+            }
+            case "increment" -> {
+                long updated = scopedStateService.incrementVariable(data.playerId(), event, targetContext);
+                if (scope.equals("player")) {
+                    data.playerVariables().put(key, Long.toString(updated));
+                }
+            }
+            default -> {
+                scopedStateService.setVariable(data.playerId(), event, targetContext);
+                if (scope.equals("player")) {
+                    data.playerVariables().put(key, event.text("value", ""));
+                }
             }
         }
+    }
+
+    /**
+     * Quest-scoped variables live on the player's quest record rather than in the state store,
+     * because they are meaningless once the quest ends and should not outlive it.
+     */
+    private void applyQuestVariable(
+            PlayerQuestData data,
+            String packageId,
+            QuestDefinition quest,
+            EventDefinition event,
+            String key,
+            String op) {
+        String questId = quest == null
+                ? resolve(packageId, event.text("quest", ""))
+                : quest.packageId() + ":" + quest.id();
+        Map<String, String> variables =
+                data.questVariables().computeIfAbsent(questId, ignored -> new ConcurrentHashMap<>());
+        switch (op.toLowerCase(Locale.ROOT)) {
+            case "remove" -> variables.remove(key);
+            case "increment" -> variables.merge(
+                    key,
+                    Long.toString(event.longValue("amount", 1L)),
+                    (current, delta) -> Long.toString(parseLongOrZero(current) + parseLongOrZero(delta)));
+            default -> variables.put(key, event.text("value", ""));
+        }
+    }
+
+    private static long parseLongOrZero(String value) {
+        try {
+            return value == null || value.isBlank() ? 0L : Long.parseLong(value.trim());
+        } catch (NumberFormatException ignored) {
+            return 0L;
+        }
+    }
+
+    /**
+     * {@code quest} is a scope only the quest record understands, so it is checked against the raw
+     * authored value — normalising it would collapse it onto {@code player} and silently write
+     * quest state to the wrong place.
+     */
+    private static boolean isQuestScope(TypedConfig config) {
+        return config.text("scope", "").equalsIgnoreCase("quest");
     }
 
     private boolean canStart(PlayerQuestData data, QuestDefinition quest) {
@@ -976,8 +1438,10 @@ public final class PlayerQuestService {
             QuestTargetContext targetContext,
             Set<String> referenceStack) {
         return switch (condition.type()) {
-            case "tag", "globalTag", "entityTag", "blockTag", "volumeTag" -> scopedStateService.hasTag(
-                    data.playerId(), packageScopedTag(packageId, condition), targetContext);
+            // Canonical state types. "invert" carries what the legacy "notTag" alias used to mean.
+            case "tag", "globalTag", "entityTag", "blockTag", "volumeTag" ->
+                    scopedStateService.hasTag(data.playerId(), packageScopedTag(packageId, condition), targetContext)
+                            != condition.bool("invert", false);
             case "notTag" -> !scopedStateService.hasTag(data.playerId(), packageScopedTag(packageId, condition), targetContext);
             case "questCompleted" -> data.completedQuests().containsKey(resolve(packageId, condition.text("quest", "")));
             case "questActive" -> data.activeQuests().containsKey(resolve(packageId, condition.text("quest", "")));
@@ -989,13 +1453,84 @@ public final class PlayerQuestService {
                     data.playerId(),
                     condition.text("permission", condition.text("node", "")));
             case "inConversation" -> conversationStateSupplier.get().test(data.playerId());
+            case NarrativeScripts.TYPE -> narrativeScripts != null && narrativeScripts.test(data.playerId(), packageId, condition);
             case "inParty" -> partyMembers.apply(data.playerId()).size() > 1;
             case "partySize" -> compareNumber(
                     partyMembers.apply(data.playerId()).size(),
                     condition.text("operator", condition.text("comparison", ">=")),
                     condition.integer("amount", condition.integer("value", 1)));
-            default -> false;
+            case "playerHidden", "entityHidden" -> isHidden(data.playerId(), condition, targetContext);
+            case "targetingPrevented" -> isTargetingPrevented(data.playerId(), condition, targetContext);
+            case "nearEntity" -> hasEntityNearby(data.playerId(), condition, targetContext);
+            default -> evaluateRegisteredCondition(data.playerId(), packageId, condition, targetContext);
         };
+    }
+
+    /** True when {@code target} is currently hidden from {@code viewer}. */
+    private boolean isHidden(UUID playerId, ConditionDefinition condition, QuestTargetContext targetContext) {
+        QuestActionServices services = actionServices;
+        if (services == null) {
+            return false;
+        }
+        UUID viewer = services.targets().resolveSingle(
+                viewerSelector(condition), playerId, targetContext);
+        UUID subject = services.targets().resolveSingle(condition, playerId, targetContext);
+        return viewer != null && subject != null && services.visibility().isHidden(viewer, subject);
+    }
+
+    private boolean isTargetingPrevented(UUID playerId, ConditionDefinition condition, QuestTargetContext targetContext) {
+        QuestActionServices services = actionServices;
+        if (services == null) {
+            return false;
+        }
+        UUID subject = services.targets().resolveSingle(condition, playerId, targetContext);
+        return subject != null && services.targeting().isProtected(subject);
+    }
+
+    /**
+     * True when a tracked entity is within {@code radius} of the player, optionally filtered by an
+     * entity-scope {@code tag}. Lets content ask "is a guard watching?" without a custom handler.
+     */
+    private boolean hasEntityNearby(UUID playerId, ConditionDefinition condition, QuestTargetContext targetContext) {
+        QuestActionServices services = actionServices;
+        if (services == null) {
+            return false;
+        }
+        String tag = condition.text("tag", "");
+        String radius = Double.toString(condition.decimal(
+                "radius", java.math.BigDecimal.valueOf(TargetSelector.DEFAULT_NEAREST_RADIUS)).doubleValue());
+        UUID nearest = services.targets().resolveSingle("nearest:" + radius, playerId, targetContext);
+        if (nearest == null) {
+            return false;
+        }
+        return tag.isBlank()
+                || scopedStateService.store().hasTag(
+                        StateKey.of(StateScope.ENTITY, nearest.toString()), tag);
+    }
+
+    /** A condition type registered by another mod. An unevaluable gate denies rather than passes. */
+    private boolean evaluateRegisteredCondition(
+            UUID playerId,
+            String packageId,
+            ConditionDefinition condition,
+            QuestTargetContext targetContext) {
+        QuestActionServices services = actionServices;
+        QuestConditionHandler handler = services == null ? null : services.registry().condition(condition.type());
+        if (handler == null) {
+            return false;
+        }
+        try {
+            return handler.test(actionContext(playerId, packageId, condition, targetContext));
+        } catch (RuntimeException exception) {
+            logger.at(Level.WARNING).withCause(exception)
+                    .log("Registered MysticQuests condition '" + condition.type() + "' failed; denying.");
+            return false;
+        }
+    }
+
+    /** Reads the {@code viewer} field, defaulting to the acting player, matching the hide events. */
+    private static String viewerSelector(ConditionDefinition condition) {
+        return condition.text("viewer", "self");
     }
 
     private static boolean compareNumber(long actual, String operator, long expected) {
@@ -1063,9 +1598,8 @@ public final class PlayerQuestService {
     private boolean compareVariable(PlayerQuestData data, String packageId, QuestDefinition quest, ConditionDefinition condition, QuestTargetContext targetContext) {
         String key = condition.text("key", condition.text("name", ""));
         String expected = condition.text("value", "");
-        String scope = condition.text("scope", "player");
         String questId = quest == null ? resolve(packageId, condition.text("quest", "")) : quest.packageId() + ":" + quest.id();
-        if (scope.equals("quest")) {
+        if (isQuestScope(condition)) {
             String actual = data.questVariables().getOrDefault(questId, Map.of()).get(key);
             return expected.equals(actual);
         }
@@ -1113,9 +1647,24 @@ public final class PlayerQuestService {
         return switch (objective.type()) {
             case "kill", "gather", "craft", "interactEntity", "interactObject", "dialogue", "triggerEnter", "triggerExit" ->
                     objective.text("target", objective.text("entity", objective.text("item", objective.text("volume", "")))).equals(signal.target());
+            // A generated NPC answers to its definition id or to one NPC's stable identity, so a
+            // quest can say "talk to any guard" or "talk to this guard" with the same objective.
+            case "interactNpc" -> {
+                String target = objective.text("target", objective.text("definition", objective.text("npc", "")));
+                yield !target.isBlank()
+                        && (target.equals(signal.target())
+                                || target.equalsIgnoreCase(generationUuidOf(signal)));
+            }
+            // Narrative transitions advance quests by naming a signal rather than a quest, so the
+            // objective must match its own id exactly; unlike "custom", any signal is not enough.
+            case "signal" -> objective.text("signal", objective.text("target", "")).equals(signal.target());
             case "reachLocation", "timer", "custom" -> true;
             default -> false;
         };
+    }
+
+    private String generationUuidOf(QuestSignal signal) {
+        return signal.targetContext() == null ? null : signal.targetContext().generationUuid();
     }
 
     private boolean isComplete(QuestDefinition quest, ActiveQuestData activeQuest) {
@@ -1132,28 +1681,35 @@ public final class PlayerQuestService {
         if (quest == null || active == null) {
             return null;
         }
-        List<ObjectiveView> objectives = quest.objectives().stream()
-                .map(objective -> ObjectiveView.of(
-                        objective.id(),
-                        objective.displayName(),
-                        active.objectiveProgress().getOrDefault(objective.id(), 0),
-                        objective.integer("amount", 1)))
-                .toList();
-        return new JournalEntry(active.questId(), quest.displayName(), quest.description(), objectives, isComplete(quest, active));
+        Function<ObjectiveDefinition, ObjectiveView> viewer = objective -> ObjectiveView.of(
+                objective.id(),
+                objective.displayName(),
+                active.objectiveProgress().getOrDefault(objective.id(), 0),
+                objective.integer("amount", 1));
+        List<ObjectiveView> objectives = quest.objectives().stream().map(viewer).toList();
+        return new JournalEntry(
+                active.questId(),
+                quest.displayName(),
+                quest.description(),
+                objectives,
+                StageView.group(quest.stages(), quest.objectives(), viewer),
+                isComplete(quest, active));
     }
 
     private JournalEntry completedEntry(String questId, QuestDefinition quest) {
         if (quest == null) {
             return null;
         }
-        return new JournalEntry(questId, quest.displayName(), quest.description(), List.of(ObjectiveView.note("Completed")), true);
+        return JournalEntry.ungrouped(
+                questId, quest.displayName(), quest.description(), List.of(ObjectiveView.note("Completed")), true);
     }
 
     private JournalEntry availableEntry(String questId, QuestDefinition quest) {
         if (quest == null) {
             return null;
         }
-        return new JournalEntry(questId, quest.displayName(), quest.description(), List.of(ObjectiveView.note("Available to start")), false);
+        return JournalEntry.ungrouped(
+                questId, quest.displayName(), quest.description(), List.of(ObjectiveView.note("Available to start")), false);
     }
 
     private JournalEntry abandonedEntry(UUID playerId, String questId, QuestDefinition quest) {
@@ -1161,7 +1717,7 @@ public final class PlayerQuestService {
             return null;
         }
         ReacceptState reaccept = reacceptState(playerId, questId);
-        return new JournalEntry(
+        return JournalEntry.ungrouped(
                 questId,
                 quest.displayName(),
                 quest.description(),

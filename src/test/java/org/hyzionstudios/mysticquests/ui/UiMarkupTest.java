@@ -294,7 +294,9 @@ final class UiMarkupTest {
     void hudDynamicIconsAndMetersUseSafeElementTypesAndFallbacks() throws IOException {
         String hud = Files.readString(UI_ROOT.resolve(HUD_DOCUMENT));
         String java = Files.readString(JAVA_ROOT.resolve("QuestHud.java"));
-        for (int index = 0; index < 4; index++) {
+        int rows = hudObjectiveRowCount(hud);
+        assertTrue(rows >= 4, "Expected the tracker to declare objective rows, found " + rows);
+        for (int index = 0; index < rows; index++) {
             assertTrue(hud.matches("(?s).*AssetImage\\s+#HudObjectiveIcon" + index
                             + "\\s*\\{[^}]*FallbackTexturePath:\\s*\\$MQ\\.@MissingIcon;.*"),
                     "Dynamic HUD icon " + index + " must be an AssetImage with a visible fallback");
@@ -315,8 +317,52 @@ final class UiMarkupTest {
                 "Quest tracker needs a Right layout wrapper; Anchor.Right alone starts from the left origin");
         Matcher tracker = Pattern.compile("(?s)Group\\s+#TrackedQuest\\s*\\{(.*?)LayoutMode:\\s*Top;").matcher(hud);
         assertTrue(tracker.find(), "Missing #TrackedQuest container");
-        assertTrue(tracker.group(1).matches("(?s).*Anchor:\\s*\\([^)]*Height:\\s*(?:1\\d\\d|2[0-7]\\d)[^)]*\\);.*"),
+        // The bound is what matters, not the number: three digits under 400 keeps the tracker inside
+        // a 720p viewport with room for the step block and its rows.
+        assertTrue(tracker.group(1).matches("(?s).*Anchor:\\s*\\([^)]*Height:\\s*[123]\\d\\d[^)]*\\);.*"),
                 "Right-layout children stretch on the cross axis, so the tracker needs a bounded explicit height");
+    }
+
+    /**
+     * The tracker shows one step of the quest, so it must also say which step that is and how much
+     * of the whole quest is done — otherwise a thirteen-objective quest looks like a five-objective
+     * one. Both halves have to exist: the ids in the document, and the Java that fills them.
+     */
+    @Test
+    void trackerHudShowsStepAndWholeQuestProgress() throws IOException {
+        String hud = Files.readString(UI_ROOT.resolve(HUD_DOCUMENT));
+        String java = Files.readString(JAVA_ROOT.resolve("QuestHud.java"));
+        for (String id : List.of("#TrackedStepLabel", "#TrackedStageName", "#TrackedTotalProgress",
+                "#TrackedTotalMeter", "#HudObjectiveOverflow")) {
+            assertTrue(hud.contains(id), "Tracker document is missing " + id);
+            assertTrue(java.contains(id + "."), "QuestHud never writes to " + id);
+        }
+        assertTrue(java.contains("currentStage()"), "Tracker must render the current step, not the first rows");
+    }
+
+    /**
+     * A quest can carry a dozen objectives; the journal's objective list has to scroll inside its
+     * panel instead of running underneath the Track and Abandon buttons.
+     */
+    @Test
+    void journalObjectiveListScrolls() throws IOException {
+        String journal = Files.readString(UI_ROOT.resolve("Custom/mysticquests/Pages/JournalPage.ui"));
+        Matcher list = Pattern.compile("(?s)Group\\s+#ObjectiveList\\s*\\{(.*?)\\}").matcher(journal);
+        assertTrue(list.find(), "Missing #ObjectiveList container");
+        String body = list.group(1);
+        assertTrue(body.contains("LayoutMode: TopScrolling"), "#ObjectiveList must scroll");
+        assertTrue(body.contains("ScrollbarStyle:"), "#ObjectiveList must show a scrollbar");
+        assertTrue(body.contains("FlexWeight: 1"),
+                "#ObjectiveList needs a bounded height to scroll within; it fills what the panel leaves");
+    }
+
+    /** Objective rows the tracker document declares, as {@code #HudObjective0}, {@code 1}, … */
+    private int hudObjectiveRowCount(String hud) {
+        int rows = 0;
+        while (hud.contains("Group #HudObjective" + rows + " {")) {
+            rows++;
+        }
+        return rows;
     }
 
     @Test

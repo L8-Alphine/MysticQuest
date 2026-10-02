@@ -17,7 +17,7 @@ actions:
 
 objectives:
   scout_ruins: "reachLocation ruins 1 name:'Reach the coastal ruins'"
-  hunt_wolves: "kill hytale:wolf 4 name:'Defeat the wolves' shared:true"
+  hunt_wolves: "kill Wolf_Black 4 name:'Defeat the wolves' shared:true"
 
 items:
   route_map:

@@ -1,0 +1,14 @@
+quests:
+  deeper_roots:
+    displayName: Deeper Roots
+    description: The warden trusts you now. Clear the wolves from the grove's edge.
+    startConditions:
+      # chapter 1 must be done: a cross-package reference ("-" becomes "/")
+      - { type: questCompleted, quest: "sealed_grove-chapter_1>the_grove" }
+      # and a typed 2.0 variable set by chapter 1
+      - type: narrative
+        condition: { type: variable, variable: grove:warden_trust, op: "==", value: friendly }
+    objectives:
+      - { id: wolves, displayName: Clear the wolves, type: kill, target: Wolf_Black, amount: 5, shared: true }
+    rewards:
+      - { type: sendMessage, message: "&aThe grove is safe, %player%." }

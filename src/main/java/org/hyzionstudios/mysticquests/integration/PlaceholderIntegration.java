@@ -1,6 +1,7 @@
 package org.hyzionstudios.mysticquests.integration;
 
 import org.hyzionstudios.mysticquests.service.PlayerQuestService;
+import com.hypixel.hytale.server.core.universe.PlayerRef;
 
 /**
  * Optional PlaceholderAPI hook.
@@ -42,5 +43,17 @@ public final class PlaceholderIntegration {
             // The expansion is going away with the server either way.
         }
         unregisterHook = null;
+    }
+
+    /** Resolves all installed PlaceholderAPI expansions, or returns the input unchanged. */
+    public String resolve(PlayerRef playerRef, String text) {
+        if (!enabled || playerRef == null || text == null || text.isEmpty()) {
+            return text == null ? "" : text;
+        }
+        try {
+            return PlaceholderExpansionFactory.resolve(playerRef, text);
+        } catch (NoClassDefFoundError | Exception ignored) {
+            return text;
+        }
     }
 }
