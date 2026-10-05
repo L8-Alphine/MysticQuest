@@ -242,7 +242,7 @@ Each objective has an `id`, a `type`, usually a `target`, and an `amount` (defau
 | `interactObject` | interacts with a matching block or object | the block or object ID |
 | `interactNpc` | talks to a MysticGeneration NPC | its definition (`hyzion:avalon_guard`) or one NPC's stable ID |
 | `dialogue` | reaches a conversation, or a node in one | `package:conversation` or `package:conversation:node` |
-| `triggerEnter` / `triggerExit` | enters or leaves a trigger volume | the volume key, `world:volumeId` |
+| `triggerEnter` / `triggerExit` | enters or leaves a trigger volume | the volume id, without the world (`bandit_camp`); see [trigger volumes](trigger-volumes.md) |
 | `signal` | a 2.0 story transition sends that signal | the signal ID (field `signal`) |
 
 ### How kills are counted
@@ -527,7 +527,7 @@ events:
   thank_player: { type: sendMessage, message: "&aThe village thanks you, %player%." }
 
 objectives:
-  find_camp: { type: triggerEnter, target: avalon:bandit_camp, displayName: Find the bandit camp }
+  find_camp: { type: triggerEnter, target: bandit_camp, displayName: Find the bandit camp }
 
 quests:
   bandits:

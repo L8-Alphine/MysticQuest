@@ -4,7 +4,7 @@ Questing system that is tag and variable driven.
 
 A Hytale server mod built with Java.
 
-Guides: [players](docs/players.md) · [server owners and staff](docs/server-guide.md) · [creating quests by hand](docs/creating-quests.md) · [writing 2.0 stories](docs/2.0/story-scripting.md) · [2.0 reference](docs/2.0/narrative-runtime.md) · [content format](docs/content-format.md)
+Guides: [players](docs/players.md) · [server owners and staff](docs/server-guide.md) · [creating quests by hand](docs/creating-quests.md) · [trigger volumes](docs/trigger-volumes.md) · [writing 2.0 stories](docs/2.0/story-scripting.md) · [2.0 reference](docs/2.0/narrative-runtime.md) · [content format](docs/content-format.md)
 
 ## V1 Engine
 
@@ -272,7 +272,9 @@ MysticQuests registers native trigger-volume conditions and effects that read or
 - Effects: `mysticquests:add_tag`, `mysticquests:remove_tag`, `mysticquests:set_variable`, `mysticquests:remove_variable`, `mysticquests:increment_variable`, `mysticquests:event`, `mysticquests:action`, `mysticquests:rich_message`, `mysticquests:run_command`, `mysticquests:puzzle_input`, `mysticquests:puzzle_reset`, `mysticquests:trigger_state`
 
 The narrative types make a volume per-audience without switching it for everyone; see
-[Trigger volumes](docs/2.0/narrative-runtime.md#26-trigger-volumes).
+[Trigger volumes](docs/2.0/narrative-runtime.md#26-trigger-volumes). For how volumes drive quests,
+gating volumes on quest state, and blocking interactions inside a volume, see the
+[trigger volumes guide](docs/trigger-volumes.md).
 
 Example trigger effect:
 
