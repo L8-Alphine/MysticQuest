@@ -1,21 +1,412 @@
-MIT License
+# HYZION STUDIOS SOFTWARE LICENSE
+## Version 1.0 — 2026
 
-Copyright (c) 2026 Alphine
+Copyright © 2026 Alphine, Hyzion Studios, and Krystian Carter.  
+All rights reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This Hyzion Studios Software License ("License") governs the use, modification, distribution, and licensing of software, source code, binaries, libraries, modules, plugins, modifications, documentation, assets, configuration files, APIs, SDK components, and related materials distributed under this License (collectively, the "Software").
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+For purposes of this License, **Alphine, Hyzion Studios, and Krystian Carter** are collectively referred to as the **"Licensor."**
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+By downloading, installing, compiling, accessing, modifying, distributing, or otherwise using the Software, you agree to the terms of this License.
+
+---
+
+# 1. SOFTWARE CLASSIFICATIONS
+
+Software distributed under this License may be designated as one of the following:
+
+### 1.1 Free Use Software
+
+Software designated as **Free Use**, **Free**, or otherwise provided without a paid license requirement may be used without payment, subject to all restrictions and requirements of this License.
+
+Free availability does not transfer ownership of the Software, its source code, or its intellectual property.
+
+### 1.2 Licensed Use Software
+
+Software designated as **Licensed Use**, **Premium**, **Commercial**, **Paid**, or otherwise identified as requiring authorization may only be operated where a valid license has been obtained through a licensing channel authorized by the Licensor.
+
+Possession of the Software, source code, compiled binaries, or installation files does not itself grant a license to operate Licensed Use Software.
+
+---
+
+# 2. OWNERSHIP
+
+The Software is licensed, not sold.
+
+Except for third-party components specifically identified as belonging to their respective owners, all original source code, architecture, designs, systems, documentation, APIs, SDKs, interfaces, algorithms, and other original materials included with the Software remain the intellectual property of the Licensor.
+
+Nothing in this License transfers ownership of the Software or its underlying intellectual property to the user.
+
+No person or organization may represent themselves as the original creator, owner, author, or copyright holder of the Software or any substantial portion of it.
+
+---
+
+# 3. PERMITTED USE
+
+Subject to the terms of this License, users may:
+
+a. Download and install Free Use Software.
+
+b. Operate Free Use Software for personal, community, educational, development, testing, or commercial server purposes unless additional terms accompanying a particular Software package state otherwise.
+
+c. Inspect source code that has been intentionally made available by the Licensor.
+
+d. Modify source code for personal or internal use where source code has been provided and modification has not otherwise been prohibited.
+
+e. Develop integrations, extensions, addons, scripts, configurations, or other software using officially provided APIs or SDKs.
+
+f. Make reasonable backup copies of legally obtained Software.
+
+g. Use Licensed Use Software when a valid license authorizing that use has been obtained through an authorized licensing channel.
+
+---
+
+# 4. ATTRIBUTION AND AUTHORSHIP
+
+You may not claim, imply, or represent that Software originally created by the Licensor was created by you or another person or organization.
+
+If source code or permitted derivative work containing a substantial portion of the Licensor's code is distributed with authorization, the following attribution must remain intact:
+
+"Original software and source code copyright © Alphine, Hyzion Studios, and Krystian Carter."
+
+Existing copyright notices, author information, license notices, attribution notices, and ownership identifiers may not be intentionally removed, concealed, falsified, or replaced in a manner that misrepresents the origin of the Software.
+
+Modification of the Software does not grant ownership over the original Software.
+
+A contributor may retain ownership of independently created original contributions to the extent separately agreed upon, but such contribution does not create ownership rights over pre-existing Software belonging to the Licensor.
+
+---
+
+# 5. PROHIBITED CONDUCT
+
+Unless prior written authorization has been provided by the Licensor, you may not:
+
+a. Claim the Software or substantial portions of its source code as your own original work.
+
+b. Remove, falsify, obscure, or replace copyright, licensing, ownership, or attribution information.
+
+c. Rebrand the Software in a manner that falsely represents the Software as having been independently created by another person or organization.
+
+d. Sell, sublicense, rent, lease, or commercially redistribute the Software itself as a standalone competing product.
+
+e. Publish substantial portions of proprietary source code where the source code was not intentionally released for public redistribution.
+
+f. Circumvent, disable, spoof, modify, bypass, emulate, intercept, or otherwise defeat a licensing, entitlement, authentication, subscription, activation, ownership verification, or access-control system used by the Software.
+
+g. Create or distribute cracks, license bypasses, unauthorized license generators, patched binaries, authentication bypasses, or instructions whose primary purpose is to enable unauthorized operation of Licensed Use Software.
+
+h. Use stolen, duplicated, fabricated, transferred, revoked, expired, or otherwise unauthorized license credentials.
+
+i. Operate Licensed Use Software outside the scope of the license issued to you.
+
+j. knowingly distribute a modified version of the Software in a manner intended to impersonate an official release from the Licensor.
+
+k. Use the Licensor's names, logos, trademarks, product names, or branding to falsely imply sponsorship, certification, partnership, endorsement, or official status.
+
+---
+
+# 6. MODIFICATIONS AND DERIVATIVE WORKS
+
+Where modification is permitted, you may modify the Software for your own authorized use.
+
+Any modification remains subject to this License with respect to all portions derived from the original Software.
+
+You may identify yourself as the author of your own original modifications, but you may not identify yourself as the author or owner of the original Software.
+
+For example:
+
+Permitted:
+
+"Modified by Example Developer. Based on software originally developed by Hyzion Studios."
+
+Not permitted:
+
+"Created and developed entirely by Example Developer"
+
+where the work contains Software originally created by the Licensor.
+
+The Licensor reserves the right to establish additional redistribution permissions for individual repositories or Software packages.
+
+---
+
+# 7. REDISTRIBUTION
+
+Free Use Software may only be redistributed when redistribution has not been expressly prohibited by the Software's accompanying documentation.
+
+Where redistribution is permitted:
+
+a. This License must accompany the Software.
+
+b. Copyright and attribution notices must remain intact.
+
+c. The Software may not be represented as an independently created product.
+
+d. Modified versions must clearly indicate that they have been modified and are not official builds unless expressly approved by the Licensor.
+
+e. Redistribution may not be used to circumvent an official paid distribution, marketplace, licensing system, or authorized download channel.
+
+Licensed Use Software may not be publicly redistributed unless the Licensor has expressly authorized redistribution.
+
+A valid license to operate Licensed Use Software does not automatically include redistribution rights.
+
+---
+
+# 8. LICENSED SOFTWARE AND AUTHORIZED LICENSE CHANNELS
+
+Software requiring a paid or otherwise controlled license may only be operated under a valid license issued or recognized by the Licensor.
+
+Authorized licensing channels may include, but are not limited to:
+
+- Hyzion Studios;
+- official Hyzion Studios websites or services;
+- MysticLicensing or successor licensing systems;
+- authorized marketplaces;
+- authorized distribution partners;
+- approved resellers;
+- manually issued licenses; or
+- another licensing service explicitly approved by the Licensor.
+
+The exact licensing channel may differ between Software products.
+
+A user is responsible for obtaining the appropriate license before operating Software designated as Licensed Use Software.
+
+---
+
+# 9. LICENSE SCOPE
+
+A software license may contain restrictions including, without limitation:
+
+- number of servers;
+- number of instances;
+- number of users;
+- organization;
+- account;
+- deployment environment;
+- development versus production use;
+- license duration;
+- subscription period;
+- product edition;
+- available features;
+- update entitlement;
+- support entitlement; or
+- other limitations identified when the license is issued.
+
+Use outside the authorized scope constitutes unlicensed use.
+
+Unless expressly stated otherwise, licenses are non-exclusive and non-transferable.
+
+---
+
+# 10. LICENSE VALIDATION
+
+Licensed Use Software may communicate with licensing infrastructure operated or authorized by the Licensor for purposes such as:
+
+- validating license status;
+- checking entitlements;
+- identifying authorized products;
+- verifying Software versions;
+- preventing license abuse;
+- validating subscription status; and
+- enforcing licensed deployment limits.
+
+Any such system should operate subject to the applicable privacy policy and applicable law.
+
+Attempting to intentionally falsify information supplied to a license-validation system or interfere with license validation is prohibited.
+
+---
+
+# 11. DEVELOPERS, APIs, AND SDKs
+
+Where the Licensor provides an API or SDK, developers may create independent integrations, addons, modules, extensions, or other compatible works subject to the applicable API or SDK terms.
+
+Use of an API or SDK does not transfer ownership of the underlying Software.
+
+Developers retain rights in independently created code that does not incorporate proprietary portions of the Software, subject to any separate contributor or SDK agreement.
+
+The Licensor may establish separate terms for commercial integrations, marketplace distribution, partner programs, or developer programs.
+
+---
+
+# 12. THIRD-PARTY COMPONENTS
+
+The Software may include or depend upon third-party software.
+
+Third-party components remain subject to their respective licenses and copyright holders.
+
+Nothing in this License is intended to override rights granted by, or requirements imposed by, applicable third-party licenses.
+
+Where a conflict exists concerning a third-party component, the license applicable to that third-party component governs that component.
+
+---
+
+# 13. CONTRIBUTIONS
+
+Submission of source code, documentation, assets, patches, pull requests, or other contributions does not automatically transfer ownership unless a separate contributor agreement or written agreement provides otherwise.
+
+Contributors must have the legal right to submit their contributions.
+
+The Licensor may require contributors to accept additional contribution terms before incorporating a contribution into an official Software release.
+
+---
+
+# 14. TRADEMARKS AND BRANDING
+
+This License grants no trademark rights.
+
+Names, logos, product identities, service identities, branding, and marks associated with Alphine, Hyzion Studios, Hyzion, or related Software remain the property of their respective owners.
+
+Permission to use the Software does not authorize a user to represent themselves as an employee, representative, partner, affiliate, or official developer of the Licensor.
+
+Truthful statements such as "compatible with," "integration for," or "uses" may be made where legally permitted, provided they do not imply official endorsement.
+
+---
+
+# 15. TERMINATION
+
+Your rights under this License automatically terminate if you materially violate its terms.
+
+For violations that are reasonably capable of being corrected, the Licensor may, at its discretion, allow the violation to be cured.
+
+Upon termination, authorization to operate Licensed Use Software immediately ends unless otherwise specified by the Licensor.
+
+Termination does not transfer ownership of copies already obtained and does not eliminate any obligations that, by their nature, survive termination, including intellectual-property, attribution, confidentiality, payment, and liability provisions.
+
+The Licensor may suspend or revoke licenses obtained through fraud, theft, chargeback abuse, license sharing, circumvention, or other material violations of the applicable licensing terms.
+
+---
+
+# 16. LICENSE TRANSFERS
+
+Licenses may not be sold, sublicensed, shared, assigned, or transferred to another person, account, organization, or server unless:
+
+1. the applicable Software license explicitly permits transfer; or
+2. the Licensor provides written authorization.
+
+The Licensor may provide an official transfer process for eligible licenses.
+
+---
+
+# 17. UPDATES AND SUPPORT
+
+Unless explicitly included with a license or purchase, acquisition of the Software does not guarantee:
+
+- future updates;
+- technical support;
+- compatibility updates;
+- new features;
+- hosting services;
+- continued availability of a particular version; or
+- access to future Software products.
+
+Separate support, maintenance, or update terms may apply.
+
+---
+
+# 18. NO WARRANTY
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE," WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
+
+THE LICENSOR DISCLAIMS ALL WARRANTIES INCLUDING, WITHOUT LIMITATION, WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, NON-INFRINGEMENT, AVAILABILITY, RELIABILITY, SECURITY, AND COMPATIBILITY.
+
+THE LICENSOR DOES NOT WARRANT THAT THE SOFTWARE WILL BE ERROR-FREE, UNINTERRUPTED, OR COMPATIBLE WITH EVERY SYSTEM, SERVER, MODIFICATION, PLUGIN, GAME VERSION, OR THIRD-PARTY PRODUCT.
+
+---
+
+# 19. LIMITATION OF LIABILITY
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE LICENSOR SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, CONSEQUENTIAL, OR PUNITIVE DAMAGES ARISING FROM OR RELATED TO THE SOFTWARE.
+
+THIS INCLUDES, WITHOUT LIMITATION, LOSS OF DATA, LOSS OF REVENUE, LOSS OF PROFITS, LOSS OF BUSINESS, SERVER DOWNTIME, SOFTWARE FAILURE, DATA CORRUPTION, OR LOSS OF ACCESS.
+
+THESE LIMITATIONS APPLY REGARDLESS OF THE THEORY OF LIABILITY AND EVEN IF THE LICENSOR HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+Nothing in this section excludes liability that cannot legally be excluded under applicable law.
+
+---
+
+# 20. NO IMPLIED RIGHTS
+
+Rights not expressly granted under this License are reserved by the Licensor.
+
+Access to source code does not place that source code in the public domain.
+
+Public availability of a repository does not waive copyright or ownership.
+
+Free distribution of Software does not mean that the Software is copyright-free or without licensing restrictions.
+
+---
+
+# 21. ADDITIONAL PRODUCT TERMS
+
+Individual Software packages may contain additional terms governing matters such as:
+
+- commercial licensing;
+- hosting;
+- cloud services;
+- API usage;
+- distribution;
+- marketplace sales;
+- developer access;
+- enterprise deployments;
+- data processing;
+- support;
+- subscriptions; or
+- specific integrations.
+
+Where additional terms conflict with this License, the more specific product terms govern solely with respect to the subject matter of that conflict.
+
+---
+
+# 22. LICENSE DESIGNATION
+
+Software using this License should identify itself using a notice substantially similar to:
+
+Hyzion Studios Software License v1.0  
+Copyright © 2026 Alphine, Hyzion Studios, and Krystian Carter.  
+All rights reserved.
+
+Software Classification: [Free Use / Licensed Use]
+
+Use of this Software is governed by the Hyzion Studios Software License v1.0.
+
+For machine-readable metadata where a standard SPDX license identifier is unavailable, projects may use:
+
+LicenseRef-Hyzion-Studios-Software-License-1.0
+
+---
+
+# 23. SEVERABILITY
+
+If any provision of this License is determined to be invalid, illegal, or unenforceable, the remaining provisions shall continue in effect to the maximum extent permitted by law.
+
+An invalid provision shall be interpreted or limited, where legally possible, in a manner that most closely reflects its original purpose.
+
+---
+
+# 24. WAIVER
+
+Failure by the Licensor to enforce a provision of this License in one instance does not waive the right to enforce that provision in another instance.
+
+---
+
+# 25. ENTIRE LICENSE
+
+This License, together with any applicable product-specific licensing terms, constitutes the licensing terms governing the Software unless the Licensor enters into a separate written agreement governing that Software.
+
+---
+
+# 26. VERSIONING
+
+This document is:
+
+**Hyzion Studios Software License Version 1.0**
+
+The Licensor may publish future versions of this License.
+
+Software remains governed by the version under which it was released unless the applicable Software explicitly permits use under a later version.
+
+---
+
+Copyright © 2026 Alphine, Hyzion Studios, and Krystian Carter.  
+All rights reserved.
