@@ -1,5 +1,12 @@
 package org.hyzionstudios.mysticquests.narrative;
 
+import org.hyzionstudios.mysticquests.narrative.state.ScopeContext;
+import javax.annotation.Nullable;
+import org.hyzionstudios.mysticquests.narrative.action.TransitionReport;
+import org.hyzionstudios.mysticquests.narrative.action.ActionDefinition;
+import org.hyzionstudios.mysticquests.narrative.action.ActionContext;
+import org.hyzionstudios.mysticquests.narrative.action.ActionCompiler;
+import org.hyzionstudios.mysticquests.narrative.diagnostic.DiagnosticCode;
 import org.hyzionstudios.mysticquests.narrative.action.ActionExecutor;
 import org.hyzionstudios.mysticquests.narrative.action.ActionTypeRegistry;
 import org.hyzionstudios.mysticquests.narrative.action.builtin.CheckpointAction;
@@ -8,6 +15,7 @@ import org.hyzionstudios.mysticquests.narrative.action.builtin.EntityActions;
 import org.hyzionstudios.mysticquests.narrative.action.builtin.MediaActions;
 import org.hyzionstudios.mysticquests.narrative.action.builtin.OverlayActions;
 import org.hyzionstudios.mysticquests.narrative.cutscene.QuestCutsceneService;
+import org.hyzionstudios.mysticquests.narrative.id.NamespacedId;
 import org.hyzionstudios.mysticquests.narrative.media.QuestMediaService;
 import org.hyzionstudios.mysticquests.narrative.overlay.WorldOverlayRegistry;
 import org.hyzionstudios.mysticquests.narrative.action.builtin.PuzzleActions;
@@ -29,6 +37,9 @@ import org.hyzionstudios.mysticquests.narrative.state.NarrativeStateStore;
 import org.hyzionstudios.mysticquests.narrative.state.QuestTagService;
 import org.hyzionstudios.mysticquests.narrative.state.QuestVariableService;
 import org.hyzionstudios.mysticquests.narrative.state.ScopeOwner;
+import org.hyzionstudios.mysticquests.narrative.state.TagSchema;
+import org.hyzionstudios.mysticquests.narrative.state.TagRecord;
+import org.hyzionstudios.mysticquests.narrative.state.SchemaRegistry;
 import org.hyzionstudios.mysticquests.narrative.state.ScopeResolver;
 import org.hyzionstudios.mysticquests.narrative.state.ScopeSupport;
 import org.hyzionstudios.mysticquests.narrative.state.StateHost;
@@ -40,6 +51,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.time.Instant;
+import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -78,6 +92,8 @@ public final class NarrativeRuntime implements AutoCloseable {
             ScopeSupport scopes,
             /* A player's current party id, if a party provider knows one. */
             Function<UUID, Optional<String>> partyOf,
+            /* The identity a player's account belongs to (account scope), if an identity provider knows one. */
+            Function<UUID, Optional<String>> accountOf,
             /* Namespaces where undeclared tags and variables are tolerated, besides "legacy". */
             Collection<String> openNamespaces,
             SignalAction.Sink signals,
@@ -87,10 +103,12 @@ public final class NarrativeRuntime implements AutoCloseable {
             /* Receives one line per problem: unreadable documents, failed actions, migrations. */
             Consumer<String> problems,
             /* Receives one line per audited staff intervention, alongside the stored record. */
-            Consumer<String> auditLog) {
+            Consumer<String> auditLog,
+            NarrativeLimits limits) {
     }
 
     private final Settings settings;
+    private final NarrativeMetrics metrics;
     private final AtomicReference<NarrativeContent> content = new AtomicReference<>(NarrativeContent.empty());
     private final NarrativeStateStore store;
     private final QuestSessionService sessions;
@@ -114,31 +132,34 @@ public final class NarrativeRuntime implements AutoCloseable {
 
     public NarrativeRuntime(Settings settings) {
         this.settings = settings;
+        this.metrics = new NarrativeMetrics(settings.clock());
         Consumer<String> problems = settings.problems();
         this.store = new NarrativeStateStore(settings.documents(), problems);
-        this.sessions = new QuestSessionService(settings.documents(), settings.clock(), settings.serverId(), problems);
+        this.sessions = new QuestSessionService(settings.documents(), settings.clock(), settings.serverId(), problems,
+                () -> "qs-" + UUID.randomUUID(), metrics, settings.limits().storySessions());
         StateHost host = owner -> owner.scope() == VariableScope.QUEST_SESSION
                 ? sessions.sessionState(owner.ownerId())
                 : store.state(owner);
-        this.resolver = new ScopeResolver(settings.scopes(), settings.serverId(), settings.networkId());
+        this.resolver = new ScopeResolver(settings.scopes(), settings.serverId(), settings.networkId(), settings.accountOf());
         this.tags = new QuestTagService(() -> content.get().schemas(), resolver, host, settings.clock());
         this.variables = new QuestVariableService(() -> content.get().schemas(), resolver, host, problems);
-        this.conditions = new ConditionEvaluator(tags, variables, conditionTypes, problems);
-        this.executor = new ActionExecutor(actionTypes, problems);
+        this.conditions = new ConditionEvaluator(tags, variables, conditionTypes, problems, metrics);
+        this.executor = new ActionExecutor(actionTypes, problems, metrics);
         this.audiences = new AudienceResolver(settings.partyOf());
         this.activation = new TriggerActivationService(host, settings.serverId(), settings.partyOf(), this::activeSessionIds);
         this.puzzles = new QuestPuzzleService(
                 () -> content.get().puzzles(),
                 packageId -> content.get().version(packageId),
-                sessions, audiences, executor, conditions, settings.clock(), problems);
-        this.triggers = new QuestTriggerService(content::get, activation, puzzles);
+                sessions, audiences, executor, conditions, settings.clock(), problems, metrics);
+        this.triggers = new QuestTriggerService(content::get, activation, puzzles, metrics, problems);
         this.audit = new NarrativeAudit(settings.documents(), settings.clock(), settings.serverId(), settings.auditLog());
-        this.storyEntities = new StoryEntityRegistry(settings.documents(), settings.clock(), settings.partyOf(), problems);
+        this.storyEntities = new StoryEntityRegistry(settings.documents(), settings.clock(), settings.partyOf(), problems,
+                metrics, settings.limits().storyEntities());
         this.overlays = new WorldOverlayRegistry(() -> content.get().overlays(), activation);
         this.media = new QuestMediaService(content::get, host, settings.serverId(), settings.partyOf(), this::activeSessionIds,
                 sessions, settings.clock(), problems);
         this.cutscenes = new QuestCutsceneService(() -> content.get().cutscenes(), packageId -> content.get().version(packageId),
-                sessions, audiences, executor, media, settings.clock(), problems);
+                sessions, audiences, executor, media, settings.clock(), problems, metrics);
 
         StateActions.register(actionTypes, tags, variables);
         EntityActions.register(actionTypes, storyEntities, sessions, variables);
@@ -173,7 +194,7 @@ public final class NarrativeRuntime implements AutoCloseable {
      */
     public DiagnosticReport reload(Map<String, JsonNode> sections, Map<String, String> packageVersions) {
         DiagnosticReport report = new DiagnosticReport();
-        NarrativeContent compiled = compiler().compile(sections, packageVersions, report);
+        NarrativeContent compiled = compile(sections, packageVersions, report);
         if (!report.hasErrors()) {
             install(compiled);
         }
@@ -182,7 +203,25 @@ public final class NarrativeRuntime implements AutoCloseable {
 
     /** Compiles without installing; used to validate before an atomic reload of all content. */
     public NarrativeContent compile(Map<String, JsonNode> sections, Map<String, String> packageVersions, DiagnosticReport report) {
-        return compiler().compile(sections, packageVersions, report);
+        long started = System.nanoTime();
+        int errorsBefore = report.errors().size();
+        NarrativeContent compiled = compiler().compile(sections, packageVersions, report);
+        checkLimits(compiled, report);
+        metrics.add(NarrativeMetrics.Counter.VALIDATION_ERRORS, report.errors().size() - errorsBefore);
+        metrics.time("content.compile", System.nanoTime() - started);
+        return compiled;
+    }
+
+    /** Content-side capacity checks (§28); warnings, so a large puzzle still loads. */
+    private void checkLimits(NarrativeContent compiled, DiagnosticReport report) {
+        int maxInputs = settings.limits().puzzleInputs();
+        compiled.puzzles().forEach((id, puzzle) -> {
+            if (puzzle.inputs().size() > maxInputs) {
+                report.warning(DiagnosticCode.LIMIT_EXCEEDED, "puzzles." + id,
+                        "puzzle has " + puzzle.inputs().size() + " inputs, over the limit of " + maxInputs
+                                + " (narrative.maxPuzzleInputs); split it into stages or raise the limit");
+            }
+        });
     }
 
     public void install(NarrativeContent compiled) {
@@ -230,9 +269,11 @@ public final class NarrativeRuntime implements AutoCloseable {
             sessions.release(SessionOwner.party(party.get()));
         }
         String id = player.toString();
+        String account = settings.accountOf().apply(player).orElse(null);
         store.evict(owner -> switch (owner.scope()) {
             case PLAYER, TEMPORARY -> owner.ownerId().equals(id);
             case QUEST -> owner.ownerId().startsWith(id + "|");
+            case ACCOUNT -> owner.ownerId().equals(account);
             default -> false;
         });
     }
@@ -262,9 +303,34 @@ public final class NarrativeRuntime implements AutoCloseable {
 
     /** Writes everything pending, on the calling thread. Also purges expired tags. */
     public void flush() {
+        long started = System.nanoTime();
         store.purgeExpired(settings.clock().instant());
         store.flush();
         sessions.flush();
+        metrics.time("state.flush", System.nanoTime() - started);
+    }
+
+    // --- Metrics ---
+
+    /** Counters and timings since start or the last reset (§28, §29). */
+    public NarrativeMetrics metrics() {
+        return metrics;
+    }
+
+    /** The metrics with the current sizes of everything that has a limit. */
+    public NarrativeMetrics.Snapshot metricsSnapshot() {
+        NarrativeLimits limits = settings.limits();
+        long active = sessions.loaded().stream().filter(QuestSession::active).count();
+        return metrics.snapshot(List.of(
+                new NarrativeMetrics.Gauge("story sessions loaded", sessions.loaded().size(), limits.storySessions()),
+                new NarrativeMetrics.Gauge("story sessions active", active, 0),
+                new NarrativeMetrics.Gauge("story entities claimed", storyEntities.claims().size(), limits.storyEntities()),
+                new NarrativeMetrics.Gauge("state owners loaded", store.loadedOwners().size(), 0),
+                new NarrativeMetrics.Gauge("cutscenes running", cutscenes.drivers().size(), 0)));
+    }
+
+    public NarrativeLimits limits() {
+        return settings.limits();
     }
 
     private void flushQuietly() {
@@ -394,6 +460,75 @@ public final class NarrativeRuntime implements AutoCloseable {
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * A claimed story entity died (§8 "which audience owns the results"): its {@code onDeath} actions
+     * run once, in the owning session, for that session's audience, and the claim is released. The
+     * actor is the killer when they belong to the audience (outsiders cannot hit a story entity, so
+     * that is the normal case), otherwise the owning player, or no one for a party session.
+     *
+     * @return the transition that ran, or empty for an entity no story owns
+     */
+    public Optional<TransitionReport> onStoryEntityDeath(UUID entity, @Nullable UUID killer, @Nullable String world) {
+        StoryEntityRegistry.Claim claim = storyEntities.claimOf(entity);
+        if (claim == null) {
+            return Optional.empty();
+        }
+        storyEntities.release(StoryEntityRegistry.parse(claim.key()));
+        if (claim.onDeath() == null) {
+            return Optional.empty();
+        }
+        Optional<QuestSession> loaded = sessions.get(claim.sessionId());
+        if (loaded.isEmpty()) {
+            loaded = sessions.load(claim.owner()).stream().filter(session -> session.id().equals(claim.sessionId())).findFirst();
+        }
+        if (loaded.isEmpty()) {
+            settings.problems().accept("story entity " + claim.key() + " died, but its session " + claim.sessionId()
+                    + " is gone; its onDeath actions did not run");
+            return Optional.empty();
+        }
+        QuestSession session = loaded.get();
+        UUID actor = killer != null && storyEntities.allows(killer, claim) ? killer
+                : claim.owner().kind() == SessionOwner.Kind.PLAYER ? UUID.fromString(claim.owner().id()) : null;
+        DiagnosticReport report = new DiagnosticReport();
+        List<ActionDefinition> actions = ActionCompiler.compile(claim.onDeath(), "story entity " + claim.key() + ".onDeath",
+                compileContext(content.get(), ""), report);
+        if (report.hasErrors()) {
+            settings.problems().accept("story entity " + claim.key() + " onDeath no longer compiles: " + report.format());
+            return Optional.empty();
+        }
+        ScopeContext scope = actor != null ? audiences.context(actor, session, world)
+                : new ScopeContext(null, session.id(), session.storyKey(),
+                        claim.owner().kind() == SessionOwner.Kind.PARTY ? claim.owner().id() : null, world, null, null);
+        ActionContext context = new ActionContext(scope, "entity-death");
+        synchronized (session) {
+            return Optional.of(executor.run("entity-death:" + claim.key() + "@" + claim.claimedAt().toEpochMilli(), actions, context, session));
+        }
+    }
+
+    /** An important story moment a player reached: a player-scoped tag whose schema names a milestone. */
+    public record Milestone(NamespacedId tag, String text, Instant reached) {
+    }
+
+    /**
+     * The player's story milestones, newest first, read without loading or changing anything, so it
+     * is safe from any thread (the web portal asks from its own workers, often for offline players).
+     *
+     * @throws IOException when the player's stored state cannot be read
+     */
+    public List<Milestone> milestones(UUID player) throws IOException {
+        Instant now = settings.clock().instant();
+        SchemaRegistry schemas = content.get().schemas();
+        List<Milestone> reached = new ArrayList<>();
+        for (TagRecord tag : store.peek(ScopeOwner.player(player)).liveTags(now)) {
+            TagSchema schema = schemas.tag(tag.id());
+            if (schema != null && schema.milestone() != null) {
+                reached.add(new Milestone(tag.id(), schema.milestone(), tag.addedAt()));
+            }
+        }
+        reached.sort(Comparator.comparing(Milestone::reached).reversed());
+        return reached;
     }
 
     /** Everything held about one player, read-only, for {@code /mq debug} and diagnostic exports (§21). */

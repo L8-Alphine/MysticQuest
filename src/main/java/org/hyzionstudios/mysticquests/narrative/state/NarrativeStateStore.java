@@ -73,6 +73,32 @@ public final class NarrativeStateStore implements StateHost {
         return Set.copyOf(quarantined);
     }
 
+    /**
+     * A read-only copy of an owner's state for viewers off the game thread, such as the web portal:
+     * the live state when loaded, otherwise the stored document, read without loading the owner, so
+     * looking never caches, migrates or creates anything.
+     *
+     * @throws IOException when the stored document cannot be read
+     */
+    public OwnerState peek(ScopeOwner owner) throws IOException {
+        OwnerState live = owners.get(owner);
+        if (live != null) {
+            return live.copy();
+        }
+        if (!owner.scope().persistent()) {
+            return new OwnerState();
+        }
+        Optional<ObjectNode> stored = documents.read(COLLECTION, owner.key());
+        if (stored.isEmpty()) {
+            return new OwnerState();
+        }
+        try {
+            return OwnerState.fromJson(migrator.migrate(stored.get()).document().get("state"), new ArrayList<>());
+        } catch (DocumentVersionException newer) {
+            throw new IOException(owner + " was written by a newer MysticQuests", newer);
+        }
+    }
+
     public boolean isQuarantined(ScopeOwner owner) {
         return quarantined.contains(owner);
     }

@@ -1,5 +1,6 @@
 package org.hyzionstudios.mysticquests.integration.narrative;
 
+import org.hyzionstudios.mysticquests.integration.mysticidentity.IdentityAccounts;
 import org.hyzionstudios.mysticquests.api.MysticQuestsRegistry;
 import org.hyzionstudios.mysticquests.config.MysticQuestsConfig;
 import org.hyzionstudios.mysticquests.content.LoadedContent;
@@ -83,14 +84,16 @@ public final class NarrativeIntegration implements AutoCloseable {
                 Clock.systemUTC(),
                 config.serverId(),
                 "network",
-                ScopeSupport.standard(parties.available()),
+                ScopeSupport.standard(parties.available(), IdentityAccounts.present()),
                 parties::partyId,
+                IdentityAccounts.resolver(),
                 config.openNamespaces(),
                 (player, signal, amount) -> signals.publish(QuestSignal.simple(player, "signal", signal.toString(), amount)),
                 exitPolicy,
                 config.flushIntervalMillis(),
                 problem -> logger.at(Level.WARNING).log(LOG_PREFIX + problem),
-                audit -> logger.at(Level.INFO).log(LOG_PREFIX + audit)));
+                audit -> logger.at(Level.INFO).log(LOG_PREFIX + audit),
+                config.limits()));
         LegacyBridge.register(narrative, () -> quests, registry, player -> sessions.playerRef(player) != null);
         StoryEntityActions.register(narrative, generation, sessions,
                 problem -> logger.at(Level.WARNING).log(LOG_PREFIX + problem));
@@ -125,19 +128,34 @@ public final class NarrativeIntegration implements AutoCloseable {
      * @throws IOException listing every error, so the caller can keep the previous content
      */
     public NarrativeContent compile(LoadedContent content) throws IOException {
-        Map<String, String> versions = new LinkedHashMap<>();
-        for (Map.Entry<String, PackageMetadata> entry : content.packageMetadata().entrySet()) {
-            versions.put(entry.getKey(), entry.getValue().version());
-        }
         DiagnosticReport report = new DiagnosticReport();
-        NarrativeContent compiled = narrative.compile(content.narrativeSections(), versions, report);
-        checkConversationVoices(content, compiled, report);
-        QuestScripts.validate(content, compiled, narrative::compileContext, report);
+        NarrativeContent compiled = compileInto(content, report);
         if (report.hasErrors()) {
             throw new IOException("MysticQuests narrative validation failed:\n - "
                     + String.join("\n - ", report.errors().stream().map(Object::toString).toList()));
         }
         report.warnings().forEach(warning -> logger.at(Level.WARNING).log(LOG_PREFIX + warning));
+        return compiled;
+    }
+
+    /**
+     * Every problem a reload of {@code content} would report, without installing anything; the web
+     * Studio validates drafts with this, so a draft that passes is one the server accepts.
+     */
+    public DiagnosticReport check(LoadedContent content) {
+        DiagnosticReport report = new DiagnosticReport();
+        compileInto(content, report);
+        return report;
+    }
+
+    private NarrativeContent compileInto(LoadedContent content, DiagnosticReport report) {
+        Map<String, String> versions = new LinkedHashMap<>();
+        for (Map.Entry<String, PackageMetadata> entry : content.packageMetadata().entrySet()) {
+            versions.put(entry.getKey(), entry.getValue().version());
+        }
+        NarrativeContent compiled = narrative.compile(content.narrativeSections(), versions, report);
+        checkConversationVoices(content, compiled, report);
+        QuestScripts.validate(content, compiled, narrative::compileContext, report);
         return compiled;
     }
 

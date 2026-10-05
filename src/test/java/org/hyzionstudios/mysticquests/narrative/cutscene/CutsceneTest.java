@@ -1,5 +1,6 @@
 package org.hyzionstudios.mysticquests.narrative.cutscene;
 
+import org.hyzionstudios.mysticquests.narrative.id.NamespacedId;
 import org.hyzionstudios.mysticquests.narrative.NarrativeTestKit;
 import org.hyzionstudios.mysticquests.narrative.action.ActionCompiler;
 import org.hyzionstudios.mysticquests.narrative.action.ActionResult;
@@ -203,5 +204,29 @@ final class CutsceneTest {
         assertTrue(report.errors().stream().anyMatch(error -> error.message().contains("unknown cutscene 'hyzion:missing'")), report.format());
         assertTrue(report.warnings().stream().anyMatch(warning -> warning.code() == DiagnosticCode.UNTERMINATED_MEDIA), report.format());
         assertFalse(report.errors().stream().anyMatch(error -> error.path().contains("hyzion:fine")), report.format());
+    }
+
+    @Test
+    void listenersHearEveryStartAndEveryEndOnce() {
+        List<String> events = new ArrayList<>();
+        cutscenes().addListener(new QuestCutsceneService.Listener() {
+            @Override
+            public void started(NamespacedId cutscene, String sessionId, Set<UUID> audience) {
+                events.add("start " + cutscene.path() + " " + audience.contains(ALICE));
+            }
+
+            @Override
+            public void ended(NamespacedId cutscene, String sessionId, Set<UUID> audience) {
+                events.add("end " + cutscene.path());
+            }
+        });
+
+        cutscenes().play(ALICE, id("hyzion:temple.awakening"), null);
+        cutscenes().play(ALICE, id("hyzion:temple.awakening"), null);
+        cutscenes().skip(ALICE, false);
+
+        assertEquals(List.of("start temple.awakening true", "end temple.awakening",
+                "start temple.awakening true", "end temple.awakening"), events,
+                "a replaced scene ends before the new one starts, and a skip ends it");
     }
 }

@@ -1,5 +1,10 @@
 package org.hyzionstudios.mysticquests.narrative.entity;
 
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import org.hyzionstudios.mysticquests.narrative.NarrativeLimits;
+import org.hyzionstudios.mysticquests.narrative.NarrativeMetrics;
+import org.hyzionstudios.mysticquests.narrative.NarrativeMetrics.Counter;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.hyzionstudios.mysticquests.narrative.PresentationLayer;
 import org.hyzionstudios.mysticquests.narrative.persistence.DocumentMigrator;
 import org.hyzionstudios.mysticquests.narrative.persistence.DocumentMigrator.DocumentVersionException;
@@ -47,8 +52,17 @@ import java.util.function.Function;
 public final class StoryEntityRegistry implements PresentationLayer {
     static final String COLLECTION = "story-entities";
 
-    /** One claimed entity. */
-    public record Claim(String key, String sessionId, SessionOwner owner, String story, Instant claimedAt) {
+    /**
+     * One claimed entity.
+     *
+     * @param onDeath actions the owning session runs once when the entity dies (§8 "which audience
+     *         owns the results"), as authored; null when the claim has none
+     */
+    public record Claim(String key, String sessionId, SessionOwner owner, String story, Instant claimedAt,
+                        @Nullable ArrayNode onDeath) {
+        public Claim(String key, String sessionId, SessionOwner owner, String story, Instant claimedAt) {
+            this(key, sessionId, owner, story, claimedAt, null);
+        }
     }
 
     private final DocumentStore documents;
@@ -62,13 +76,54 @@ public final class StoryEntityRegistry implements PresentationLayer {
     /** Live entity UUID to claim: direct UUID claims, plus generation claims bound by observation. */
     private final Map<UUID, Claim> live = new ConcurrentHashMap<>();
 
+    private final NarrativeMetrics metrics;
+    private final int claimLimit;
+    /** Set while at {@link #claimLimit}, so reaching it is reported once rather than per refused spawn. */
+    private final AtomicBoolean full = new AtomicBoolean();
+
     public StoryEntityRegistry(DocumentStore documents, Clock clock, Function<UUID, Optional<String>> partyOf,
                                Consumer<String> problems) {
+        this(documents, clock, partyOf, problems, new NarrativeMetrics(clock), NarrativeLimits.DEFAULTS.storyEntities());
+    }
+
+    /** @param claimLimit the most entities that may be claimed at once (§28); see {@link #admits} */
+    public StoryEntityRegistry(DocumentStore documents, Clock clock, Function<UUID, Optional<String>> partyOf,
+                               Consumer<String> problems, NarrativeMetrics metrics, int claimLimit) {
         this.documents = documents;
         this.clock = clock;
         this.partyOf = partyOf;
         this.problems = problems;
+        this.metrics = metrics;
+        this.claimLimit = claimLimit;
         load();
+    }
+
+    /**
+     * Whether {@code entity} may be claimed now. An entity that is already claimed always may (a claim
+     * can move between sessions); a new one only while fewer than the limit are claimed. Spawns and
+     * claims check this first and fail retryably when it is false, so the transition runs again once
+     * other stories release theirs.
+     *
+     * @param entity the entity about to be claimed, or null for one about to be spawned
+     */
+    public boolean admits(@Nullable EntityRefValue entity) {
+        if (entity != null && claims.containsKey(key(entity))) {
+            return true;
+        }
+        if (claims.size() < claimLimit) {
+            full.set(false);
+            return true;
+        }
+        if (full.compareAndSet(false, true)) {
+            metrics.increment(Counter.LIMITS_REACHED);
+            problems.accept(claims.size() + " story entities are claimed, the limit of " + claimLimit
+                    + "; new spawns and claims wait until stories release theirs (narrative.maxStoryEntities)");
+        }
+        return false;
+    }
+
+    public int claimLimit() {
+        return claimLimit;
     }
 
     private void load() {
@@ -86,7 +141,8 @@ public final class StoryEntityRegistry implements PresentationLayer {
                         continue;
                     }
                     install(new Claim(key, node.path("session").asText(), owner, node.path("story").asText(),
-                            Instant.parse(node.path("claimedAt").asText())));
+                            Instant.parse(node.path("claimedAt").asText()),
+                            node.get("onDeath") instanceof ArrayNode onDeath ? onDeath : null));
                 } catch (DocumentVersionException | RuntimeException unreadable) {
                     problems.accept("story entity claim " + key + " could not be read and is ignored: " + unreadable.getMessage());
                 }
@@ -101,7 +157,13 @@ public final class StoryEntityRegistry implements PresentationLayer {
      * one: the entity can belong to one story at a time.
      */
     public Claim claim(EntityRefValue entity, String sessionId, SessionOwner owner, String story) {
-        Claim claim = new Claim(key(entity), sessionId, owner, story, clock.instant());
+        return claim(entity, sessionId, owner, story, null);
+    }
+
+    /** @param onDeath actions run in the owning session when the entity dies; see {@link Claim#onDeath()} */
+    public Claim claim(EntityRefValue entity, String sessionId, SessionOwner owner, String story, @Nullable ArrayNode onDeath) {
+        Claim claim = new Claim(key(entity), sessionId, owner, story, clock.instant(),
+                onDeath == null || onDeath.isEmpty() ? null : onDeath.deepCopy());
         Claim previous = claims.get(claim.key());
         if (previous != null && !previous.sessionId().equals(sessionId)) {
             problems.accept("story entity " + claim.key() + " moves from session " + previous.sessionId() + " to " + sessionId);
@@ -114,6 +176,9 @@ public final class StoryEntityRegistry implements PresentationLayer {
         document.put("owner", owner.key());
         document.put("story", story);
         document.put("claimedAt", claim.claimedAt().toString());
+        if (claim.onDeath() != null) {
+            document.set("onDeath", claim.onDeath());
+        }
         try {
             documents.write(COLLECTION, claim.key(), document);
         } catch (IOException failure) {
@@ -269,7 +334,8 @@ public final class StoryEntityRegistry implements PresentationLayer {
         return entity.kind() + ":" + entity.id();
     }
 
-    private static EntityRefValue parse(String key) {
+    /** The entity a claim key names. */
+    public static EntityRefValue parse(String key) {
         int colon = key.indexOf(':');
         return new EntityRefValue(key.substring(0, colon), key.substring(colon + 1));
     }

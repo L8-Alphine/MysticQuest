@@ -39,9 +39,22 @@ public final class ScopeSupport {
      *         resolve for anyone, so it is degraded rather than refused, and the content stays loadable.
      */
     public static ScopeSupport standard(boolean partyProvider) {
+        return standard(partyProvider, false);
+    }
+
+    /**
+     * @param identityProvider whether MysticIdentity is installed. Account scope then resolves for
+     *         players linked to an identity and is skipped for the others, so it is degraded.
+     */
+    public static ScopeSupport standard(boolean partyProvider, boolean identityProvider) {
         ScopeSupport support = new ScopeSupport();
-        support.set(VariableScope.ACCOUNT, Level.UNSUPPORTED,
-                "no identity provider is bound (install and enable MysticIdentity)");
+        if (identityProvider) {
+            support.set(VariableScope.ACCOUNT, Level.DEGRADED,
+                    "account scope resolves for players linked to a MysticIdentity identity; for others, writes are skipped");
+        } else {
+            support.set(VariableScope.ACCOUNT, Level.UNSUPPORTED,
+                    "no identity provider is bound (install and enable MysticIdentity)");
+        }
         support.set(VariableScope.NETWORK, Level.UNSUPPORTED, "no network state provider is configured");
         support.set(VariableScope.SEASON, Level.UNSUPPORTED, "no season provider is configured");
         if (!partyProvider) {

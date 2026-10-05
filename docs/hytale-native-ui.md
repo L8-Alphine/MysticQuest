@@ -52,10 +52,11 @@ without the enclosing document's imports, so they cannot resolve `$MQ.@…`. The
 
 | File | Wired from | Status |
 | --- | --- | --- |
-| `Pages/JournalPage.ui` | `MysticQuestJournalPage` | Live. `/journal` quest log: Current / Completed / Abandoned tabs, clickable rows, Track and Abandon on Current. Objectives scroll under their step headings. |
-| `Pages/QuestMenuPage.ui` | `QuestMenuPage` | Live. `/quest` board: acceptable quests only, with an Accept action. |
-| `Pages/ConversationPage.ui` | `ConversationPage` | Live. Up to eight choices. |
-| `../Hud/MysticQuestsQuestHud.ui` | `QuestHud` | Tracked quest: whole-quest progress plus the current step's objectives, up to five rows. |
+| `Pages/JournalPage.ui` | `MysticQuestJournalPage` | Live. `/journal` (Redesign Bible §7.1-7.2, §7.4): a rail of sections (tracked, quests by category, stories, completed, abandoned) and a detail pane (category and state badges, current step, current objective card, recap, objectives by step, revealed rewards, timeline, Track / Stop tracking / Abandon). Quest settings share the detail pane. `JournalModel` decides what shows; the page only draws it. |
+| `Pages/QuestMenuPage.ui` | `QuestMenuPage` | Live. `/quest` board (Redesign Bible §7.3): cards grouped by category with difficulty, party size and the revealed rewards; locked cards only for quests whose author wrote `lockedText`; a preview pane of facts the author provided; Accept, which `startQuest` revalidates. `QuestBoardModel` decides what shows. |
+| `Pages/ConversationPage.ui` | `ConversationPage` | Live. Cinematic band: speaker rail, subtitle, voice badge, up to eight choices in a scrolling list, toggleable recent transcript. Choices carry server-issued tokens, never indexes. |
+| `../Hud/MysticQuestsQuestHud.ui` | `QuestHud` | Tracked quest, top-right. Compact and expanded compositions in one document, switched by `Visible` patches. Hidden during dialogue. |
+| `../Hud/MysticQuestsPuzzleHud.ui` | `QuestPuzzleHud` | Puzzle card, bottom-centre above the hotbar. Its own HUD layer — see below. |
 | `Pages/QuestCompletePage.ui` | — | **Design shell only, not wired.** No Java surface opens it. |
 | `Pages/ObjectiveToast.ui` | — | **Design shell only, not wired.** Progress feedback currently goes through `QuestNotificationService`. |
 | `Pages/AdminPanelPage.ui` | — | **Design shell only, not wired.** Admin operations are command-driven via `/mquest`. |
@@ -63,6 +64,26 @@ without the enclosing document's imports, so they cannot resolve `$MQ.@…`. The
 The three unwired shells are kept deliberately as the layout reference for the surfaces they
 describe. They are not dead assets to prune without first deciding whether those surfaces are still
 wanted.
+
+### One screen position per HUD document
+
+A HUD document cannot put blocks in two corners. `Anchor` offsets are relative to where the layout
+puts an element, not to the screen, so a block that must sit bottom-centre beside one that sits
+top-right needs its own document and its own `CustomUIHud` key. MysticRPG learned this first (its
+experience bar is a separate HUD from its vitals); the puzzle card follows it. Each HUD document's
+root takes the full height with `FlexWeight: 1` and lays out from the edge it hugs: `Right` for the
+tracker, `Bottom` for the puzzle card. The card sits at `Bottom: 244`, clear of the hotbar stack and
+of MysticRPG's experience bar (`Bottom: 176`, `Height: 56`).
+
+`QuestHudCoordinator` decides which layers show; `QuestHudService` adds, patches and removes them.
+Neither feeds anything back into quest or puzzle state.
+
+### Asset paths versus texture paths
+
+Theme icons (`@Icon…` in `Theme.ui`) are asset-root paths — `UI/Custom/mysticquests/Assets/…` — and
+only `AssetImage.AssetPath` reads them that way. A `Background` or `TexturePath` resolves its string
+relative to the document, so the same value there points at nothing. `UiMarkupTest` fails the build
+on a theme icon used as anything but `AssetPath`.
 
 ## Root cause: one invalid enum value took down every mod's UI
 

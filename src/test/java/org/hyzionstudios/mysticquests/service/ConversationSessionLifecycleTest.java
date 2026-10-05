@@ -52,10 +52,21 @@ final class ConversationSessionLifecycleTest {
     @Test
     void aStalePageDismissalCannotEndTheSessionThatReplacedIt() throws IOException {
         String service = Files.readString(SERVICE);
-        assertTrue(service.contains("session.token() == token ? null : session"),
+        assertTrue(service.contains("session.token() != token"),
                 "Replacing a page dismisses the old one; that must not end the new page's conversation");
         assertTrue(service.contains("session.ownedBy(token)"),
                 "Adopting a session must transfer ownership to the incoming page");
+    }
+
+    @Test
+    void choicesUseServerIssuedOpaqueTokensAndTranscriptCanBeToggled() throws IOException {
+        String service = Files.readString(SERVICE);
+        String page = Files.readString(PAGE);
+        assertTrue(service.contains("UUID.randomUUID().toString()")
+                        && service.contains("choiceTokens.getOrDefault"),
+                "Choice events must resolve through server-issued tokens, not client-supplied indexes");
+        assertTrue(page.contains("#TranscriptToggle") && page.contains("#TranscriptPanel.Visible"),
+                "The cinematic dialogue page must expose its recent transcript");
     }
 
     @Test

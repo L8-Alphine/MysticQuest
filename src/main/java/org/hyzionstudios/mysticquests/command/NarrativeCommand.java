@@ -1,5 +1,7 @@
 package org.hyzionstudios.mysticquests.command;
 
+import org.hyzionstudios.mysticquests.narrative.NarrativeMetrics;
+import java.time.Duration;
 import org.hyzionstudios.mysticquests.MysticQuestsRuntime;
 import org.hyzionstudios.mysticquests.content.MigrationReport;
 import org.hyzionstudios.mysticquests.narrative.NarrativeRuntime;
@@ -82,7 +84,7 @@ final class NarrativeCommand {
         }
         NarrativeRuntime narrative = runtime.narrative().runtime();
         if (args.length < 2) {
-            send(context, "/mquest narrative <sessions|media|cutscene|checkpoint|story|objective|goto|puzzle|trigger|validate|migrate> ...", MUTED);
+            send(context, "/mquest narrative <sessions|media|cutscene|checkpoint|story|objective|goto|puzzle|trigger|validate|migrate|stats> ...", MUTED);
             return;
         }
         switch (args[1].toLowerCase(Locale.ROOT)) {
@@ -97,6 +99,7 @@ final class NarrativeCommand {
             case "trigger" -> trigger(context, narrative, args);
             case "validate" -> validate(context, narrative);
             case "migrate" -> migrate(context, narrative, args);
+            case "stats" -> stats(context, narrative, args);
             default -> send(context, "Unknown narrative subcommand '" + args[1] + "'.", ORANGE);
         }
     }
@@ -438,6 +441,61 @@ final class NarrativeCommand {
         narrative.audit().record(actor(context), "trigger." + args[4].toLowerCase(Locale.ROOT), player.toString(),
                 null, describe(before), describe(after) + " via " + scope + " " + volume, reason(args, 6));
         send(context, volume + " is now " + (after.enabled() ? "enabled" : "disabled") + " for " + player + ".", GREEN);
+    }
+
+    /**
+     * {@code stats [reset]} (§28, §29): sizes against their limits, failure and recovery counters, and
+     * the slowest operations since start or the last reset.
+     */
+    private void stats(CommandContext context, NarrativeRuntime narrative, String[] args) {
+        if (args.length > 2 && args[2].equalsIgnoreCase("reset")) {
+            if (!permitted(context, WRITE_PERMISSION)) {
+                return;
+            }
+            narrative.metrics().reset();
+            send(context, "Narrative counters and timings reset.", GREEN);
+            return;
+        }
+        NarrativeMetrics.Snapshot snapshot = narrative.metricsSnapshot();
+        Duration window = Duration.between(snapshot.since(), snapshot.at());
+        send(context, "Narrative stats for the last " + humanDuration(window) + ":", TEXT);
+        for (NarrativeMetrics.Gauge gauge : snapshot.gauges()) {
+            send(context, "  " + gauge.name() + ": " + gauge.value() + (gauge.limit() > 0 ? " / " + gauge.limit() : ""),
+                    gauge.over() ? RED : MUTED);
+        }
+        List<String> counts = new ArrayList<>();
+        snapshot.counters().forEach((counter, value) -> {
+            if (value > 0) {
+                counts.add(counter.name().toLowerCase(Locale.ROOT).replace('_', ' ') + " " + value);
+            }
+        });
+        send(context, counts.isEmpty() ? "  No narrative activity yet." : "  " + String.join(", ", counts), TEXT);
+        boolean troubled = snapshot.count(NarrativeMetrics.Counter.ACTIONS_FAILED) > 0
+                || snapshot.count(NarrativeMetrics.Counter.MISSING_REFERENCES) > 0
+                || snapshot.count(NarrativeMetrics.Counter.CONDITION_FAULTS) > 0
+                || snapshot.count(NarrativeMetrics.Counter.LIMITS_REACHED) > 0;
+        if (troubled) {
+            send(context, "  Failures and limits are explained line by line in the server log.", ORANGE);
+        }
+        List<NarrativeMetrics.Timing> slowest = snapshot.slowest(6);
+        if (!slowest.isEmpty()) {
+            send(context, "Slowest operations (count, mean, worst):", TEXT);
+            slowest.forEach(timing -> send(context, "  " + timing.operation() + "  x" + timing.count() + ", "
+                    + millis(timing.meanNanos()) + ", " + millis(timing.maxNanos()),
+                    timing.maxNanos() > NarrativeMetrics.SLOW_NANOS ? ORANGE : MUTED));
+        }
+    }
+
+    private static String millis(long nanos) {
+        return String.format(Locale.ROOT, "%.2fms", nanos / 1_000_000.0);
+    }
+
+    private static String humanDuration(Duration duration) {
+        long minutes = duration.toMinutes();
+        if (minutes < 1) {
+            return duration.toSeconds() + "s";
+        }
+        return minutes < 120 ? minutes + "m" : duration.toHours() + "h " + duration.toMinutesPart() + "m";
     }
 
     /**

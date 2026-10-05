@@ -244,7 +244,14 @@ public final class NarrativeContentCompiler {
                 return;
             }
         }
-        if (into.putIfAbsent(id, new TagSchema(id, scope, ttl, entry.path("description").asText(""))) != null) {
+        String milestone = entry.path("milestone").asText("").strip();
+        if (!milestone.isEmpty() && scope != VariableScope.PLAYER) {
+            report.error(DiagnosticCode.INVALID_SCOPE, tagPath, "a milestone tag must be player-scoped",
+                    "milestones follow the player onto their web portal; add a player-scoped milestone tag in the "
+                            + "same outputs that set the story's own tag");
+            return;
+        }
+        if (into.putIfAbsent(id, new TagSchema(id, scope, ttl, entry.path("description").asText(""), milestone)) != null) {
             report.error(DiagnosticCode.DUPLICATE_ID, tagPath, "tag " + id + " is declared twice");
         }
     }

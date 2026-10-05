@@ -27,6 +27,9 @@ public final class MysticQuestsTheme {
     public static final String ACCENT_ORANGE = "#F09A45";
     public static final String ACCENT_BLUE = "#39D5D2";
 
+    /** 2.0 palette (Redesign Bible §4.1): story and narrative identity. Mirrors {@code @NarrativePurple}. */
+    public static final String NARRATIVE_PURPLE = "#7E5DD3";
+
     /**
      * Per-state {@code ButtonStyle} body for a clickable container.
      *

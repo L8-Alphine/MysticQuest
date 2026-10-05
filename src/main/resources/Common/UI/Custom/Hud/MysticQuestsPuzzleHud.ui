@@ -1,0 +1,108 @@
+// MysticQuests puzzle information card.
+//
+// Its own HUD layer, separate from the quest tracker, because the two sit in different places: the
+// tracker top-right, this card bottom-centre. One layout tree cannot put blocks in two corners —
+// Anchor offsets are relative to where the layout puts an element — so, like MysticRPG's experience
+// bar beside its vitals, each position gets its own document. Appended from Java as
+// "Hud/MysticQuestsPuzzleHud.ui".
+//
+// The card is type-agnostic: a title, a revealed hint, a semantic status line and short feedback.
+// It never shows input ids, candidate selections or a solution order; the server sends only what
+// QuestPuzzleHudState already redacted.
+//
+// ---------------------------------------------------------------- positioning
+//
+// The wrapper takes the full height and lays out from the bottom; the row inside lays out Center.
+// Bottom clears the base game's hotbar stack (about 115 units) and MysticRPG's experience bar
+// (Bottom 176, Height 56), so the three never overlap.
+
+$MQ = "../mysticquests/Theme.ui";
+
+Group {
+    LayoutMode: Bottom;
+    FlexWeight: 1;
+
+    Group {
+        LayoutMode: Center;
+        Anchor: (Bottom: 244, Height: 132);
+
+        Group #PuzzleCard {
+            Anchor: (Width: 580, Height: 132);
+            LayoutMode: Top;
+            Background: $MQ.@HudBackground;
+            OutlineColor: $MQ.@QuestGold;
+            OutlineSize: 1;
+            Padding: (Left: 20, Right: 20, Top: 14, Bottom: 12);
+
+            Group {
+                Anchor: (Height: 22, Bottom: 7);
+                LayoutMode: Left;
+
+                Group {
+                    Anchor: (Width: 84, Height: 22);
+                    Background: $MQ.@QuestGold;
+                    Padding: (Horizontal: 8);
+
+                    Label {
+                        Text: "PUZZLE";
+                        Style: (...$MQ.@BadgeLabelStyle, TextColor: #171207);
+                    }
+                }
+
+                Label #PuzzleTitle {
+                    Text: "";
+                    Style: (FontSize: 12, RenderBold: true, RenderUppercase: true,
+                            LetterSpacing: 1, TextColor: $MQ.@QuestGold,
+                            ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 9);
+                    FlexWeight: 1;
+                    Padding: (Left: 12);
+                }
+
+                Label #PuzzleState {
+                    Text: "IN PROGRESS";
+                    Style: (FontSize: 9, RenderBold: true, RenderUppercase: true,
+                            TextColor: $MQ.@GuidanceCyan, HorizontalAlignment: End,
+                            ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 8);
+                    Anchor: (Width: 132);
+                }
+            }
+
+            Label #PuzzleHint {
+                Text: "";
+                Style: (FontSize: 14, TextColor: #F4F1EA, Wrap: true,
+                        ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 11);
+                Anchor: (Height: 34, Bottom: 5);
+            }
+
+            Group {
+                Anchor: (Height: 18, Bottom: 5);
+                LayoutMode: Left;
+
+                Label #PuzzleStatus {
+                    Text: "Puzzle active";
+                    Style: (FontSize: 9, RenderBold: true, RenderUppercase: true,
+                            TextColor: $MQ.@MutedText, ShrinkTextToFit: true,
+                            MinShrinkTextToFitFontSize: 8);
+                    FlexWeight: 1;
+                }
+
+                Label #PuzzleFeedback {
+                    Text: "";
+                    Style: (FontSize: 10, RenderBold: true, RenderUppercase: true,
+                            TextColor: $MQ.@GuidanceCyan, ShrinkTextToFit: true,
+                            MinShrinkTextToFitFontSize: 8);
+                    Anchor: (Width: 170);
+                    Padding: (Left: 10);
+                }
+
+                Label #PuzzleSession {
+                    Text: "";
+                    Style: (FontSize: 9, TextColor: $MQ.@MutedText,
+                            HorizontalAlignment: End, ShrinkTextToFit: true,
+                            MinShrinkTextToFitFontSize: 8);
+                    Anchor: (Width: 230, Left: 10);
+                }
+            }
+        }
+    }
+}

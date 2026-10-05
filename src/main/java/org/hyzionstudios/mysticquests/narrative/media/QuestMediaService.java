@@ -49,6 +49,15 @@ import java.util.function.Supplier;
  * rebuilt from state after a reconnect or restart.
  */
 public final class QuestMediaService {
+    /** A player's chosen voice language (§16), independent of their client language; unset follows the client. */
+    public static final NamespacedId VOICE_LOCALE_VARIABLE = NamespacedId.of("mysticquests", "media.voice_locale");
+    /** False when a player turned subtitles off (§16); unset means on. */
+    public static final NamespacedId SUBTITLES_VARIABLE = NamespacedId.of("mysticquests", "media.subtitles");
+
+    /** A player's audio preferences; {@code voiceLocale} is null when it follows their client. */
+    public record Preferences(@Nullable String voiceLocale, boolean subtitles) {
+    }
+
     /** Stores the music a scope selected; a reserved variable, so it persists with its owner. */
     public static final NamespacedId MUSIC_VARIABLE = NamespacedId.of("mysticquests", "media.music");
     /** Stored instead of a track to silence story music at one level, letting the world's own music play. */
@@ -286,7 +295,8 @@ public final class QuestMediaService {
     private boolean start(UUID listener, Pending pending, @Nullable Channel channel, Instant now) {
         MediaAsset asset = pending.asset();
         MediaSink current = sink;
-        String wanted = current.locale(listener);
+        Preferences preferences = preferences(listener);
+        String wanted = preferences.voiceLocale() != null ? preferences.voiceLocale() : current.locale(listener);
         MediaAsset.Recording recording = asset.recordingFor(wanted, fallbackLocale);
         boolean played = false;
         if (recording == null) {
@@ -303,7 +313,8 @@ public final class QuestMediaService {
                         + " could not be played (not loaded on this server?); showing the subtitle only");
             }
         }
-        if (pending.subtitles() && asset.hasSubtitle()) {
+        boolean subtitles = pending.subtitles() && asset.hasSubtitle() && preferences.subtitles();
+        if (subtitles) {
             Speaker speaker = asset.speaker() == null ? null : content.get().speakers().get(asset.speaker());
             current.subtitle(listener, new Subtitle(speaker, asset.subtitle(), asset.subtitleKey(), asset.durationMillis()));
         }
@@ -311,7 +322,43 @@ public final class QuestMediaService {
             channel.current = asset;
             channel.endsAt = now.plusMillis(asset.durationMillis());
         }
-        return played || (pending.subtitles() && asset.hasSubtitle());
+        return played || subtitles;
+    }
+
+    // --- Player preferences (§16) ---
+
+    /** What a player chose: a voice language that can differ from their client's, and subtitles on or off. */
+    public Preferences preferences(UUID player) {
+        OwnerState state = host.state(ScopeOwner.player(player));
+        if (state == null) {
+            return new Preferences(null, true);
+        }
+        String locale = state.variable(VOICE_LOCALE_VARIABLE) instanceof QuestValue.StringValue(String value) ? value : null;
+        boolean subtitles = !(state.variable(SUBTITLES_VARIABLE) instanceof QuestValue.BoolValue(boolean on)) || on;
+        return new Preferences(locale, subtitles);
+    }
+
+    /**
+     * Sets the language a player hears voice lines in; null follows their client again. Subtitles
+     * written with a {@code subtitleKey} stay in the client's language, so a player can hear one
+     * language and read another.
+     */
+    public boolean setVoiceLocale(UUID player, @Nullable String locale) {
+        OwnerState state = host.state(ScopeOwner.player(player));
+        if (state == null) {
+            return false;
+        }
+        String normalised = locale == null || locale.isBlank() ? null : locale.trim();
+        return normalised == null ? state.removeVariable(VOICE_LOCALE_VARIABLE)
+                : state.putVariable(VOICE_LOCALE_VARIABLE, new QuestValue.StringValue(normalised));
+    }
+
+    public boolean setSubtitles(UUID player, boolean on) {
+        OwnerState state = host.state(ScopeOwner.player(player));
+        if (state == null) {
+            return false;
+        }
+        return on ? state.removeVariable(SUBTITLES_VARIABLE) : state.putVariable(SUBTITLES_VARIABLE, new QuestValue.BoolValue(false));
     }
 
     /** Starts queued lines whose turn has come. Cheap when nothing is queued. */

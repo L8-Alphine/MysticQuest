@@ -1,9 +1,9 @@
 # MysticQuests: Server Guide
 
 For server owners and staff: installing, upgrading to 2.0, configuring, permissions, staff tools and
-troubleshooting. Players want the [player guide](players.md); quest authors want
-[creating quests by hand](creating-quests.md), the [narrative runtime guide](2.0/narrative-runtime.md)
-and the [content format](content-format.md).
+troubleshooting. Players want the [player guide](players.md); quest authors want the
+[web Studio](studio.md), [creating quests by hand](creating-quests.md), the
+[narrative runtime guide](2.0/narrative-runtime.md) and the [content format](content-format.md).
 
 ## Requirements
 
@@ -19,6 +19,7 @@ Optional mods. MysticQuests runs without any of them, and `/mq integrations` sho
 | MysticGeneration | Story NPCs spawned per session (`mysticquests:entity.spawn`). |
 | MysticVanish | Layered visibility: MysticQuests never reveals someone MysticVanish hides. |
 | MysticNameTags | Nameplates follow story visibility (needs NameTags' MysticQuests support). |
+| MysticIdentity | The `account` story-state scope (state kept for the person across every Hytale account they link; needs both MysticIdentity's controller and its game-server plugin to be versions that report identity ids). Quest pages on the player web portal: active quests with their current step, quest history, story milestones, a "Current quest" Home widget. Owners switch each on or off under *Identity settings → Portal features*. |
 | HyCitizens | Conversations on HyCitizens NPCs. |
 | PlaceholderAPI, VaultUnlocked | Placeholders in quest text; economy rewards and conditions. |
 
@@ -33,6 +34,26 @@ Optional mods. MysticQuests runs without any of them, and `/mq integrations` sho
 The 2.0 settings are added to `config.json` with defaults the first time it loads. Player progress
 from v1 stays where it is and keeps working.
 
+A release zip (`MysticQuests-<version>.zip`) holds the jar, this guide and the other docs, and the
+example packages. Only the jar goes in `mods/`.
+
+### Rolling out
+
+1. Try the release on a copy of the server first: a copy of `mods/MysticQuests/` with its `data/`.
+   Check the startup log, `/mquest narrative validate`, `/mquest narrative migrate` and
+   `/mq integrations`, then play a quest or two.
+2. On a network that shares `dataPath`, set every server's `serverId` before its first 2.0 start.
+   Servers can be upgraded one at a time: a story document written by a newer release is quarantined
+   by an older one, never overwritten.
+3. After the first busy evening, `/mquest narrative stats` shows failures, slow operations and how
+   close you are to the limits.
+
+### Rolling back
+
+Restore the backup from step 1 of the upgrade. Do not start 1.x on data 2.0 has used: 2.0 moves
+scoped tags and variables to new SQLite tables (the old ones are kept, renamed `*_legacy`), so 1.x
+would start with that state missing. 1.x ignores `data/narrative/`.
+
 ## Configuration
 
 `mods/MysticQuests/config.json`. The full key list is in the [README](../README.md#20-narrative-runtime);
@@ -46,7 +67,10 @@ the 2.0 section is:
   "partyExitPolicy": "fork",
   "openNamespaces": [],
   "subtitles": "chat",
-  "fallbackLocale": "en-US"
+  "fallbackLocale": "en-US",
+  "maxStorySessions": 5000,
+  "maxStoryEntities": 1000,
+  "maxPuzzleInputs": 64
 }
 ```
 
@@ -59,6 +83,11 @@ the 2.0 section is:
 | `openNamespaces` | Leave empty. Only for migrating content that uses undeclared tags or variables. |
 | `subtitles` | `chat`, `title` (on-screen event title) or `off`. |
 | `fallbackLocale` | The language every voice line must have; players with other languages hear it when theirs is missing. |
+| `maxStorySessions` | Loaded story sessions above which a warning is logged. Stories still open: refusing one would strand a player mid-quest. |
+| `maxStoryEntities` | The most story NPCs claimed at once. Spawns over it wait and retry once other stories release theirs. |
+| `maxPuzzleInputs` | Inputs per puzzle above which a reload warns. |
+
+The web Creator Studio has its own `studio` section, off by default; see [the Studio guide](studio.md#turning-it-on).
 
 `/mquest reload` reloads content. A reload is all-or-nothing: if any quest or story content has an
 error, nothing changes and the errors are listed. Only the first load at startup tolerates story
@@ -84,6 +113,9 @@ content errors, so a typo never stops the server from starting.
 Bypass is presentation only. It shows staff everything without changing anyone's quest state or
 what other players see.
 
+The web Studio has its own `mysticquests.studio.*` permissions, separate for dialogue, audio,
+puzzles, world overlays, editing and publishing; see [the Studio guide](studio.md#permissions).
+
 ## Staff tools
 
 Inspecting (read-only):
@@ -98,6 +130,7 @@ Inspecting (read-only):
 | `/mquest narrative checkpoint <player>` | Saved checkpoints in their stories. |
 | `/mq visibility status [player]` | Who is hidden from whom, and why. |
 | `/mq integrations` | Which optional mods are active, and what is missing. |
+| `/mquest narrative stats [reset]` | Story sessions and story NPCs against their limits, failure and recovery counts, and the slowest operations since startup. `reset` starts counting again (needs the fixing permission). |
 
 Fixing (audited, with an optional reason at the end):
 
@@ -113,6 +146,14 @@ Fixing (audited, with an optional reason at the end):
 | `/mquest narrative goto <world:volume>` / `goto <player> <puzzle> [n]` | Teleports you to a quest location, or to the n-th puzzle input that player was dealt. |
 
 Every intervention is written to the audit log in the story data folder and to the server log.
+
+Web Studio:
+
+| Command | Does |
+|---|---|
+| `/mquest studio login` | A one-time sign-in link and code for the web Studio. Needs `mysticquests.studio.login`. |
+| `/mquest studio status` | The Studio's address and how many people are signed in. |
+| `/mquest studio revoke <player uuid>` | Signs that player out of the Studio everywhere. |
 
 ## Data and backups
 
@@ -162,4 +203,6 @@ their own store, and 2.0 content reads it live.
 | A `gather` objective goes down | Expected: it counts held items, like Hytale's own gather quests, so dropping or using them lowers it until the quest completes. |
 | A `kill` objective never counts | The target must be the exact NPC role name (`/npc role` shows it), and only the killing blow counts. |
 | A player is stuck mid-story | `/mq debug <player>`, then rewind to a checkpoint or restart the story. |
+| "slow action", "slow condition" or "slow trigger event" in the log | Something took over 5 ms on the game thread. The line names the content path; `/mquest narrative stats` shows which action or condition type is slowest. |
+| "story entities are claimed, the limit" in the log | Too many story NPCs at once. Check stories despawn their NPCs when they end, or raise `maxStoryEntities`. |
 | "quarantined" in the log | See [Data and backups](#data-and-backups). |

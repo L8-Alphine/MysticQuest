@@ -8,14 +8,44 @@ This page is for players. Server owners and staff want the
 
 | Command | What it does |
 |---|---|
-| `/quest` | Opens the quest board: browse and accept quests. |
-| `/journal` | Opens your quest log: current, completed and abandoned quests. |
+| `/quest` | Opens the quest board: quests you can take, grouped by kind, with their difficulty, party size and the rewards they tell you about. Some quests you cannot take yet show what you need to do first. |
+| `/journal` | Opens your Journal: the quest you track, your other quests by kind, the stories you are part of, and what you have finished. It also holds your quest settings. |
 | `/mquest progress` | Shows your progress on active quests in chat. |
 | `/mquest track <quest>` | Pins a quest to your on-screen tracker. `/mquest untrack` unpins it. |
+| `/mquest hud <auto\|compact\|expanded\|hidden>` | Chooses how much the tracker shows. `auto` expands it only when the current step has more than one objective; `hidden` removes it (a puzzle card still appears while you solve a puzzle). Without a mode, tells you the current one. Saved for you. |
 | `/mquest abandon <quest>` | Drops a quest. You can usually take it again from the board. |
 | `/mquest skip` | Skips the story scene you are watching, when the scene allows it. |
+| `/mquest audio` | Shows your story audio settings. `/mquest audio voice fr-FR` plays voice lines in French when they are recorded in it (`auto` follows your game language); `/mquest audio subtitles off` hides story subtitles. Both are saved. |
 
 `/mq` works anywhere `/mquest` does.
+
+## Your quest tracker
+
+The tracker in the top-right corner shows the quest you are tracking: what to do right now, how far
+along that is, and how far along the whole quest is. When an objective has a place, it is marked on
+your world map and the tracker says so. A marker for an area to search sits in the middle of that
+area, not on the exact spot.
+
+The tracker gets out of the way while you are in a conversation. When you work on a story
+puzzle, a puzzle card appears above your hotbar with a hint and your progress; it never tells you
+which keys or switches are yours — that is the puzzle.
+
+## Your Journal
+
+`/journal` opens on the quest you are tracking. On the left, your quests are grouped: the tracked
+quest, story quests, side quests, contracts and so on, then the stories you are part of, then what
+you have completed or abandoned. Pick one to see:
+
+- what to do right now, and the step you are on;
+- the story so far and every objective, grouped by step;
+- the rewards the quest has told you about (some keep their rewards a surprise);
+- when you accepted it, and when you finished it.
+
+From there you can track a quest, stop tracking it, or abandon it (press Abandon twice to confirm).
+A story shows the milestones you have reached in it, never what comes next.
+
+**Quest settings**, at the bottom of the list, are saved for you: how much of the tracker shows,
+story subtitles, your voice-line language, and quest pop-ups when the server uses them.
 
 ## Your story is your own
 
@@ -33,7 +63,9 @@ Some quests run as a **story**: a version of the world that belongs to you, or t
 - **Story audio is yours.** Voice lines, sound effects and music from your story play only for you
   or your party. Subtitles for voiced lines appear in chat or on screen, depending on the server.
   Voice lines play in your game language when a recording exists, otherwise in the server's
-  default language.
+  default language. You can choose a different voice language with `/mquest audio voice <language>`
+  and keep reading subtitles in your game language, or turn subtitles off with
+  `/mquest audio subtitles off`.
 
 ## Playing with a party
 
@@ -56,6 +88,12 @@ Some quests run as a **story**: a version of the world that belongs to you, or t
 Your quests, puzzle progress and story state are saved. Rewards are never given twice, even when a
 server restarts in the middle of handing them out. If something you were owed could not be given
 while you were offline, it is given when you next join.
+
+## Your quests on the web
+
+If the server runs MysticIdentity, the player portal has a **Quests** section: your active quests
+with the step you are on and what is left, your quest history, and the story milestones you have
+reached. It is read-only and never shows puzzle answers or anything the game keeps secret.
 
 ## Something looks wrong?
 

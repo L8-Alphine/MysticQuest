@@ -2,11 +2,16 @@ package org.hyzionstudios.mysticquests.integration.triggervolumes;
 
 import org.hyzionstudios.mysticquests.narrative.NarrativeRuntime;
 import org.hyzionstudios.mysticquests.narrative.id.NamespacedId;
+import org.hyzionstudios.mysticquests.narrative.media.QuestMediaService;
+import org.hyzionstudios.mysticquests.narrative.puzzle.QuestPuzzleService;
 import org.hyzionstudios.mysticquests.narrative.puzzle.QuestPuzzleService.InputStatus;
+import org.hyzionstudios.mysticquests.narrative.session.SessionOwner;
 import org.hyzionstudios.mysticquests.narrative.state.ScopeContext;
 import org.hyzionstudios.mysticquests.narrative.state.StateResult;
 import org.hyzionstudios.mysticquests.narrative.trigger.TriggerEvent;
 import org.hyzionstudios.mysticquests.narrative.trigger.TriggerScope;
+import org.hyzionstudios.mysticquests.ui.QuestHudService;
+import org.hyzionstudios.mysticquests.ui.QuestPuzzleHudState;
 
 import com.hypixel.hytale.builtin.triggervolumes.effect.TriggerContext;
 import com.hypixel.hytale.builtin.triggervolumes.manager.VolumeEntry;
@@ -31,6 +36,7 @@ import java.util.logging.Level;
 public final class NarrativeTriggerBridge {
     private static volatile NarrativeRuntime runtime;
     private static volatile HytaleLogger logger;
+    private static volatile QuestHudService hud;
 
     private NarrativeTriggerBridge() {
     }
@@ -38,6 +44,13 @@ public final class NarrativeTriggerBridge {
     public static void bind(@Nullable NarrativeRuntime narrative, @Nullable HytaleLogger log) {
         runtime = narrative;
         logger = log;
+        if (narrative == null) {
+            hud = null;
+        }
+    }
+
+    public static void bindHud(@Nullable QuestHudService service) {
+        hud = service;
     }
 
     /** The {@code mysticquests:trigger_enabled} gate: is this volume logically enabled for the actor? */
@@ -76,6 +89,7 @@ public final class NarrativeTriggerBridge {
             return;
         }
         var result = narrative.puzzles().input(player, world(context), puzzleId.get(), input, !release);
+        publishPuzzle(narrative, player, puzzleId.get(), result.outcome());
         switch (result.outcome()) {
             case UNKNOWN_PUZZLE, UNKNOWN_INPUT -> warn("Volume " + volumeKey(context) + ": " + result.message());
             default -> {
@@ -105,7 +119,8 @@ public final class NarrativeTriggerBridge {
         if (narrative == null || player == null || puzzleId.isEmpty()) {
             return;
         }
-        narrative.puzzles().reset(player, puzzleId.get(), reroll, "volume:" + volumeKey(context));
+        var result = narrative.puzzles().reset(player, puzzleId.get(), reroll, "volume:" + volumeKey(context));
+        publishPuzzle(narrative, player, puzzleId.get(), result.outcome());
     }
 
     /**
@@ -170,5 +185,40 @@ public final class NarrativeTriggerBridge {
         if (log != null) {
             log.at(Level.WARNING).log(message);
         }
+    }
+
+    private static void publishPuzzle(
+            NarrativeRuntime narrative,
+            UUID player,
+            NamespacedId puzzleId,
+            QuestPuzzleService.Outcome outcome) {
+        QuestHudService service = hud;
+        var definition = narrative.content().puzzles().get(puzzleId);
+        if (service == null || definition == null) {
+            return;
+        }
+        narrative.puzzles().view(player, puzzleId).ifPresent(view -> {
+            QuestPuzzleHudState state = QuestPuzzleHudState.from(definition, view, outcome);
+            service.setPuzzleState(player, state);
+            if (view.owner().kind() != SessionOwner.Kind.PARTY || !changesSharedProgress(outcome)) {
+                return;
+            }
+            // A party puzzle's progress is the party's: the other members online see the card too.
+            ScopeContext session = new ScopeContext(player, view.sessionId(), null, view.owner().id(), null, null, null);
+            QuestPuzzleHudState teammate = state.forPartyMember();
+            for (UUID member : narrative.media().listeners(QuestMediaService.Audience.STORY_SESSION, session)) {
+                if (!member.equals(player)) {
+                    service.setPuzzleState(member, teammate);
+                }
+            }
+        });
+    }
+
+    /** Outcomes that moved the shared state; a locked or ignored input changed nothing for the party. */
+    private static boolean changesSharedProgress(QuestPuzzleService.Outcome outcome) {
+        return switch (outcome) {
+            case ACCEPTED, COMPLETED, DEACTIVATED, MISTAKE -> true;
+            default -> false;
+        };
     }
 }

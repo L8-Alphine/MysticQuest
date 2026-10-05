@@ -2,6 +2,7 @@ package org.hyzionstudios.mysticquests.integration;
 
 import org.hyzionstudios.mysticquests.MysticQuestsRuntime;
 import org.hyzionstudios.mysticquests.config.MysticQuestsConfig;
+import org.hyzionstudios.mysticquests.integration.mysticidentity.MysticIdentityPortal;
 import org.hyzionstudios.mysticquests.narrative.state.ScopeSupport;
 import org.hyzionstudios.mysticquests.narrative.state.VariableScope;
 
@@ -74,7 +75,16 @@ public final class IntegrationStatus {
                         ? new Entry("HyCitizens", State.ACTIVE, "citizens open MysticQuests conversations")
                         : new Entry("HyCitizens", State.ABSENT, "citizen conversations are not bridged"));
 
-        entries.add(scope("MysticIdentity", VariableScope.ACCOUNT, runtime));
+        MysticIdentityPortal portal = runtime.identityPortal();
+        boolean accountScope = runtime.narrative() != null
+                && runtime.narrative().runtime().resolver().support().status(VariableScope.ACCOUNT).level() == ScopeSupport.Level.SUPPORTED;
+        String account = accountScope ? "account scope available" : "account scope not provided yet";
+        entries.add(portal == null
+                ? new Entry("MysticIdentity", State.ABSENT, "no quest pages on the web portal; " + account)
+                : portal.registered()
+                        ? new Entry("MysticIdentity", accountScope ? State.ACTIVE : State.PARTIAL,
+                                "quests, history and story milestones on the player portal; " + account)
+                        : new Entry("MysticIdentity", State.PARTIAL, "installed; waiting for its player portal to start; " + account));
         entries.add(present("VaultUnlocked", "net.cfh.vault.VaultUnlocked", flags.vaultUnlocked(),
                 "economy conditions fail and money rewards are skipped"));
         entries.add(present("PlaceholderAPI", "at.helpch.placeholderapi.PlaceholderAPI", flags.placeholderApi(),
@@ -99,16 +109,6 @@ public final class IntegrationStatus {
                 ? new Entry("MysticNameTags", State.ACTIVE, "glyph nameplates follow quest visibility per viewer")
                 : new Entry("MysticNameTags", State.PARTIAL,
                         "this release does not consult MysticQuests; quest-hidden players keep their glyph nameplate");
-    }
-
-    private static Entry scope(String name, VariableScope scope, MysticQuestsRuntime runtime) {
-        if (runtime.narrative() == null) {
-            return new Entry(name, State.ABSENT, scope.id() + " scope unavailable");
-        }
-        ScopeSupport.Status status = runtime.narrative().runtime().resolver().support().status(scope);
-        return status.level() == ScopeSupport.Level.SUPPORTED
-                ? new Entry(name, State.ACTIVE, scope.id() + " scope available")
-                : new Entry(name, State.ABSENT, scope.id() + " scope: " + status.reason());
     }
 
     private static Entry present(String name, String className, boolean enabled, String degradation) {

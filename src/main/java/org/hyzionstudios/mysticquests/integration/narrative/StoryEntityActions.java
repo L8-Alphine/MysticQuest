@@ -1,5 +1,6 @@
 package org.hyzionstudios.mysticquests.integration.narrative;
 
+import org.hyzionstudios.mysticquests.narrative.action.builtin.EntityActions;
 import org.hyzionstudios.mysticquests.integration.MysticGenerationBridge;
 import org.hyzionstudios.mysticquests.narrative.CompileContext;
 import org.hyzionstudios.mysticquests.narrative.ContentParams;
@@ -68,6 +69,9 @@ final class StoryEntityActions {
             if (generation == null || !generation.available()) {
                 return ActionResult.retryable("MysticGeneration is not available");
             }
+            if (!narrative.storyEntities().admits(null)) {
+                return ActionResult.retryable("the story entity limit (" + narrative.storyEntities().claimLimit() + ") is reached");
+            }
             UUID actor = context.scope().actor();
             PlayerRef player = actor == null ? null : players.playerRef(actor);
             Ref<EntityStore> body = player == null ? null : player.getReference();
@@ -83,7 +87,7 @@ final class StoryEntityActions {
             QuestSession owner = session.get();
             generation.spawn(body.getStore(), parameters.path("definition").asText(), position, yaw, npc -> {
                 EntityRefValue entity = new EntityRefValue("generation", npc.uuid().toString());
-                narrative.storyEntities().claim(entity, owner.id(), owner.owner(), owner.storyKey());
+                narrative.storyEntities().claim(entity, owner.id(), owner.owner(), owner.storyKey(), EntityActions.onDeath(parameters));
                 if (parameters.hasNonNull("variable")) {
                     StateResult stored = narrative.variables().set(
                             context.scope(), ContentParams.scope(parameters), ContentParams.id(parameters, "variable"), entity);
@@ -103,6 +107,7 @@ final class StoryEntityActions {
             if (parameters.hasNonNull("variable")) {
                 checkEntityVariable(parameters, path, context, report);
             }
+            EntityActions.validateOnDeath(parameters, path, context, report);
             if (generation == null || !generation.enabled()) {
                 report.warning(DiagnosticCode.MISSING_INTEGRATION, path, "MysticGeneration is disabled; entity.spawn will keep retrying");
             }

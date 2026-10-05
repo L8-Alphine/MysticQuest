@@ -1,10 +1,15 @@
 $Base = "../../Common.ui";
 $MQ = "../Theme.ui";
 
+// The Quest Journal (Redesign Bible §7.1-7.2, §7.4): the authoritative quest detail. A left rail
+// groups tracked, story, side and finished quests and the player's 2.0 stories; the detail pane
+// shows the current objective, the story so far, objectives by step, revealed rewards and a short
+// timeline. Settings share the detail pane. Rows are appended from MysticQuestJournalPage.
+
 $Base.@PageOverlay {}
 
 $Base.@Container {
-  Anchor: (Width: 1040, Height: 640);
+  Anchor: (Width: 1120, Height: 680);
 
   #Title {
     $MQ.@HeaderBar {
@@ -15,7 +20,7 @@ $Base.@Container {
 
       Group {
         LayoutMode: Top;
-        Anchor: (Width: 260, Height: 44);
+        Anchor: (Width: 280, Height: 44);
 
         Label {
           Text: "MYSTICQUESTS";
@@ -23,8 +28,8 @@ $Base.@Container {
         }
 
         Label {
-          Text: "WAYFINDER JOURNAL";
-          Style: (...$MQ.@SmallBoldStyle, FontSize: 10, TextColor: $MQ.@TextMuted);
+          Text: "QUEST JOURNAL";
+          Style: (...$MQ.@SmallBoldStyle, FontSize: 10, TextColor: $MQ.@MutedText);
         }
       }
 
@@ -40,8 +45,18 @@ $Base.@Container {
           Padding: (Horizontal: 12, Vertical: 5);
           Anchor: (Right: 4);
 
-          Label { Text: "ACTIVE"; Style: (...$MQ.@SmallBoldStyle, TextColor: $MQ.@AccentGold); Anchor: (Right: 7); }
-          Label #ActiveCount { Text: "0"; Style: (...$MQ.@SmallBoldStyle, TextColor: $MQ.@AccentGold); }
+          Label { Text: "ACTIVE"; Style: (...$MQ.@SmallBoldStyle, TextColor: $MQ.@QuestGold); Anchor: (Right: 7); }
+          Label #ActiveCount { Text: "0"; Style: (...$MQ.@SmallBoldStyle, TextColor: $MQ.@QuestGold); }
+        }
+
+        Group {
+          LayoutMode: Left;
+          Background: $MQ.@PurpleBg;
+          Padding: (Horizontal: 12, Vertical: 5);
+          Anchor: (Right: 4);
+
+          Label { Text: "STORIES"; Style: (...$MQ.@SmallBoldStyle, TextColor: $MQ.@AccentPurple); Anchor: (Right: 7); }
+          Label #StoryCount { Text: "0"; Style: (...$MQ.@SmallBoldStyle, TextColor: $MQ.@AccentPurple); }
         }
 
         Group {
@@ -62,31 +77,23 @@ $Base.@Container {
     Padding: (Left: 14, Right: 14, Top: 12, Bottom: 14);
 
     Group {
-      Anchor: (Width: 252, Right: 12);
+      Anchor: (Width: 290, Right: 12);
       LayoutMode: Top;
-      Background: #090D19(0.90);
+      Background: #0A0D13(0.90);
 
-      Group {
-        Anchor: (Height: 38);
-        Padding: (Horizontal: 14);
-        LayoutMode: Left;
-        Background: $MQ.@PanelDark;
-
-        Label { Text: "QUEST LOG"; Style: (...$MQ.@SectionTitleStyle, FontSize: 13); }
-      }
-
-      Group #TabList {
-        LayoutMode: Top;
+      // Section headers and rows, appended in order: tracked, by category, stories, finished.
+      Group #RailList {
+        FlexWeight: 1;
+        LayoutMode: TopScrolling;
+        ScrollbarStyle: $Base.@DefaultScrollbarStyle;
         Padding: (Horizontal: 6, Top: 6, Bottom: 6);
       }
 
       Group { Anchor: (Height: 1, Bottom: 6); Background: $MQ.@BorderSoft; }
 
-      Group #QuestList {
-        FlexWeight: 1;
-        LayoutMode: TopScrolling;
-        ScrollbarStyle: $Base.@DefaultScrollbarStyle;
-        Padding: (Bottom: 4);
+      Group #RailFooter {
+        LayoutMode: Top;
+        Padding: (Horizontal: 6, Bottom: 6);
       }
     }
 
@@ -94,7 +101,7 @@ $Base.@Container {
       FlexWeight: 1;
       LayoutMode: Top;
       Padding: (Left: 22, Right: 22, Top: 18, Bottom: 18);
-      Background: #11182B(0.88);
+      Background: #161B26(0.92);
 
       Group #EmptyState {
         FlexWeight: 1;
@@ -106,8 +113,8 @@ $Base.@Container {
           LayoutMode: Top;
 
           AssetImage { AssetPath: $MQ.@MissingIcon; Anchor: (Width: 112, Height: 112, Bottom: 12); }
-          Label #EmptyStateTitle { Text: ""; Style: (...$MQ.@QuestTitleStyle, FontSize: 22, TextColor: $MQ.@AccentBlue, HorizontalAlignment: Center); Anchor: (Bottom: 8); }
-          Label #EmptyStateBody { Text: ""; Style: (...$MQ.@BodyTextStyle, TextColor: $MQ.@TextMuted, HorizontalAlignment: Center); }
+          Label #EmptyStateTitle { Text: ""; Style: (...$MQ.@QuestTitleStyle, FontSize: 22, TextColor: $MQ.@GuidanceCyan, HorizontalAlignment: Center); Anchor: (Bottom: 8); }
+          Label #EmptyStateBody { Text: ""; Style: (...$MQ.@BodyTextStyle, TextColor: $MQ.@MutedText, HorizontalAlignment: Center); }
         }
       }
 
@@ -116,34 +123,74 @@ $Base.@Container {
         LayoutMode: Top;
 
         Group {
-          Anchor: (Height: 72, Bottom: 10);
+          Anchor: (Height: 22, Bottom: 8);
           LayoutMode: Left;
 
-          AssetImage { AssetPath: $MQ.@IconTracker; Anchor: (Width: 58, Height: 58, Right: 14); }
+          Group {
+            Anchor: (Width: 96, Height: 22, Right: 6);
+            Background: $MQ.@NarrativePurple;
+            Padding: (Horizontal: 8);
+
+            Label #DetailCategory {
+              Text: "QUEST";
+              Style: (...$MQ.@BadgeLabelStyle, TextColor: #FFFFFF);
+            }
+          }
+
+          Group {
+            Anchor: (Width: 96, Height: 22);
+            Background: #2A2416;
+            OutlineColor: $MQ.@QuestGold;
+            OutlineSize: 1;
+            Padding: (Horizontal: 8);
+
+            Label #DetailState {
+              Text: "ACTIVE";
+              Style: (...$MQ.@BadgeLabelStyle, TextColor: $MQ.@QuestGold);
+            }
+          }
+
+          Group { FlexWeight: 1; }
+
+          Label #DetailWhen { Text: ""; Style: (...$MQ.@SmallBoldStyle, FontSize: 10, TextColor: $MQ.@MutedText); }
+        }
+
+        Label #SelectedQuestName { Text: ""; Style: (...$MQ.@QuestTitleStyle, FontSize: 26, TextColor: $MQ.@TextPrimary); Anchor: (Bottom: 2); }
+        Label #SelectedStep { Text: ""; Style: (...$MQ.@SmallBoldStyle, FontSize: 12, TextColor: $MQ.@GuidanceCyan); Anchor: (Bottom: 10); }
+
+        Group #CurrentObjectiveCard {
+          Anchor: (Height: 58, Bottom: 10);
+          LayoutMode: Left;
+          Background: #0A0D13(0.75);
+          Padding: (Right: 14);
+
+          Group { Anchor: (Width: 4, Right: 12); Background: $MQ.@QuestGold; }
 
           Group {
             FlexWeight: 1;
             LayoutMode: Top;
+            Padding: (Top: 8);
 
-            Label #SelectedQuestName { Text: ""; Style: (...$MQ.@QuestTitleStyle, FontSize: 24, TextColor: $MQ.@AccentBlue); Anchor: (Bottom: 4); }
-            Label #SelectedQuestId { Text: ""; Style: (...$MQ.@SmallBoldStyle, FontSize: 10, TextColor: $MQ.@TextMuted); }
+            Label { Text: "CURRENT OBJECTIVE"; Style: (...$MQ.@SmallBoldStyle, FontSize: 10, TextColor: $MQ.@QuestGold); Anchor: (Bottom: 3); }
+            Label #CurrentObjectiveText { Text: ""; Style: (FontSize: 17, RenderBold: true, TextColor: $MQ.@TextPrimary, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 12); }
           }
+
+          Label #CurrentObjectiveProgress { Text: ""; Style: (FontSize: 15, RenderBold: true, TextColor: $MQ.@QuestGold, VerticalAlignment: Center); Anchor: (Width: 80); }
         }
 
-        Label #SelectedQuestDescription { Text: ""; Style: (...$MQ.@BodyTextStyle, FontSize: 15); Anchor: (Bottom: 16); }
-        Group { Anchor: (Height: 1, Bottom: 14); Background: $MQ.@BorderSoft; }
+        Label #SelectedQuestDescription { Text: ""; Style: (...$MQ.@BodyTextStyle, FontSize: 15); Anchor: (Bottom: 12); }
+        Group { Anchor: (Height: 1, Bottom: 10); Background: $MQ.@BorderSoft; }
 
         Group {
-          Anchor: (Height: 28, Bottom: 6);
+          Anchor: (Height: 26, Bottom: 6);
           LayoutMode: Left;
-          Label { Text: "OBJECTIVES"; Style: (...$MQ.@SectionTitleStyle, FontSize: 13); }
+          Label #ObjectiveHeading { Text: "OBJECTIVES"; Style: (...$MQ.@SectionTitleStyle, FontSize: 13); }
           Group { FlexWeight: 1; }
-          Label #ObjectiveSummary { Text: ""; Style: (...$MQ.@ProgressStyle, FontSize: 12); Anchor: (Right: 10); }
-          Label { Text: "LIVE PROGRESS"; Style: (...$MQ.@SmallBoldStyle, FontSize: 9, TextColor: $MQ.@AccentBlue); }
+          Label #ObjectiveSummary { Text: ""; Style: (...$MQ.@ProgressStyle, FontSize: 12); }
         }
 
         // Quests run to a dozen objectives and more, so the list scrolls inside the panel rather
-        // than running past the Track and Abandon buttons below it.
+        // than running past the rewards, timeline and buttons below it.
         Group #ObjectiveList {
           FlexWeight: 1;
           LayoutMode: TopScrolling;
@@ -151,12 +198,45 @@ $Base.@Container {
           Padding: (Right: 4, Bottom: 4);
         }
 
-        Group {
+        Group #RewardsRow {
+          Anchor: (Height: 30, Top: 8);
           LayoutMode: Left;
-          Anchor: (Height: 38, Top: 16);
+
+          AssetImage { AssetPath: $MQ.@IconReward; Anchor: (Width: 22, Height: 22, Right: 8); }
+          Label { Text: "REWARDS"; Style: (...$MQ.@SmallBoldStyle, FontSize: 10, TextColor: $MQ.@QuestGold, VerticalAlignment: Center); Anchor: (Width: 70); }
+          Label #RewardsText { Text: ""; Style: (FontSize: 13, TextColor: $MQ.@TextSecondary, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 10); FlexWeight: 1; }
+        }
+
+        Group #TimelineSection {
+          LayoutMode: Top;
+          Anchor: (Top: 8);
+
+          Label { Text: "TIMELINE"; Style: (...$MQ.@SmallBoldStyle, FontSize: 10, TextColor: $MQ.@MutedText); Anchor: (Bottom: 4); }
+          Group #TimelineList { LayoutMode: Top; }
+        }
+
+        Group #QuestActions {
+          LayoutMode: Left;
+          Anchor: (Height: 38, Top: 12);
 
           TextButton #TrackButton { Text: "TRACK QUEST"; Style: $MQ.@PrimaryButtonStyle; Anchor: (Width: 176, Height: 38, Right: 8); }
-          TextButton #AbandonButton { Text: "ABANDON"; Style: $MQ.@DestructiveButtonStyle; Anchor: (Width: 156, Height: 38); }
+          TextButton #AbandonButton { Text: "ABANDON"; Style: $MQ.@DestructiveButtonStyle; Anchor: (Width: 176, Height: 38); }
+        }
+      }
+
+      Group #SettingsPanel {
+        FlexWeight: 1;
+        LayoutMode: Top;
+        Visible: false;
+
+        Label { Text: "QUEST SETTINGS"; Style: (...$MQ.@QuestTitleStyle, FontSize: 24, TextColor: $MQ.@TextPrimary); Anchor: (Bottom: 4); }
+        Label { Text: "How quests show on your screen. Saved for you on this server."; Style: (...$MQ.@BodyTextStyle, TextColor: $MQ.@MutedText); Anchor: (Bottom: 14); }
+
+        Group #SettingsList {
+          FlexWeight: 1;
+          LayoutMode: TopScrolling;
+          ScrollbarStyle: $Base.@DefaultScrollbarStyle;
+          Padding: (Right: 4);
         }
       }
     }

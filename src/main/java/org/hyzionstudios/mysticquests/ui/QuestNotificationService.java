@@ -40,17 +40,17 @@ public final class QuestNotificationService implements PlayerInventoryService.Qu
             NotificationStyle style = style(event.text("style", "Default"));
             String icon = event.text("icon", "");
             ItemWithAllMetadata item = item(event);
-            if (!icon.isBlank() || item != null) {
-                NotificationUtil.sendNotification(
-                        playerRef.getPacketHandler(),
-                        title,
-                        body,
-                        icon.isBlank() ? null : icon,
-                        item,
-                        style);
-            } else {
-                NotificationUtil.sendNotification(playerRef.getPacketHandler(), title, body, style);
-            }
+            // A same-tag toast is replaced in place on the client, so a tagged progress
+            // notification updates one live toast instead of stacking a new one per step.
+            String tag = event.text("tag", "");
+            NotificationUtil.sendNotification(
+                    playerRef.getPacketHandler(),
+                    title,
+                    body,
+                    icon.isBlank() ? null : icon,
+                    item,
+                    style,
+                    tag.isBlank() ? null : tag);
         } catch (RuntimeException exception) {
             logger.at(Level.WARNING).withCause(exception).log("Failed to send MysticQuests notification to " + playerId + ".");
         }

@@ -4,6 +4,7 @@ import org.hyzionstudios.mysticquests.model.ConditionDefinition;
 import org.hyzionstudios.mysticquests.model.ConversationDefinition;
 import org.hyzionstudios.mysticquests.model.EventDefinition;
 import org.hyzionstudios.mysticquests.model.ObjectiveDefinition;
+import org.hyzionstudios.mysticquests.model.ObjectiveMarker;
 import org.hyzionstudios.mysticquests.model.QuestDefinition;
 import org.hyzionstudios.mysticquests.model.StageDefinition;
 import org.hyzionstudios.mysticquests.model.TypedConfig;
@@ -813,6 +814,11 @@ public final class QuestContentLoader {
             validateType(questId + "/" + objective.id(), "objective", objective, OBJECTIVE_TYPES, errors);
             if ("signal".equals(objective.type()) && objective.text("signal", objective.text("target", "")).isBlank()) {
                 errors.add(questId + "/" + objective.id() + " is a signal objective that names no \"signal\"");
+            }
+            try {
+                ObjectiveMarker.parse(objective.data().get("marker"));
+            } catch (IllegalArgumentException malformed) {
+                errors.add(questId + "/" + objective.id() + " has an invalid marker: " + malformed.getMessage());
             }
         }
     }

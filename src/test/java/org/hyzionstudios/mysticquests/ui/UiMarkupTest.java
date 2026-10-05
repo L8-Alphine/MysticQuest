@@ -43,6 +43,7 @@ final class UiMarkupTest {
     private static final Path PACK_ROOT = Path.of("artifacts/MysticQuests_Assets_v1");
     /** HUD documents sit in the shared custom-HUD root, beside the base game's own. */
     private static final String HUD_DOCUMENT = "Custom/Hud/MysticQuestsQuestHud.ui";
+    private static final String PUZZLE_HUD_DOCUMENT = "Custom/Hud/MysticQuestsPuzzleHud.ui";
 
     private static final Pattern BUTTON_OPEN = Pattern.compile("\\b(TextButton|Button)\\s+#\\S+?\\s*\\{");
     /** A Style tuple whose first field is a leaf property rather than a button state. */
@@ -92,6 +93,7 @@ final class UiMarkupTest {
         assertTrue(source.contains("DOCUMENT = \"Hud/MysticQuestsQuestHud.ui\""));
         assertTrue(source.contains("builder.append(DOCUMENT)"));
         assertTrue(Files.isRegularFile(UI_ROOT.resolve(HUD_DOCUMENT)));
+        assertTrue(Files.isRegularFile(UI_ROOT.resolve(PUZZLE_HUD_DOCUMENT)));
     }
 
     /**
@@ -291,19 +293,21 @@ final class UiMarkupTest {
     }
 
     @Test
-    void hudDynamicIconsAndMetersUseSafeElementTypesAndFallbacks() throws IOException {
+    void compactHudUsesSemanticFieldsAndSafeMeterUpdates() throws IOException {
         String hud = Files.readString(UI_ROOT.resolve(HUD_DOCUMENT));
         String java = Files.readString(JAVA_ROOT.resolve("QuestHud.java"));
-        int rows = hudObjectiveRowCount(hud);
-        assertTrue(rows >= 4, "Expected the tracker to declare objective rows, found " + rows);
-        for (int index = 0; index < rows; index++) {
-            assertTrue(hud.matches("(?s).*AssetImage\\s+#HudObjectiveIcon" + index
-                            + "\\s*\\{[^}]*FallbackTexturePath:\\s*\\$MQ\\.@MissingIcon;.*"),
-                    "Dynamic HUD icon " + index + " must be an AssetImage with a visible fallback");
-            assertTrue(hud.matches("(?s).*ObjectiveProgressBar\\s+#HudObjectiveMeter" + index + "\\s*\\{.*"),
-                    "Dynamic HUD meter " + index + " must be a ProgressBar template instance");
+        for (String id : List.of("#TrackedCategory", "#TrackedState", "#TrackedQuestName",
+                "#TrackedContext", "#TrackedObjectiveText", "#TrackedObjectiveProgress",
+                "#TrackedObjectiveMeter", "#TrackedGuidance", "#TrackedQuestProgress")) {
+            assertTrue(hud.contains(id), "Compact tracker document is missing " + id);
+            assertTrue(java.contains(id + "."), "QuestHud never writes to " + id);
         }
-        assertTrue(java.contains(".AssetPath\""), "HUD must update dynamic icons through AssetPath");
+        assertTrue(hud.matches("(?s).*ProgressBar\\s+#TrackedObjectiveMeter\\s*\\{.*"),
+                "Compact HUD progress must use Hytale's native ProgressBar element");
+        assertTrue(java.contains("QuestHudViewModel model"),
+                "QuestHud must render a semantic view model instead of deriving state in markup");
+        assertTrue(Files.readString(JAVA_ROOT.resolve("QuestHudService.java")).contains("QuestHudViewModel.from(entry)"),
+                "The HUD service must build the tracker from the journal's semantic projection");
         assertTrue(java.contains(".Value\""), "HUD must update progress through Value");
         assertFalse(java.contains(".Anchor\""), "Runtime code must not mutate Anchor");
         assertFalse(java.contains(".Background.TexturePath\""),
@@ -315,12 +319,105 @@ final class UiMarkupTest {
         String hud = Files.readString(UI_ROOT.resolve(HUD_DOCUMENT));
         assertTrue(hud.matches("(?s).*Group\\s*\\{\\s*LayoutMode:\\s*Right;\\s*FlexWeight:\\s*1;.*"),
                 "Quest tracker needs a Right layout wrapper; Anchor.Right alone starts from the left origin");
-        Matcher tracker = Pattern.compile("(?s)Group\\s+#TrackedQuest\\s*\\{(.*?)LayoutMode:\\s*Top;").matcher(hud);
-        assertTrue(tracker.find(), "Missing #TrackedQuest container");
-        // The bound is what matters, not the number: three digits under 400 keeps the tracker inside
-        // a 720p viewport with room for the step block and its rows.
-        assertTrue(tracker.group(1).matches("(?s).*Anchor:\\s*\\([^)]*Height:\\s*[123]\\d\\d[^)]*\\);.*"),
-                "Right-layout children stretch on the cross axis, so the tracker needs a bounded explicit height");
+        Matcher tracker = Pattern.compile("(?s)Group\\s+#CompactTracker\\s*\\{(.*?)Group\\s+#TrackedQuest").matcher(hud);
+        assertTrue(tracker.find(), "Missing #CompactTracker container");
+        assertTrue(tracker.group(1).matches("(?s).*Anchor:\\s*\\([^)]*Height:\\s*2[0-4]\\d[^)]*\\);.*"),
+                "The compact tracker must remain a bounded 200-249px persistent surface");
+    }
+
+    @Test
+    void expandedTrackerSharesTheHudAndStaysWithinItsObjectiveBudget() throws IOException {
+        String hud = Files.readString(UI_ROOT.resolve(HUD_DOCUMENT));
+        String java = Files.readString(JAVA_ROOT.resolve("QuestHud.java"));
+        assertTrue(hud.contains("#CompactTracker") && hud.contains("#ExpandedTracker"),
+                "Both tracker compositions must share one keyed HUD document");
+        assertTrue(java.contains("#CompactTracker.Visible") && java.contains("#ExpandedTracker.Visible"),
+                "Mode changes must patch composition visibility without replacing the HUD");
+        for (int index = 0; index < 3; index++) {
+            assertTrue(hud.contains("#ExpandedRow" + index),
+                    "Expanded tracker is missing supporting row " + index);
+            assertTrue(java.contains("#ExpandedRow\" + index"),
+                    "Expanded tracker rows must be populated from the semantic model");
+        }
+        assertFalse(hud.contains("#ExpandedRow3"),
+                "Expanded tracker may show one primary plus at most three supporting rows");
+        assertTrue(hud.matches("(?s).*ProgressBar\\s+#ExpandedPrimaryMeter\\s*\\{.*"),
+                "Expanded tracker progress must use Hytale's native ProgressBar");
+        assertTrue(hud.contains("#ExpandedActionHint") && java.contains("model.actionHint()"),
+                "Expanded tracker must expose the server-authored Journal action descriptor");
+    }
+
+    /**
+     * The puzzle card sits bottom-centre and the tracker top-right. One layout tree cannot place
+     * blocks in two corners — Anchor offsets are relative to where the layout puts an element — so
+     * the card is its own HUD layer with its own document, the way MysticRPG keeps its experience
+     * bar apart from its vitals.
+     */
+    @Test
+    void puzzleCardIsItsOwnBottomAnchoredHudLayer() throws IOException {
+        String tracker = Files.readString(UI_ROOT.resolve(HUD_DOCUMENT));
+        String card = Files.readString(UI_ROOT.resolve(PUZZLE_HUD_DOCUMENT));
+        String java = Files.readString(JAVA_ROOT.resolve("QuestPuzzleHud.java"));
+        assertFalse(tracker.contains("#Puzzle"),
+                "The tracker document must not carry the puzzle card; it cannot be placed bottom-centre from there");
+        assertTrue(java.contains("DOCUMENT = \"Hud/MysticQuestsPuzzleHud.ui\"") && java.contains("builder.append(DOCUMENT)"),
+                "The puzzle card must append its own document from the shared Hud/ root");
+        assertTrue(card.matches("(?s).*Group\\s*\\{\\s*LayoutMode:\\s*Bottom;\\s*FlexWeight:\\s*1;.*"),
+                "The card's root must take the full height and lay out from the bottom");
+        Matcher bottom = Pattern.compile("Anchor:\\s*\\(Bottom:\\s*(\\d+),").matcher(card);
+        assertTrue(bottom.find(), "The card row needs a Bottom offset");
+        assertTrue(Integer.parseInt(bottom.group(1)) >= 232,
+                "The card must clear the hotbar stack and MysticRPG's experience bar (Bottom 176, Height 56)");
+        for (String id : List.of("#PuzzleTitle", "#PuzzleHint", "#PuzzleStatus",
+                "#PuzzleSession", "#PuzzleState", "#PuzzleFeedback")) {
+            assertTrue(card.contains(id), "Puzzle card document is missing " + id);
+            assertTrue(java.contains(id + "."), "QuestPuzzleHud never writes to " + id);
+        }
+        assertFalse(card.contains("#PuzzleSlot") || card.contains("#PuzzleMeter"),
+                "A general puzzle information card must not imply every puzzle is slot/count based");
+        assertFalse(tracker.contains("#FocusTracker"),
+                "Navigation must use Hytale's native world map, not a second centre card");
+        String state = Files.readString(JAVA_ROOT.resolve("QuestPuzzleHudState.java"));
+        assertFalse(state.contains("candidate") && state.contains("String candidate"),
+                "Client puzzle state must not carry hidden candidate ids");
+        assertFalse(state.contains("seed()") || state.contains("solutionOrder"),
+                "Client puzzle state must not carry session seed or solution order");
+    }
+
+    /**
+     * Theme icons are asset-root paths ({@code UI/Custom/mysticquests/Assets/…}) and only
+     * {@code AssetImage.AssetPath} reads them that way. Used as a {@code Background}, the same string
+     * is a document-relative texture path that resolves to nothing — and an unresolvable document
+     * reference is exactly the kind of fault that has taken the whole custom-UI load down before.
+     */
+    @Test
+    void themeIconsAreOnlyUsedAsAssetPaths() throws IOException {
+        Pattern iconUse = Pattern.compile("(\\w+):\\s*\\$MQ\\.@Icon\\w+");
+        List<String> offenders = new ArrayList<>();
+        for (Path document : uiDocuments()) {
+            Matcher matcher = iconUse.matcher(Files.readString(document));
+            while (matcher.find()) {
+                if (!matcher.group(1).equals("AssetPath")) {
+                    offenders.add(document + " uses a theme icon as " + matcher.group(1));
+                }
+            }
+        }
+        assertTrue(offenders.isEmpty(), "Theme icons outside AssetPath:\n - " + String.join("\n - ", offenders));
+    }
+
+    @Test
+    void cinematicDialogueUsesOneBottomBandWithScrollableChoicesAndTranscript() throws IOException {
+        String ui = Files.readString(UI_ROOT.resolve("Custom/mysticquests/Pages/ConversationPage.ui"));
+        String java = Files.readString(JAVA_ROOT.resolve("ConversationPage.java"));
+        assertTrue(ui.contains("#SpeakerPortrait") && ui.contains("#DialoguePanel"),
+                "Dialogue needs a distinct portrait rail and cinematic subtitle panel");
+        assertTrue(ui.contains("LayoutMode: TopScrolling") && ui.contains("#ChoiceList"),
+                "All visible server choices must remain reachable without growing the HUD band");
+        for (String id : List.of("#VoiceBadge", "#DialogueText", "#TranscriptToggle",
+                "#TranscriptPanel", "#TranscriptText")) {
+            assertTrue(ui.contains(id), "Cinematic dialogue is missing " + id);
+            assertTrue(java.contains(id), "ConversationPage never controls " + id);
+        }
     }
 
     /**
@@ -329,15 +426,18 @@ final class UiMarkupTest {
      * one. Both halves have to exist: the ids in the document, and the Java that fills them.
      */
     @Test
-    void trackerHudShowsStepAndWholeQuestProgress() throws IOException {
+    void trackerHudShowsOneImmediateObjectiveAndKeepsQuestContext() throws IOException {
         String hud = Files.readString(UI_ROOT.resolve(HUD_DOCUMENT));
         String java = Files.readString(JAVA_ROOT.resolve("QuestHud.java"));
-        for (String id : List.of("#TrackedStepLabel", "#TrackedStageName", "#TrackedTotalProgress",
-                "#TrackedTotalMeter", "#HudObjectiveOverflow")) {
+        for (String id : List.of("#TrackedContext", "#TrackedObjectiveText",
+                "#TrackedObjectiveProgress", "#TrackedQuestProgress", "#TrackedGuidance")) {
             assertTrue(hud.contains(id), "Tracker document is missing " + id);
             assertTrue(java.contains(id + "."), "QuestHud never writes to " + id);
         }
-        assertTrue(java.contains("currentStage()"), "Tracker must render the current step, not the first rows");
+        assertFalse(hud.contains("#HudObjective0"),
+                "The compact persistent HUD must not expand into a multi-objective quest log");
+        assertTrue(Files.readString(JAVA_ROOT.resolve("QuestHudViewModel.java")).contains("currentStage()"),
+                "The semantic HUD model must still select the current authored step");
     }
 
     /**
@@ -354,15 +454,6 @@ final class UiMarkupTest {
         assertTrue(body.contains("ScrollbarStyle:"), "#ObjectiveList must show a scrollbar");
         assertTrue(body.contains("FlexWeight: 1"),
                 "#ObjectiveList needs a bounded height to scroll within; it fills what the panel leaves");
-    }
-
-    /** Objective rows the tracker document declares, as {@code #HudObjective0}, {@code 1}, … */
-    private int hudObjectiveRowCount(String hud) {
-        int rows = 0;
-        while (hud.contains("Group #HudObjective" + rows + " {")) {
-            rows++;
-        }
-        return rows;
     }
 
     @Test

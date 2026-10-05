@@ -116,7 +116,7 @@ entity, so the native volume becomes per-audience without ever being toggled glo
 
 ## 4. Order of work in this change
 
-Following §27 and §31, the runtime is built bottom-up and the Studio is not started:
+Following §27 and §31, the runtime is built bottom-up. The first change built:
 
 1. **Phase 1 — state foundation.** Namespaced ids, typed values, ten scopes with explicit support,
    tag and variable schemas, tag and variable services, condition trees, typed actions, diagnostics.
@@ -128,8 +128,23 @@ Following §27 and §31, the runtime is built bottom-up and the Studio is not st
 4. **Phase 7 — puzzle engine core.** It depends only on Phases 1–3. The four-of-ten scenario is a
    headline acceptance test (§26.3), so it lands with them rather than after visibility and entities.
 
-Phases 4–6 and 8–14 are not part of this change. Their engine findings are recorded above so they
-can start from verified facts.
+The first change delivered those four. Every later phase has since been built in dependency
+order, the Web Studio last, after the runtime contracts it uses were stable (§2, §31):
+
+| Phase | State |
+|---|---|
+| 4 Staff bypass, layered visibility | Done |
+| 5 MysticNameTags bridge, integration status | Done (needs MysticNameTags' MysticQuests support) |
+| 6 Story entity isolation | Done, including results ownership through `onDeath`; dropped items have no owner in the engine |
+| 8 World overlays | Done, as per-viewer entity overlays; per-player blocks are not possible in the engine |
+| 9 Dialogue and media | Done, with per-player voice language and subtitles |
+| 10 Cutscenes | Done |
+| 11 MysticIdentity | Done: player portal pages, Studio sign-in, and the `account` scope |
+| 12 Creator Studio | Done (docs/studio.md) |
+| 13 Live tooling | Done: in-game debugger and interventions, read-only Live Sessions in the Studio |
+| 14 Migration and hardening | Done: migration report, limits and metrics, load tests, release packaging |
+
+Section 5 lists each acceptance item and the tests that cover it.
 
 ## 5. Status after this change
 
@@ -158,7 +173,20 @@ Delivered, with tests (`src/test/java/.../narrative`). The authoring and extensi
 | Crash recovery for in-progress cutscenes (§22) | Done (Phase 10): finished as skipped when the player returns | `CutsceneTest#aSceneInterruptedByARestartIsFinishedWhenThePlayerReturns` |
 | Live debugger: one read-only view of a player's story state, exportable (§21) | Done (Phase 13, in-game part); interventions: puzzle reset/reroll, trigger state, cutscene play/skip, checkpoint rewind, story restart, objective complete/reset/set, voice-line replay, teleport to a quest volume; presentation reconciles itself from state | `NarrativeDebugTest`, `CheckpointRewindTest`, `/mq debug <player> [export]` |
 | Existing quests migrate or produce an explicit, actionable report (§25, §33) | Done (Phase 14, content report); v1 player state stays in the v1 store by design | `MigrationReportTest`, `/mquest narrative migrate [export]` |
-| MysticIdentity, Studio, load tests and release packaging | Not started | Phases 11, 12, 14 |
+| My Identity quest views (§19.1): active quests, current step and objectives, history, story milestones | Done (Phase 11, portal provider `integration/mysticidentity`); replay/season history not supported yet | `QuestsPortalProviderTest`, `MilestoneTest`, `/mq integrations` |
+| Studio authentication through MysticIdentity (§19.2) | Done (Phase 11/12): OIDC authorization code with PKCE against MysticIdentity's OpenID Provider (`openid identity.read hytale.read`); the linked Hytale profile is the player whose permissions apply; in-game codes stay available | `StudioOidcTest` |
+| `account` scope through MysticIdentity | Done: MysticIdentity's status answer and `PlayerIdentity` now carry the identity id (optional on the wire, so older agents and controllers still interoperate); MysticQuests keys account state on it through `integration/mysticidentity/IdentityAccounts`. Degraded scope: unlinked players skip account writes | `AccountScopeTest`; MysticIdentity `AgentContractTest`, `PlayerIdentityRegistryTest` |
+| Limits, metrics and slow-operation diagnostics (§28, §29) | Done (Phase 14): session and entity limits, puzzle-input warning, counters, per-type timings, `/mquest narrative stats` | `NarrativeLimitsTest` |
+| Load: event-driven evaluation at scale, restart recovery of every session | Done (Phase 14), runtime level over the in-memory store | `NarrativeLoadTest` |
+| Release packaging and rollout (§27 Phase 14) | Done: version 2.0.0, `./gradlew releaseBundle` (tested jar, docs, examples), manifest/build version check, rollout and rollback steps in the server guide | `verifyManifestVersion` |
+| Web Studio can create, edit and validate projects without raw config for normal workflows (§33) | Done (Phase 12, first increment): embedded Studio, off by default; forms for quests (steps, objectives), dialogue (lines, choices, flow with unreachable-line check), tag and variable schemas; puzzles, overlays, media, speakers and cutscenes as JSON; raw file editor; quest map | `StudioServiceTest`, `StudioHttpServerTest`, docs/studio.md |
+| Studio security (§23): server-side authorization per section, CSRF, origin check, secure cookies, path safety, validated publish, append-only release and audit history | Done (Phase 12) | `StudioServiceTest`, `StudioHttpServerTest` |
+| Studio version history: drafts, releases, diffs, rollback (§11) | Done (Phase 12): release 0 keeps the pre-Studio content; rollback loads a release into the draft | `StudioServiceTest#publishingIsValidatedRecordedAndCanBeRolledBack` |
+| Studio Live Sessions view (§21): online players, a player's full debug snapshot, runtime limits and metrics; polled, never streamed; at most 10 watchers (§28) | Done (Phase 13, web part), read-only; interventions stay in game | `StudioServiceTest#liveStateNeedsItsOwnPermissionAndWatchersAreLimited` |
+| Studio audio pipeline (§14): Ogg Vorbis upload kept as master, header checks (channels, rate, length, Opus refused), generated pack `MysticQuests-Generated` with `Common/Sounds` files and `Server/Audio/SoundEvents` events (layout and SoundEvent schema checked against 0.6.8) | Done (Phase 12); loaded at the next restart; no transcoding or loudness analysis (no encoder on the server); music containers not generated | `StudioAudioTest`, `StudioHttpServerTest` |
+| Separate development, staging and production targets (§23): release download, import into another server's draft, validated publish there | Done (Phase 12); bundles accept only content files at valid paths | `StudioBundlesTest` |
+| Studio reference and testing views (§11): package tree (projects / seasons as nested packages), World page (every trigger volume and story NPC named, with where; single uses flagged), quest simulator (tracker view per step), tag and variable usage counts, locale coverage, integration status | Done (Phase 12), checked in the browser | docs/studio.md |
+| Puzzle Studio and Cutscene Studio (§11, §17): puzzle form with in-browser rule simulation (timed and state-machine rules are validated, not simulated); cutscene timeline | Done (Phase 12), checked in the browser against the example packages | docs/studio.md |
 
 ### Phase 10 notes: cutscenes
 
@@ -194,8 +222,8 @@ A scene advances on the world thread of the player who started it, since its ste
 events about that player. Party members hear its audio through the session audience but do not
 drive it; a v1 `setCamera` with `"targets": "party"` moves everyone's camera.
 
-Not built: player input locking beyond `setCamera`'s `locked` flag, camera paths (the engine
-offers camera modes, not keyframed paths), and a timeline editor (Phase 12).
+Not built: player input locking beyond `setCamera`'s `locked` flag, and camera paths (the engine
+offers camera modes, not keyframed paths). The timeline editor is in the Studio (Phase 12).
 
 ### Phase 9 notes: dialogue and media
 
@@ -238,9 +266,13 @@ Design choices:
 - Missing audio is a warning at load, not an error: asset packs can load in a different order on a
   development server, and at runtime a line without its sound still shows its subtitle.
 
-Not built yet: per-player voice-language and subtitle preferences (players hear their client
-language), `waitForCompletion` (needs the Phase 10 timeline), AudioState axes, and the Studio audio
-pipeline (§14).
+Per-player preferences (§16) are built: `/mquest audio voice <locale|auto>` picks the voice
+language independently of the client's (subtitles written with a `subtitleKey` stay in the client's
+language, so a player can hear one language and read another), and `/mquest audio subtitles <on|off>`;
+both are saved with the player (`QuestMediaService#preferences`, `QuestMediaTest`). The Studio audio
+pipeline (§14) is built (Phase 12). Not built: `waitForCompletion` as a blocking step (voice lines
+already queue per listener, and cutscene steps run at authored times), AudioState axes, and subtitle
+size, background and contrast, which the client controls.
 
 ### Phase 8 notes: walls per player, verified against the engine
 
@@ -301,9 +333,12 @@ by this:
   that reports it, so no unclaimed frame exists), `entity.claim`, `entity.release`,
   `entity.despawn`. Spawn and despawn are permanent ledger steps, so a rollback never doubles a
   boss.
-- **Not done:** loot and reward ownership (§8, "which audience owns the results"). Kill objectives
-  still credit whoever v1 credits. Only an out-of-audience player is ever blocked from a hit, and
-  they can never land one, which removes the obvious exploit.
+- **Loot and rewards (§8, "which audience owns the results"):** done as results, not items. A claim
+  (or spawn) can carry `onDeath` actions, run once in the owning session for the owning audience
+  when the entity dies (`hytale/StoryEntityDeathSystem` → `NarrativeRuntime#onStoryEntityDeath`),
+  and the claim ends. Kill credit already belongs to the audience, since outsiders cannot hit a story
+  entity. Dropped items stay unowned: the engine has only `PreventPickup`, which blocks everyone, so
+  story rewards should come from `onDeath`, not drop lists. Covered by `StoryEntityDeathTest`.
 
 ### Phase 5 notes
 

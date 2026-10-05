@@ -55,6 +55,14 @@ exact objective progress, tracking, abandonment overrides, player tags, and play
 - `startEvents`: events run when the quest starts.
 - `completeEvents`: events run when all objectives complete.
 - `rewards`: completion reward events.
+- `category`: optional. Files the quest in the Journal and sets the tracker's badge: `story`, `side`,
+  `contract`, `guild`, `community`, `daily`, or any word of your own. Without one, the quest is filed
+  under "Quests".
+- `rewardText`: optional. The rewards players are told about, shown in the Journal and on the board.
+  Rewards it does not mention stay hidden.
+- `difficulty`, `partySize`: optional. Shown on the quest board.
+- `lockedText`: optional. Shows the quest on the board as a locked card, with this text, while the
+  player cannot start it. Without it, a locked quest is not shown.
 
 ## Typed Entries
 
@@ -358,6 +366,31 @@ Use `notification` events for native Hytale notifications. Supported styles are 
 }
 ```
 
+Give notifications that report the same thing over and over a `tag`. The client replaces a toast
+that has the same tag instead of stacking a new one, so "Wolves slain 3 / 5" updates in place:
+
+```json
+{ "type": "notification", "title": "Thin the Pack", "body": "Wolves slain: %objective.wolves.amount% / %objective.wolves.total%", "tag": "hunt.wolves.progress" }
+```
+
+MysticQuests' own announcements (below) use tags beginning `mq.`; pick tags that do not.
+
+### Quest announcements
+
+With `ui.transitionCards` set to `true` in `config.json`, MysticQuests announces the moments of every
+quest itself, each its own way:
+
+| Moment | Toast |
+| --- | --- |
+| Accepted | "Quest accepted: *title*", with the first objective. |
+| New step | The quest's title, with "New step \| STEP 2 OF 4 \| *step name*". |
+| Progress | The quest's title, with the objective and its count. One live toast per quest, updated in place. |
+| Complete | "Quest complete" in the success style, replacing the quest's accepted or step toast if it is still showing. |
+
+Nothing is announced for what a player already had when they joined, so reconnecting never replays a
+completion. It is off by default because content that already sends `notification` events at these
+moments would show both; turn it on for new content, or remove those events when you do.
+
 Item notifications use the `item` and `quantity` fields instead of `icon`:
 
 ```json
@@ -424,11 +457,52 @@ edit them use the Package Scripts tab or the package files directly.
 
 MysticQuests shows one pinned active quest in a `CustomUIHud` while the player has active quests. If the player has not pinned a quest, the runtime picks the oldest active quest deterministically. Players can control the pin with `/mquest track <quest>` and `/mquest untrack`.
 
-The HUD shows whole-quest progress — `STEP 2 OF 4`, the step's name, `5 / 13`, and a meter — over up
-to five objective rows drawn from the **current step**: the first step with an objective still open,
-or the last step once everything is done. A step with more than five objectives says how many rows
-are hidden. A quest without steps has one implicit step, so its HUD shows the first five of its
-objectives and no step line.
+The tracker leads with one **primary objective** — the first open objective of the **current step**
+(the first step with an objective still open, or the last step once everything is done) — with its
+own progress meter, the step line (`STEP 2 OF 4 | Discover the Realm`) and whole-quest progress
+(`QUEST 5 / 13`). It has two compositions:
+
+- **Compact** — title, primary objective, one progress signal and a guidance line.
+- **Expanded** — the same plus up to three more of the step's objectives, open ones first.
+
+By default the tracker expands only when the current step has more than one objective. Players can
+pin a composition with `/mquest hud <auto|compact|expanded>`. The tracker hides while a
+conversation is open, and steps down to compact while a puzzle card is showing. A quest without steps has
+one implicit step, so the primary objective is simply its first open objective and there is no step
+line.
+
+### Objective map markers
+
+Any objective may carry a `marker`. While that objective is the tracked quest's primary objective,
+the player sees it on their world map and the tracker's guidance line points to it.
+
+```json
+{ "id": "vote_crates", "displayName": "Visit the Vote Crates", "type": "reachLocation",
+  "marker": { "world": "default", "x": 120, "y": 64, "z": -88, "label": "Vote Crates" } }
+```
+
+| Field | Meaning |
+| --- | --- |
+| `world`, `x`, `y`, `z` | Required. The world's name and the marker's position. |
+| `label` | What the map calls it. Defaults to the objective's `displayName`. |
+| `area` | `true` marks the centre of a region to search, not an exact spot: the map says "Search: …" and the tracker says to search the marked area. |
+| `icon` | A file name below the client's `UI/WorldMap/MapMarkers`. Defaults to `Home.png`, the icon vanilla objectives use. |
+
+A marker that cannot be placed — no world, a coordinate that is not a number, an icon that is not a
+plain `*.png` file name — fails the reload. Markers are presentation only: reaching the spot does not
+advance the objective by itself; the objective's own `type` still decides that. The marker appears
+only in the world it names, and goes away once the objective is done or the quest is no longer
+tracked. Instruction-style packages cannot express the nested block; write the objective in JSON or
+YAML instead.
+
+### Puzzle card
+
+When a player feeds a story puzzle through a trigger volume, a card appears above the hotbar with
+the puzzle's name, a hint written for its rule type, its progress and a short reaction ("The
+mechanism responds.", "The sequence resets."). It never names inputs, shows which candidates were
+dealt, or reveals an order. The card goes a few seconds after the puzzle is solved, or after a minute
+without an input. It shows to the player who acted; for a party puzzle it says the progress is
+shared.
 
 ## Command Surface
 

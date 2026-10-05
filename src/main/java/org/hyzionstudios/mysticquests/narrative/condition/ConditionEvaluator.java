@@ -1,5 +1,7 @@
 package org.hyzionstudios.mysticquests.narrative.condition;
 
+import org.hyzionstudios.mysticquests.narrative.NarrativeMetrics;
+import org.hyzionstudios.mysticquests.narrative.NarrativeMetrics.Counter;
 import org.hyzionstudios.mysticquests.narrative.condition.Condition.All;
 import org.hyzionstudios.mysticquests.narrative.condition.Condition.Any;
 import org.hyzionstudios.mysticquests.narrative.condition.Condition.AtLeast;
@@ -19,6 +21,7 @@ import org.hyzionstudios.mysticquests.narrative.state.QuestVariableService;
 import org.hyzionstudios.mysticquests.narrative.state.ScopeContext;
 import org.hyzionstudios.mysticquests.narrative.state.StateResult;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -34,31 +37,48 @@ import java.util.function.Consumer;
  * handler that throws or a type that was unregistered, it is also reported to {@code problems},
  * because a silent false would look like ordinary story logic. A scope with no owner in this
  * situation, such as a party tag read for a solo player, is a correct false and is not reported.
+ *
+ * <p>Each evaluation is timed as {@code condition}, and each custom handler as
+ * {@code condition:<type>}, so a slow custom condition shows up by name (§28).
  */
 public final class ConditionEvaluator {
     private final QuestTagService tags;
     private final QuestVariableService variables;
     private final ConditionTypeRegistry types;
     private final Consumer<String> problems;
+    private final NarrativeMetrics metrics;
 
     public ConditionEvaluator(
             QuestTagService tags,
             QuestVariableService variables,
             ConditionTypeRegistry types,
-            Consumer<String> problems) {
+            Consumer<String> problems,
+            NarrativeMetrics metrics) {
         this.tags = tags;
         this.variables = variables;
         this.types = types;
         this.problems = problems;
+        this.metrics = metrics;
     }
 
     public boolean test(Condition condition, ScopeContext context) {
+        long started = System.nanoTime();
+        boolean passed = evaluate(condition, context);
+        long elapsed = System.nanoTime() - started;
+        if (metrics.time("condition", elapsed)) {
+            problems.accept("slow condition evaluation took " + Duration.ofNanos(elapsed).toMillis() + "ms for "
+                    + context.actor() + "; see the condition:<type> timings in /mquest narrative stats");
+        }
+        return passed;
+    }
+
+    private boolean evaluate(Condition condition, ScopeContext context) {
         return switch (condition) {
-            case All all -> all.children().stream().allMatch(child -> test(child, context));
-            case Any any -> any.children().stream().anyMatch(child -> test(child, context));
-            case None none -> none.children().stream().noneMatch(child -> test(child, context));
-            case Not not -> !test(not.child(), context);
-            case Xor xor -> test(xor.left(), context) ^ test(xor.right(), context);
+            case All all -> all.children().stream().allMatch(child -> evaluate(child, context));
+            case Any any -> any.children().stream().anyMatch(child -> evaluate(child, context));
+            case None none -> none.children().stream().noneMatch(child -> evaluate(child, context));
+            case Not not -> !evaluate(not.child(), context);
+            case Xor xor -> evaluate(xor.left(), context) ^ evaluate(xor.right(), context);
             case AtLeast atLeast -> countUpTo(atLeast.children(), context, atLeast.count()) >= atLeast.count();
             case AtMost atMost -> countUpTo(atMost.children(), context, atMost.count() + 1) <= atMost.count();
             case Exactly exactly -> countUpTo(exactly.children(), context, exactly.count() + 1) == exactly.count();
@@ -77,7 +97,7 @@ public final class ConditionEvaluator {
             if (passed >= limit) {
                 break;
             }
-            if (test(child, context)) {
+            if (evaluate(child, context)) {
                 passed++;
             }
         }
@@ -107,16 +127,25 @@ public final class ConditionEvaluator {
     private boolean custom(Custom custom, ScopeContext context) {
         ConditionHandler handler = types.handler(custom.type());
         if (handler == null) {
+            metrics.increment(Counter.MISSING_REFERENCES);
             problems.accept(DiagnosticCode.UNKNOWN_CONDITION + " " + custom.path()
                     + ": condition type " + custom.type() + " is no longer registered");
             return false;
         }
+        long started = System.nanoTime();
         try {
             return handler.test(context, custom.parameters());
         } catch (RuntimeException failure) {
+            metrics.increment(Counter.CONDITION_FAULTS);
             problems.accept(DiagnosticCode.CONDITION_FAILED + " " + custom.path() + ": " + custom.type()
                     + " threw " + failure + "; treating it as false");
             return false;
+        } finally {
+            long elapsed = System.nanoTime() - started;
+            if (metrics.time("condition:" + custom.type(), elapsed)) {
+                problems.accept("slow condition " + custom.path() + " (" + custom.type() + ") took "
+                        + Duration.ofNanos(elapsed).toMillis() + "ms");
+            }
         }
     }
 

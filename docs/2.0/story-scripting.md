@@ -116,6 +116,18 @@ variableSchemas:
 - Schemas are global across all packages, so declare shared ones once (see
   [Nested stories](#nested-stories)).
 
+A tag can also be a **milestone**: give a `player`-scoped tag schema a `milestone` text, and players
+see it under *Quests → Story* on the MysticIdentity web portal once they have the tag. Milestones are
+player-scoped so they follow the player; to mark a story moment, add the milestone tag in the same
+outputs that set the story's own state.
+
+```yaml
+tagSchemas:
+  - id: grove:seal_broken_milestone
+    scope: player
+    milestone: Broke the grove seal
+```
+
 These are **separate** from v1 tags and variables (`addTag`, `setVariable`), which stay untyped.
 Use 2.0 state for story logic; use v1 state for simple quest flags.
 

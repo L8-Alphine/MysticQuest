@@ -7,6 +7,7 @@ import org.hyzionstudios.mysticquests.integration.VaultUnlockedEconomyBridge;
 import org.hyzionstudios.mysticquests.model.ConditionDefinition;
 import org.hyzionstudios.mysticquests.model.EventDefinition;
 import org.hyzionstudios.mysticquests.model.ObjectiveDefinition;
+import org.hyzionstudios.mysticquests.model.ObjectiveMarker;
 import org.hyzionstudios.mysticquests.api.QuestActionContext;
 import org.hyzionstudios.mysticquests.api.QuestConditionHandler;
 import org.hyzionstudios.mysticquests.api.QuestEventHandler;
@@ -27,16 +28,19 @@ import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 
 import org.joml.Vector3d;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.ConcurrentModificationException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -332,6 +336,56 @@ public final class PlayerQuestService {
                 .toList();
     }
 
+    /** A player's quests as a read-only viewer off the game thread sees them, such as the web portal. */
+    public record PlayerJournal(List<JournalEntry> active, @Nullable String trackedQuestId, List<CompletedQuest> completed) {
+        public PlayerJournal {
+            active = List.copyOf(active);
+            completed = List.copyOf(completed);
+        }
+    }
+
+    /** One finished quest; the name falls back to the id when the quest is no longer in the content. */
+    public record CompletedQuest(String questId, String displayName, Instant completedAt) {
+    }
+
+    /**
+     * The player's active and completed quests for a viewer on another thread, such as the
+     * MysticIdentity web portal. Uses the live copy when the player is loaded and otherwise reads
+     * storage without caching it: the cache is the copy this service saves from, so a web visit must
+     * never put an offline player into it. Completed quests are newest first.
+     *
+     * @throws IOException when an offline player's stored progress cannot be read
+     */
+    public PlayerJournal readOnlyJournal(UUID playerId) throws IOException {
+        PlayerQuestData live = cache.get(playerId);
+        PlayerQuestData data = live != null ? live : storage.loadPlayer(playerId);
+        LoadedContent content = contentSupplier.get();
+        for (int attempt = 0; ; attempt++) {
+            try {
+                List<JournalEntry> active = data.activeQuests().values().stream()
+                        .map(quest -> journalEntry(content.quests().get(quest.questId()), quest))
+                        .filter(Objects::nonNull)
+                        .sorted(Comparator.comparing(JournalEntry::questId))
+                        .toList();
+                List<CompletedQuest> completed = data.completedQuests().entrySet().stream()
+                        .map(entry -> {
+                            QuestDefinition quest = content.quests().get(entry.getKey());
+                            return new CompletedQuest(entry.getKey(),
+                                    quest == null || quest.displayName().isBlank() ? entry.getKey() : quest.displayName(),
+                                    entry.getValue());
+                        })
+                        .sorted(Comparator.comparing(CompletedQuest::completedAt).reversed())
+                        .toList();
+                return new PlayerJournal(active, data.trackedQuestId(), completed);
+            } catch (ConcurrentModificationException racing) {
+                // The game thread changed this player's quests mid-read; a second read sees the result.
+                if (attempt >= 2) {
+                    throw racing;
+                }
+            }
+        }
+    }
+
     public List<JournalEntry> completedJournal(UUID playerId) {
         PlayerQuestData data = data(playerId);
         LoadedContent content = contentSupplier.get();
@@ -350,6 +404,26 @@ public final class PlayerQuestService {
                 .filter(entry -> !data.completedQuests().containsKey(entry.getKey()))
                 .filter(entry -> reacceptState(playerId, entry.getKey()).allowed())
                 .filter(entry -> canStart(data, entry.getValue()))
+                .map(entry -> availableEntry(entry.getKey(), entry.getValue()))
+                .filter(Objects::nonNull)
+                .sorted(Comparator.comparing(JournalEntry::questId))
+                .toList();
+    }
+
+    /**
+     * Quests the player cannot start yet but whose author wrote a public requirement
+     * ({@code lockedText}), for the board's locked cards (Redesign Bible §7.3). A locked quest without
+     * one stays off the board, so a hidden prerequisite is never hinted at.
+     */
+    public List<JournalEntry> lockedJournal(UUID playerId) {
+        PlayerQuestData data = data(playerId);
+        LoadedContent content = contentSupplier.get();
+        return content.quests().entrySet().stream()
+                .filter(entry -> !entry.getValue().lockedText().isEmpty())
+                .filter(entry -> !data.activeQuests().containsKey(entry.getKey()))
+                .filter(entry -> !data.completedQuests().containsKey(entry.getKey()))
+                .filter(entry -> reacceptState(playerId, entry.getKey()).allowed())
+                .filter(entry -> !canStart(data, entry.getValue()))
                 .map(entry -> availableEntry(entry.getKey(), entry.getValue()))
                 .filter(Objects::nonNull)
                 .sorted(Comparator.comparing(JournalEntry::questId))
@@ -378,6 +452,18 @@ public final class PlayerQuestService {
         }
         LoadedContent content = contentSupplier.get();
         return journalEntry(content.quests().get(questId), data.activeQuests().get(questId));
+    }
+
+    /** The authored map marker of one objective of a loaded quest, for presentation only. */
+    public Optional<ObjectiveMarker> objectiveMarker(String questId, String objectiveId) {
+        QuestDefinition quest = contentSupplier.get().quests().get(questId);
+        if (quest == null || objectiveId == null || objectiveId.isEmpty()) {
+            return Optional.empty();
+        }
+        return quest.objectives().stream()
+                .filter(objective -> objectiveId.equals(objective.id()))
+                .findFirst()
+                .flatMap(ObjectiveMarker::of);
     }
 
     public QuestResult trackQuest(UUID playerId, String questId) {
@@ -544,6 +630,11 @@ public final class PlayerQuestService {
         return Map.copyOf(data(playerId).abandonedQuests());
     }
 
+    /** Completed quest IDs and when each was last completed; a repeat completion moves the time. */
+    public Map<String, Instant> completedRecords(UUID playerId) {
+        return Map.copyOf(data(playerId).completedQuests());
+    }
+
     /**
      * Whether an abandoned quest may be accepted again, and why not when it may not.
      *
@@ -605,6 +696,11 @@ public final class PlayerQuestService {
         static ReacceptState deny(String reason) {
             return new ReacceptState(false, reason);
         }
+    }
+
+    /** A loaded quest's definition, for surfaces that show authored fields such as its category. */
+    public Optional<QuestDefinition> definition(String questId) {
+        return Optional.ofNullable(contentSupplier.get().quests().get(questId));
     }
 
     public QuestResult untrackQuest(UUID playerId) {

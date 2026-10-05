@@ -1,5 +1,9 @@
 package org.hyzionstudios.mysticquests.narrative.session;
 
+import org.hyzionstudios.mysticquests.narrative.NarrativeLimits;
+import org.hyzionstudios.mysticquests.narrative.NarrativeMetrics;
+import org.hyzionstudios.mysticquests.narrative.NarrativeMetrics.Counter;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.hyzionstudios.mysticquests.narrative.persistence.DocumentMigrator;
 import org.hyzionstudios.mysticquests.narrative.persistence.DocumentMigrator.DocumentVersionException;
 import org.hyzionstudios.mysticquests.narrative.persistence.DocumentStore;
@@ -60,6 +64,10 @@ public final class QuestSessionService {
     private final String serverId;
     private final Consumer<String> problems;
     private final Supplier<String> idGenerator;
+    private final NarrativeMetrics metrics;
+    private final int sessionLimit;
+    /** Set while over {@link #sessionLimit}, so crossing it is reported once rather than per session. */
+    private final AtomicBoolean overLimit = new AtomicBoolean();
     private final DocumentMigrator sessionMigrator = new DocumentMigrator("quest session", SESSION_SCHEMA);
     private final DocumentMigrator indexMigrator = new DocumentMigrator("session index", INDEX_SCHEMA);
 
@@ -85,11 +93,22 @@ public final class QuestSessionService {
     /** @param idGenerator new session ids; injectable so tests get stable ids */
     public QuestSessionService(DocumentStore documents, Clock clock, String serverId, Consumer<String> problems,
                                Supplier<String> idGenerator) {
+        this(documents, clock, serverId, problems, idGenerator, new NarrativeMetrics(clock), NarrativeLimits.DEFAULTS.storySessions());
+    }
+
+    /**
+     * @param sessionLimit loaded sessions above which opening a new one is reported (§28). It is a
+     *         warning, never a refusal: refusing would strand a player mid-story
+     */
+    public QuestSessionService(DocumentStore documents, Clock clock, String serverId, Consumer<String> problems,
+                               Supplier<String> idGenerator, NarrativeMetrics metrics, int sessionLimit) {
         this.documents = documents;
         this.clock = clock;
         this.serverId = serverId;
         this.problems = problems;
         this.idGenerator = idGenerator;
+        this.metrics = metrics;
+        this.sessionLimit = sessionLimit;
     }
 
     // --- Lookup and creation ---
@@ -139,6 +158,7 @@ public final class QuestSessionService {
             if (session == null) {
                 session = new QuestSession(idGenerator.get(), owner, storyKey, contentVersion, clock.instant());
                 adopt(session);
+                checkLimit();
             }
         }
         String version = contentVersion == null ? "" : contentVersion;
@@ -148,6 +168,17 @@ public final class QuestSessionService {
         }
         session.touch(clock.instant(), serverId, version);
         return session;
+    }
+
+    private void checkLimit() {
+        int loaded = sessions.size();
+        if (loaded <= sessionLimit) {
+            overLimit.set(false);
+        } else if (overLimit.compareAndSet(false, true)) {
+            metrics.increment(Counter.LIMITS_REACHED);
+            problems.accept(loaded + " story sessions are loaded, over the limit of " + sessionLimit
+                    + "; stories keep opening, but raise narrative.maxStorySessions or look for sessions that never end");
+        }
     }
 
     /** A loaded session by id. Does not read storage: sessions are loaded through their owner. */
@@ -316,6 +347,7 @@ public final class QuestSessionService {
             if (raced != null) {
                 return raced;
             }
+            metrics.increment(Counter.SESSIONS_RESTORED);
             session.onChange(() -> dirtySessions.add(session.id()));
             if (migrated.changed()) {
                 dirtySessions.add(id);
@@ -323,6 +355,7 @@ public final class QuestSessionService {
             return session;
         } catch (DocumentVersionException | IOException | RuntimeException unreadable) {
             quarantinedSessions.add(id);
+            metrics.increment(Counter.SESSIONS_QUARANTINED);
             problems.accept("session " + id + " is quarantined and will not be saved: " + unreadable.getMessage());
             return null;
         }

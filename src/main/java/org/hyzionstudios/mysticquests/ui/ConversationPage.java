@@ -1,7 +1,7 @@
 package org.hyzionstudios.mysticquests.ui;
 
-import org.hyzionstudios.mysticquests.model.ConversationChoice;
 import org.hyzionstudios.mysticquests.service.ConversationService;
+import org.hyzionstudios.mysticquests.service.ConversationService.ConversationOption;
 
 import com.hypixel.hytale.codec.Codec;
 import com.hypixel.hytale.codec.KeyedCodec;
@@ -25,11 +25,13 @@ public final class ConversationPage extends InteractiveCustomUIPage<Conversation
     private static final BuilderCodec<PageEventData> EVENT_CODEC = BuilderCodec
             .builder(PageEventData.class, PageEventData::new)
             .addField(new KeyedCodec<>("Choice", Codec.STRING), PageEventData::setChoice, PageEventData::choice)
+            .addField(new KeyedCodec<>("Action", Codec.STRING), PageEventData::setAction, PageEventData::action)
             .build();
 
     private final UUID playerId;
     private final long sessionToken;
     private final ConversationService conversationService;
+    private boolean transcriptVisible;
 
     public ConversationPage(PlayerRef playerRef, UUID playerId, long sessionToken, ConversationService conversationService) {
         super(playerRef, CustomPageLifetime.CanDismissOrCloseThroughInteraction, EVENT_CODEC);
@@ -59,13 +61,18 @@ public final class ConversationPage extends InteractiveCustomUIPage<Conversation
 
     @Override
     public void handleDataEvent(Ref<EntityStore> playerEntity, Store<EntityStore> store, PageEventData data) {
-        int choiceIndex;
-        try {
-            choiceIndex = Integer.parseInt(data.choice());
-        } catch (NumberFormatException exception) {
+        if ("transcript".equals(data.action())) {
+            transcriptVisible = !transcriptVisible;
+            UICommandBuilder builder = new UICommandBuilder();
+            UIEventBuilder eventBuilder = new UIEventBuilder();
+            renderState(builder, eventBuilder);
+            sendUpdate(builder, eventBuilder, false);
             return;
         }
-        if (conversationService.choose(playerId, choiceIndex, playerEntity, store)) {
+        if (data.choice().isBlank()) {
+            return;
+        }
+        if (conversationService.choose(playerId, data.choice(), playerEntity, store)) {
             UICommandBuilder builder = new UICommandBuilder();
             UIEventBuilder eventBuilder = new UIEventBuilder();
             renderState(builder, eventBuilder);
@@ -80,6 +87,8 @@ public final class ConversationPage extends InteractiveCustomUIPage<Conversation
             builder.set("#SpeakerInitials.Text", "MQ");
             builder.set("#SpeakerTitle.Text", "");
             builder.set("#DialogueText.Text", "");
+            builder.set("#VoiceBadge.Visible", false);
+            builder.set("#TranscriptPanel.Visible", false);
             appendChoices(builder, eventBuilder, List.of());
             return;
         }
@@ -87,10 +96,17 @@ public final class ConversationPage extends InteractiveCustomUIPage<Conversation
         builder.set("#SpeakerInitials.Text", initials(view.speaker()));
         builder.set("#SpeakerTitle.Text", view.conversationId());
         builder.set("#DialogueText.Text", view.text());
+        builder.set("#VoiceBadge.Visible", view.voiced());
+        builder.set("#TranscriptPanel.Visible", transcriptVisible);
+        builder.set("#TranscriptText.Text", transcript(view.transcript()));
+        eventBuilder.addEventBinding(
+                CustomUIEventBindingType.Activating,
+                "#TranscriptToggle",
+                EventData.of("Action", "transcript"));
         appendChoices(builder, eventBuilder, view.choices());
     }
 
-    private void appendChoices(UICommandBuilder builder, UIEventBuilder eventBuilder, List<ConversationChoice> choices) {
+    private void appendChoices(UICommandBuilder builder, UIEventBuilder eventBuilder, List<ConversationOption> choices) {
         int visibleChoices = Math.min(choices.size(), MAX_CHOICES);
         for (int index = 0; index < MAX_CHOICES; index++) {
             String id = "Choice" + index;
@@ -103,8 +119,15 @@ public final class ConversationPage extends InteractiveCustomUIPage<Conversation
             eventBuilder.addEventBinding(
                     CustomUIEventBindingType.Activating,
                     "#" + id,
-                    EventData.of("Choice", Integer.toString(index)));
+                    EventData.of("Choice", choices.get(index).token()));
         }
+    }
+
+    private String transcript(List<ConversationService.TranscriptLine> lines) {
+        int from = Math.max(0, lines.size() - 6);
+        return lines.subList(from, lines.size()).stream()
+                .map(line -> line.speaker() + ": " + line.text())
+                .collect(java.util.stream.Collectors.joining("\n\n"));
     }
 
     private String initials(String text) {
@@ -120,6 +143,7 @@ public final class ConversationPage extends InteractiveCustomUIPage<Conversation
 
     public static final class PageEventData {
         private String choice;
+        private String action;
 
         public String choice() {
             return choice == null ? "" : choice;
@@ -127,6 +151,14 @@ public final class ConversationPage extends InteractiveCustomUIPage<Conversation
 
         public void setChoice(String choice) {
             this.choice = choice;
+        }
+
+        public String action() {
+            return action == null ? "" : action;
+        }
+
+        public void setAction(String action) {
+            this.action = action;
         }
     }
 }

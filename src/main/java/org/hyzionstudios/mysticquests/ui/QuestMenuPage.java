@@ -1,6 +1,5 @@
 package org.hyzionstudios.mysticquests.ui;
 
-import org.hyzionstudios.mysticquests.service.JournalEntry;
 import org.hyzionstudios.mysticquests.service.PlayerQuestService;
 import org.hyzionstudios.mysticquests.service.QuestResult;
 
@@ -18,9 +17,14 @@ import com.hypixel.hytale.server.core.ui.builder.UIEventBuilder;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 
-import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
+/**
+ * The quest board (Redesign Bible §7.3). {@link QuestBoardModel} decides what shows; this page draws
+ * it. Accepting always goes through {@link PlayerQuestService#startQuest}, which checks again whether
+ * the quest can start, so a stale board can never start a quest the player no longer qualifies for.
+ */
 public final class QuestMenuPage extends InteractiveCustomUIPage<QuestMenuPage.PageEventData> {
     private static final BuilderCodec<PageEventData> EVENT_CODEC = BuilderCodec
             .builder(PageEventData.class, PageEventData::new)
@@ -67,10 +71,11 @@ public final class QuestMenuPage extends InteractiveCustomUIPage<QuestMenuPage.P
 
     private void render(UICommandBuilder builder, UIEventBuilder eventBuilder) {
         builder.append("mysticquests/Pages/QuestMenuPage.ui");
+        QuestBoardModel board = new QuestBoardModel(questService.availableJournal(playerId), questService.lockedJournal(playerId),
+                questService::definition);
+        builder.set("#AvailableCount.Text", Integer.toString(board.availableCount()));
 
-        List<JournalEntry> entries = questService.availableJournal(playerId);
-
-        if (entries.isEmpty()) {
+        if (board.isEmpty()) {
             builder.set("#BoardEmptyState.Visible", true);
             builder.set("#QuestBoardContent.Visible", false);
             builder.set("#BoardEmptyBody.Text", statusMessage.isBlank()
@@ -79,80 +84,124 @@ public final class QuestMenuPage extends InteractiveCustomUIPage<QuestMenuPage.P
             builder.set("#AcceptButton.Visible", false);
             return;
         }
-
         builder.set("#BoardEmptyState.Visible", false);
         builder.set("#QuestBoardContent.Visible", true);
 
-        if (selectedQuestId == null || entries.stream().noneMatch(entry -> entry.questId().equals(selectedQuestId))) {
-            selectedQuestId = entries.getFirst().questId();
+        Optional<QuestBoardModel.Card> selected = board.select(selectedQuestId);
+        selectedQuestId = selected.map(card -> card.entry().questId()).orElse(null);
+
+        int head = 0;
+        int index = 0;
+        for (QuestBoardModel.Section section : board.sections()) {
+            builder.appendInline("#QuestCardList", sectionHeader("BoardHead" + head++, section.title()));
+            for (QuestBoardModel.Card card : section.cards()) {
+                String cardId = "QuestCard" + index++;
+                builder.appendInline("#QuestCardList", questCard(cardId, card.entry().questId().equals(selectedQuestId), card));
+                eventBuilder.addEventBinding(CustomUIEventBindingType.Activating, "#" + cardId,
+                        EventData.of("Quest", card.entry().questId()));
+            }
         }
 
-        for (int index = 0; index < entries.size(); index++) {
-            JournalEntry entry = entries.get(index);
-            String cardId = "QuestCard" + index;
-            boolean selected = entry.questId().equals(selectedQuestId);
-            builder.appendInline("#QuestCardList", questCard(cardId, selected, entry));
-            eventBuilder.addEventBinding(
-                    CustomUIEventBindingType.Activating,
-                    "#" + cardId,
-                    EventData.of("Quest", entry.questId()));
-        }
-
-        JournalEntry selected = entries.stream()
-                .filter(entry -> entry.questId().equals(selectedQuestId))
-                .findFirst()
-                .orElse(entries.getFirst());
-        builder.set("#PreviewQuestName.Text", selected.displayName());
-        builder.set("#PreviewQuestDescription.Text", statusMessage.isBlank() ? selected.description() : statusMessage);
-        builder.set("#AcceptButton.Visible", true);
-        eventBuilder.addEventBinding(
-                CustomUIEventBindingType.Activating,
-                "#AcceptButton",
-                EventData.of("Action", "accept"));
+        selected.ifPresent(card -> renderPreview(builder, eventBuilder, card));
     }
 
-    private String questCard(String id, boolean selected, JournalEntry entry) {
+    private void renderPreview(UICommandBuilder builder, UIEventBuilder eventBuilder, QuestBoardModel.Card card) {
+        builder.set("#PreviewCategory.Text", QuestCategories.badge(card.category()));
+        builder.set("#PreviewAvailability.Text", card.locked() ? "LOCKED" : "AVAILABLE");
+        builder.set("#PreviewQuestName.Text", card.entry().displayName());
+        builder.set("#PreviewQuestDescription.Text", card.entry().description());
+        int row = 0;
+        for (QuestBoardModel.Fact fact : card.facts()) {
+            builder.appendInline("#PreviewFacts", """
+                    Group #PreviewFact%d {
+                      LayoutMode: Left;
+                      Anchor: (Bottom: 6);
+
+                      Label #PreviewFact%dLabel {
+                        Text: "%s";
+                        Style: (FontSize: 10, RenderBold: true, TextColor: %s);
+                        Anchor: (Width: 92);
+                      }
+
+                      Label #PreviewFact%dValue {
+                        Text: "%s";
+                        Style: (FontSize: 13, TextColor: %s, Wrap: true);
+                        FlexWeight: 1;
+                      }
+                    }
+                    """.formatted(row, row, uiText(fact.label()), MysticQuestsTheme.TEXT_MUTED, row, uiText(fact.value()),
+                    MysticQuestsTheme.TEXT_SECONDARY));
+            row++;
+        }
+        if (card.locked()) {
+            builder.set("#PreviewNotice.Text", card.lockedText());
+            builder.set("#AcceptButton.Visible", false);
+            return;
+        }
+        builder.set("#PreviewNotice.Text", statusMessage);
+        builder.set("#AcceptButton.Visible", true);
+        eventBuilder.addEventBinding(CustomUIEventBindingType.Activating, "#AcceptButton", EventData.of("Action", "accept"));
+    }
+
+    private String sectionHeader(String headerId, String title) {
+        return """
+                Label #%s {
+                  Text: "%s";
+                  Style: (FontSize: 10, RenderBold: true, LetterSpacing: 1, TextColor: %s);
+                  Anchor: (Height: 24, Top: 6);
+                }
+                """.formatted(headerId, uiText(title), MysticQuestsTheme.TEXT_MUTED);
+    }
+
+    private String questCard(String id, boolean selected, QuestBoardModel.Card card) {
+        String badgeColor = card.locked() ? MysticQuestsTheme.PANEL_RAISED : MysticQuestsTheme.NARRATIVE_PURPLE;
+        String titleColor = card.locked() ? MysticQuestsTheme.TEXT_MUTED
+                : selected ? MysticQuestsTheme.ACCENT_GOLD : MysticQuestsTheme.TEXT_PRIMARY;
+        String detail = card.locked() ? card.lockedText() : card.meta();
         return """
                 Button #%s {
-                  Anchor: (Height: 88, Bottom: 6);
+                  Anchor: (Height: 84, Bottom: 6);
                   LayoutMode: Top;
                   Style: %s;
                   Padding: (Horizontal: 14, Top: 9, Bottom: 8);
 
-                  Label #QuestName {
+                  Group {
+                    Anchor: (Height: 20, Bottom: 6);
+                    LayoutMode: Left;
+
+                    Group {
+                      Anchor: (Width: 96, Height: 20);
+                      Background: %s;
+                      Padding: (Horizontal: 8);
+
+                      Label #%sBadge {
+                        Text: "%s";
+                        Style: (FontSize: 10, RenderBold: true, TextColor: #FFFFFF, HorizontalAlignment: Center, VerticalAlignment: Center);
+                      }
+                    }
+                  }
+
+                  Label #%sName {
                     Text: "%s";
-                    Style: (FontSize: 16, RenderBold: true, TextColor: %s, Wrap: true);
+                    Style: (FontSize: 16, RenderBold: true, TextColor: %s, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 12);
                     Anchor: (Bottom: 4);
                   }
 
-                  Label #QuestId {
+                  Label #%sMeta {
                     Text: "%s";
-                    Style: (FontSize: 11, TextColor: %s);
-                    Anchor: (Bottom: 10);
-                  }
-
-                  Label #QuestSummary {
-                    Text: "%s";
-                    Style: (FontSize: 13, TextColor: %s, Wrap: true);
+                    Style: (FontSize: 12, TextColor: %s, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 10);
                   }
                 }
                 """.formatted(
                 id,
                 MysticQuestsTheme.cardButtonStyle(selected),
-                uiText(entry.displayName()),
-                selected ? MysticQuestsTheme.ACCENT_GOLD : MysticQuestsTheme.TEXT_PRIMARY,
-                uiText(entry.questId()),
-                MysticQuestsTheme.TEXT_MUTED,
-                uiText(progressSummary(entry)),
-                MysticQuestsTheme.TEXT_SECONDARY);
+                badgeColor,
+                id, card.locked() ? "LOCKED" : uiText(QuestCategories.badge(card.category())),
+                id, uiText(card.entry().displayName()), titleColor,
+                id, uiText(detail), card.locked() ? MysticQuestsTheme.ACCENT_BLUE : MysticQuestsTheme.TEXT_SECONDARY);
     }
 
-    private String progressSummary(JournalEntry entry) {
-        int objectives = entry.objectives().size();
-        return objectives == 1 ? "1 objective" : objectives + " objectives";
-    }
-
-    private String uiText(String text) {
+    private static String uiText(String text) {
         if (text == null) {
             return "";
         }
@@ -162,11 +211,9 @@ public final class QuestMenuPage extends InteractiveCustomUIPage<QuestMenuPage.P
                 .replace("\n", " ");
     }
 
-
     public static final class PageEventData {
         private String quest;
         private String action;
-
 
         public String quest() {
             return quest == null ? "" : quest;
