@@ -71,7 +71,8 @@ Default config is generated at `mods/MysticQuests/config.json`:
   },
   "ui": {
     "questHud": true,
-    "hudJoinDelayMillis": 3000
+    "hudJoinDelayMillis": 3000,
+    "transitionCards": false
   },
   "debug": false,
   "narrative": {
@@ -81,7 +82,10 @@ Default config is generated at `mods/MysticQuests/config.json`:
     "partyExitPolicy": "fork",
     "openNamespaces": [],
     "subtitles": "chat",
-    "fallbackLocale": "en-US"
+    "fallbackLocale": "en-US",
+    "maxStorySessions": 5000,
+    "maxStoryEntities": 1000,
+    "maxPuzzleInputs": 64
   }
 }
 ```
@@ -90,12 +94,17 @@ Give every server on a network its own `narrative.serverId` and never change it 
 state; see [the narrative configuration](docs/2.0/narrative-runtime.md#1-configuration).
 `narrative.subtitles` (`chat`, `title` or `off`) and `narrative.fallbackLocale` control story voice
 lines; a v1 conversation node can play one with `"voice": "<media id>"`.
+The three `max…` keys are capacity limits; see the [server guide](docs/server-guide.md#configuration).
+The web Creator Studio is configured under `studio` and is off by default; see [docs/studio.md](docs/studio.md).
 
 `ui.hudJoinDelayMillis` is how long after a player is ready the quest HUD is pushed. The client is
 still registering asset-pack UI documents on the ready tick, and a HUD append that lands in that
 window disconnects the player with "Could not find document …" even though the document shipped.
 `ui.questHud: false` stops the HUD being pushed at all — worth setting while diagnosing that
 disconnect, since a failed HUD append kicks the player rather than degrading.
+`ui.transitionCards: true` has MysticQuests announce quest accepted, new step, progress and complete
+as native notifications; it is off by default so content that sends its own `notification` events
+does not show both (see [Quest announcements](docs/content-format.md#quest-announcements)).
 
 ## Package Format
 

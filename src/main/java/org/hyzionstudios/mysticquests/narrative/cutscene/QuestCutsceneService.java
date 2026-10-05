@@ -1,5 +1,7 @@
 package org.hyzionstudios.mysticquests.narrative.cutscene;
 
+import org.hyzionstudios.mysticquests.narrative.NarrativeMetrics;
+import org.hyzionstudios.mysticquests.narrative.NarrativeMetrics.Counter;
 import org.hyzionstudios.mysticquests.narrative.action.ActionContext;
 import org.hyzionstudios.mysticquests.narrative.action.ActionExecutor;
 import org.hyzionstudios.mysticquests.narrative.action.TransitionReport;
@@ -16,12 +18,14 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -61,13 +65,32 @@ public final class QuestCutsceneService {
     private final QuestMediaService media;
     private final Clock clock;
     private final Consumer<String> problems;
+    private final NarrativeMetrics metrics;
     /** Session id to the player who drives its running scene; lets the ticker skip idle players. */
     private final Map<String, UUID> running = new ConcurrentHashMap<>();
+    private final List<Listener> listeners = new CopyOnWriteArrayList<>();
+
+    /**
+     * Told when a scene starts and when it ends, however it ends, so presentation can step aside
+     * (the quest tracker hides during a scene). Called with the session monitor held: do not block.
+     *
+     * <p>{@code audience} is who is watching: the session's online players and the player driving it.
+     */
+    public interface Listener {
+        void started(NamespacedId cutscene, String sessionId, Set<UUID> audience);
+
+        void ended(NamespacedId cutscene, String sessionId, Set<UUID> audience);
+    }
+
+    public void addListener(Listener listener) {
+        listeners.add(listener);
+    }
 
     public QuestCutsceneService(Supplier<Map<NamespacedId, CutsceneDefinition>> cutscenes,
                                 Function<String, String> contentVersions, QuestSessionService sessions,
                                 AudienceResolver audiences, ActionExecutor executor, QuestMediaService media,
-                                Clock clock, Consumer<String> problems) {
+                                Clock clock, Consumer<String> problems, NarrativeMetrics metrics) {
+        this.metrics = metrics;
         this.cutscenes = cutscenes;
         this.contentVersions = contentVersions;
         this.sessions = sessions;
@@ -108,6 +131,7 @@ public final class QuestCutsceneService {
             CutsceneRun run = new CutsceneRun(cutsceneId, UUID.randomUUID().toString(), clock.instant(), actor);
             session.putComponent(COMPONENT, run);
             running.put(session.id(), actor);
+            notify(session, run, true);
             Outcome advanced = advance(session, run, definition);
             return advanced == Outcome.FINISHED ? Outcome.FINISHED : Outcome.STARTED;
         }
@@ -151,8 +175,7 @@ public final class QuestCutsceneService {
                 if (definition == null) {
                     problems.accept("cutscene " + run.get().cutscene() + " is no longer in the content; dropping its run in session "
                             + session.id());
-                    session.removeComponent(COMPONENT);
-                    running.remove(session.id());
+                    end(session, run.get());
                     continue;
                 }
                 advance(session, run.get(), definition);
@@ -177,6 +200,7 @@ public final class QuestCutsceneService {
                 Optional<CutsceneRun> run = run(session);
                 if (run.isPresent() && run.get().actor().equals(player)) {
                     running.put(session.id(), player);
+                    metrics.increment(Counter.CUTSCENES_RECOVERED);
                     finish(session, run.get(), true);
                 }
             }
@@ -225,16 +249,14 @@ public final class QuestCutsceneService {
         if (!end.complete()) {
             return Outcome.PENDING;
         }
-        session.removeComponent(COMPONENT);
-        running.remove(session.id());
+        end(session, run);
         return run.skipping() ? Outcome.SKIPPED : Outcome.FINISHED;
     }
 
     private Outcome finish(QuestSession session, CutsceneRun run, boolean skipped) {
         CutsceneDefinition definition = cutscenes.get().get(run.cutscene());
         if (definition == null) {
-            session.removeComponent(COMPONENT);
-            running.remove(session.id());
+            end(session, run);
             return Outcome.NOT_RUNNING;
         }
         if (skipped && !run.skipping()) {
@@ -244,6 +266,33 @@ public final class QuestCutsceneService {
             media.stop(media.listeners(QuestMediaService.Audience.STORY_SESSION, context(session, run).scope()), null);
         }
         return advance(session, run, definition);
+    }
+
+    private void end(QuestSession session, CutsceneRun run) {
+        session.removeComponent(COMPONENT);
+        running.remove(session.id());
+        notify(session, run, false);
+    }
+
+    private void notify(QuestSession session, CutsceneRun run, boolean started) {
+        if (listeners.isEmpty()) {
+            return;
+        }
+        Set<UUID> audience = new LinkedHashSet<>(
+                media.listeners(QuestMediaService.Audience.STORY_SESSION, context(session, run).scope()));
+        audience.add(run.actor());
+        Set<UUID> watching = Set.copyOf(audience);
+        for (Listener listener : listeners) {
+            try {
+                if (started) {
+                    listener.started(run.cutscene(), session.id(), watching);
+                } else {
+                    listener.ended(run.cutscene(), session.id(), watching);
+                }
+            } catch (RuntimeException failure) {
+                problems.accept("cutscene listener failed: " + failure);
+            }
+        }
     }
 
     private ActionContext context(QuestSession session, CutsceneRun run) {

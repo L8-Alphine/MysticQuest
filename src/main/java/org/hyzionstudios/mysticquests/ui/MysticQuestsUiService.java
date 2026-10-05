@@ -81,7 +81,7 @@ public final class MysticQuestsUiService {
                     playerEntity,
                     store,
                     journal
-                            ? new MysticQuestJournalPage(playerRef, playerRef.getUuid(), questService)
+                            ? new MysticQuestJournalPage(playerRef, playerRef.getUuid(), questService, new RuntimeJournalSources(runtime))
                             : new QuestMenuPage(playerRef, playerRef.getUuid(), questService));
             return true;
         } catch (RuntimeException exception) {

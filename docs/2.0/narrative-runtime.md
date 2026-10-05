@@ -88,6 +88,9 @@ tagSchemas:
     scope: quest_session
     ttl: 1h                    # optional: expires an hour after being added
     description: This audience has recovered all of its keys.
+  - id: hyzion:druid_temple.awakened
+    scope: player
+    milestone: Awakened the druid temple   # optional: shown on the player's web portal (MysticIdentity)
 
 variableSchemas:
   - id: hyzion:druid_temple.keys_found
@@ -120,7 +123,7 @@ and overflowing increments.
 | `world` | one world on this server | yes |
 | `server` | this server (`serverId`) | yes |
 | `temporary` | one player while online | no |
-| `account` | needs an identity provider | unsupported until MysticIdentity is bound |
+| `account` | the person: the MysticIdentity identity the player's Hytale account is linked to, shared by every account they link | yes; with MysticIdentity installed, resolves for linked players (others skip writes, retryably); without it, a reload error |
 | `network` | needs a shared state provider | unsupported until configured |
 | `season` | needs a season provider | unsupported until configured |
 
@@ -165,8 +168,18 @@ negation) and trees that always pass.
 | `mysticquests:puzzle.input` | `puzzle`, `input`, `activate?` |
 | `mysticquests:puzzle.reset` | `puzzle`, `reroll?` |
 | `mysticquests:signal` | `signal`, `amount?`; counted by v1 objectives of type `signal` |
-| `mysticquests:entity.spawn` | `definition` (MysticGeneration), `variable?` (entity-typed), `x`/`y`/`z` or `distance?`, `yaw?`; the NPC is claimed for the session as it spawns |
-| `mysticquests:entity.claim` / `entity.release` | `variable` (entity-typed) or `entity` (`uuid:<id>` / `generation:<id>`); claim needs a session |
+| `mysticquests:entity.spawn` | `definition` (MysticGeneration), `variable?` (entity-typed), `x`/`y`/`z` or `distance?`, `yaw?`, `onDeath?` (actions); the NPC is claimed for the session as it spawns |
+| `mysticquests:entity.claim` / `entity.release` | `variable` (entity-typed) or `entity` (`uuid:<id>` / `generation:<id>`), `onDeath?` (actions, claim only); claim needs a session |
+
+**Who gets the results.** A story entity's `onDeath` actions run once, when it dies, in the session that owns it, with the owning audience as the actor: the killer when they belong to it, otherwise the owning player. The claim then ends. Give a story boss's rewards this way rather than through its drop list: dropped items have no owner in Hytale, so anyone nearby can pick them up.
+
+```yaml
+- type: mysticquests:entity.spawn
+  definition: grove_guardian
+  onDeath:
+    - { type: mysticquests:tag.add, tag: grove:guardian_slain }
+    - { type: giveItem, item: Grove_Relic, amount: 1 }     # a v1 event, through the bridge
+```
 | `mysticquests:entity.despawn` | as above; MysticGeneration NPCs only |
 
 | `mysticquests:overlay.show` / `overlay.hide` / `overlay.reset` | `overlay`, `scope?` (as trigger actions) |
@@ -370,9 +383,34 @@ holds live engine handles: everything visible is rebuilt from it on join, restar
 | `/mquest narrative trigger <player> <world:volume>` | `mysticquests.command.admin.debug` |
 | `/mquest narrative trigger <player> <world:volume> enable\|disable\|clear [session\|player\|party\|global] [reason…]` | `mysticquests.command.admin.narrative` |
 | `/mquest narrative validate` | `mysticquests.command.admin.debug` |
+| `/mquest narrative stats` (§28, §29: sizes against limits, counters, slowest operations) | `mysticquests.command.admin.debug` |
+| `/mquest narrative stats reset` | `mysticquests.command.admin.narrative` |
 
 `mysticquests.admin` grants all of them. Every change is written to the audit trail (`audit`
 collection): actor, target, session, server, before, after and reason. It is also logged.
+
+### Limits and metrics
+
+`NarrativeMetrics` (on `NarrativeRuntime#metrics()`) counts transitions completed and failed, failed
+actions, faulting custom conditions, missing action and condition types, validation errors, trigger
+events, puzzle inputs, mistakes and resets, sessions restored from storage and quarantined,
+recovered cutscenes, slow operations and reached limits. It times every action by type
+(`action:<type>`), condition evaluation (`condition`, and `condition:<type>` for custom ones),
+trigger events (`trigger.event`), content compiles and state flushes. Anything over 5 ms is
+counted as slow and logged with its content path.
+
+`NarrativeLimits` (config `maxStorySessions`, `maxStoryEntities`, `maxPuzzleInputs`) fails safe:
+
+| Limit | When reached |
+|---|---|
+| Story sessions | Logged once and counted. Sessions still open, because refusing one strands a player. |
+| Story entities | `entity.claim` and `entity.spawn` fail retryably, so the transition runs again once other stories release theirs. A claimed entity can always move between sessions. |
+| Puzzle inputs | A reload warning (`LIMIT_EXCEEDED`); the puzzle still loads. |
+
+Evaluation is event-driven: a trigger event looks up only the puzzle bindings of its own volume, and
+a puzzle checks its `requires` only for an input it accepts. `NarrativeLoadTest` pins this down with
+200 puzzles and 500 players (one requirement check per event, nothing for an unbound volume) and
+restores 1,000 sessions after a restart.
 
 ### Storage
 

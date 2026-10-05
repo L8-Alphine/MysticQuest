@@ -1,5 +1,15 @@
 package org.hyzionstudios.mysticquests;
 
+import org.hyzionstudios.mysticquests.ui.PlayerUiPreferences;
+import org.hyzionstudios.mysticquests.integration.IntegrationStatus;
+import java.util.LinkedHashMap;
+import java.util.Comparator;
+import java.util.ArrayList;
+import org.hyzionstudios.mysticquests.narrative.session.QuestSession;
+import org.hyzionstudios.mysticquests.narrative.session.SessionOwner;
+import org.hyzionstudios.mysticquests.studio.StudioLive;
+import org.hyzionstudios.mysticquests.integration.studio.StudioIntegration;
+import javax.annotation.Nullable;
 import org.hyzionstudios.mysticquests.command.MQuestCommand;
 import org.hyzionstudios.mysticquests.config.MysticQuestsConfig;
 import org.hyzionstudios.mysticquests.content.LoadedContent;
@@ -18,7 +28,11 @@ import org.hyzionstudios.mysticquests.integration.PlaceholderIntegration;
 import org.hyzionstudios.mysticquests.integration.MysticPartyIntegration;
 import org.hyzionstudios.mysticquests.integration.VaultUnlockedEconomyBridge;
 import org.hyzionstudios.mysticquests.integration.narrative.NarrativeIntegration;
+import org.hyzionstudios.mysticquests.narrative.NarrativeRuntime;
+import org.hyzionstudios.mysticquests.integration.mysticidentity.QuestPortalSource;
+import org.hyzionstudios.mysticquests.integration.mysticidentity.MysticIdentityPortal;
 import org.hyzionstudios.mysticquests.integration.triggervolumes.MysticTriggerVolumeRegistrar;
+import org.hyzionstudios.mysticquests.integration.triggervolumes.NarrativeTriggerBridge;
 import org.hyzionstudios.mysticquests.narrative.NarrativeContent;
 import org.hyzionstudios.mysticquests.api.MysticQuestsApi;
 import org.hyzionstudios.mysticquests.api.MysticQuestsRegistry;
@@ -39,8 +53,10 @@ import org.hyzionstudios.mysticquests.service.ScopedStateService;
 import org.hyzionstudios.mysticquests.storage.JsonQuestStorage;
 import org.hyzionstudios.mysticquests.storage.QuestStorage;
 import org.hyzionstudios.mysticquests.storage.SqliteQuestStorage;
+import org.hyzionstudios.mysticquests.ui.CutsceneHudBridge;
 import org.hyzionstudios.mysticquests.ui.MysticQuestsUiService;
 import org.hyzionstudios.mysticquests.ui.QuestHudService;
+import org.hyzionstudios.mysticquests.ui.QuestTransitionService;
 import org.hyzionstudios.mysticquests.ui.QuestNotificationService;
 import org.hyzionstudios.mysticquests.util.Json;
 
@@ -51,6 +67,8 @@ import com.hypixel.hytale.server.core.universe.PlayerRef;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.UUID;
+import java.util.List;
 import java.util.Collection;
 import java.util.Locale;
 import java.util.Map;
@@ -85,6 +103,7 @@ public final class MysticQuestsRuntime implements AutoCloseable {
     private PlayerSessionService sessionService;
     private QuestNotificationService notificationService;
     private QuestHudService hudService;
+    private QuestTransitionService transitionService;
     private ConversationService conversationService;
     private HyCitizensBridge hyCitizensBridge;
     private MysticGenerationBridge generationBridge;
@@ -97,6 +116,9 @@ public final class MysticQuestsRuntime implements AutoCloseable {
     private TargetingPreventionService targeting;
     private MysticQuestsRegistry registry;
     private NarrativeIntegration narrative;
+    private PlayerUiPreferences uiPreferences;
+    private StudioIntegration studio;
+    private MysticIdentityPortal identityPortal;
     /**
      * False only during the first content load in {@link #start()}. That load tolerates narrative
      * errors; every reload after it is transactional across both runtimes.
@@ -180,6 +202,9 @@ public final class MysticQuestsRuntime implements AutoCloseable {
                     config.ui().hudJoinDelayMillis(),
                     plugin.getLogger());
             this.questService.addChangeListener(hudService::reconcile);
+            this.transitionService = new QuestTransitionService(
+                    questService, sessionService, config.ui().transitionCards(), plugin.getLogger());
+            this.questService.addChangeListener(transitionService::onQuestStateChanged);
             this.visibilityService = new PlayerVisibilityService(
                     content::get, questService, sessionService, visibility, eventBus);
             // Reconcile only the player whose quest state changed, not every pair on the server.
@@ -191,6 +216,7 @@ public final class MysticQuestsRuntime implements AutoCloseable {
             // services those types call into when a volume fires.
             new MysticTriggerVolumeRegistrar(plugin.getLogger()).bindServices(scopedStateService, questService);
             this.conversationService = new ConversationService(content::get, questService, signalBus, plugin.getLogger());
+            this.conversationService.bindHud(hudService);
             this.questService.bindConversationSupport(
                     conversationService::isInConversation,
                     conversationService::cancel);
@@ -205,6 +231,13 @@ public final class MysticQuestsRuntime implements AutoCloseable {
             this.narrative = new NarrativeIntegration(
                     dataDirectory, config.narrative(), mapper, partyIntegration, questService, signalBus,
                     registry, sessionService, generationBridge, plugin.getLogger());
+            NarrativeTriggerBridge.bindHud(hudService);
+            // Quest UI settings are saved with the player's story state (Redesign Bible §7.4).
+            this.uiPreferences = new PlayerUiPreferences(narrative.runtime().store());
+            hudService.bindPreferences(uiPreferences);
+            transitionService.bindMute(player -> !uiPreferences.popups(player));
+            // A story cutscene owns the screen, as a conversation does: the quest HUD steps aside.
+            narrative.runtime().cutscenes().addListener(new CutsceneHudBridge(hudService));
             // Story entities (§8) and overlay barriers (§9) are presented per viewer.
             visibility.addPresentationLayer(narrative.runtime().storyEntities());
             visibility.addPresentationLayer(narrative.runtime().overlays());
@@ -229,6 +262,11 @@ public final class MysticQuestsRuntime implements AutoCloseable {
             MysticQuestsApi.install(new MysticQuestsApi(
                     stateStore, entityIndex, visibility, targeting, packetService, questService, registry, eventBus,
                     narrative.runtime()));
+            // After the API: the web portal reads quests through the same services other mods do.
+            this.identityPortal = MysticIdentityPortal.start(portalSource(), plugin.getLogger()).orElse(null);
+            // Last: a Studio publish reloads content, so everything a reload touches must exist.
+            this.studio = StudioIntegration.start(config.studio(), dataDirectory, dataDirectory.resolve(config.packagesPath()),
+                    mapper, () -> narrative, this::reloadContent, studioLive(), plugin.getLogger()).orElse(null);
             plugin.getLogger().at(Level.INFO).log("MysticQuests V1 runtime started.");
         } catch (Exception exception) {
             plugin.getLogger().at(Level.SEVERE).withCause(exception).log("MysticQuests failed to start.");
@@ -326,6 +364,9 @@ public final class MysticQuestsRuntime implements AutoCloseable {
         if (hudService != null) {
             hudService.reconcileAll();
         }
+        if (transitionService != null) {
+            transitionService.reseedAll();
+        }
         if (conversationService != null) {
             conversationService.reconcileInteractablesAll();
         }
@@ -349,6 +390,17 @@ public final class MysticQuestsRuntime implements AutoCloseable {
     }
 
     /** The mod's data root, {@code <mods>/MysticQuests}. */
+    /** Saved quest UI settings: tracker density and pop-ups. */
+    public PlayerUiPreferences uiPreferences() {
+        return uiPreferences;
+    }
+
+    /** The web Creator Studio, when {@code studio.enabled} is set and it started. */
+    @Nullable
+    public StudioIntegration studio() {
+        return studio;
+    }
+
     public Path dataDirectory() {
         return dataDirectory;
     }
@@ -412,7 +464,37 @@ public final class MysticQuestsRuntime implements AutoCloseable {
         return hudService;
     }
 
+    public QuestTransitionService transitionService() {
+        return transitionService;
+    }
+
     /** The 2.0 narrative runtime; null only before {@link #start()} reaches it. */
+    /** The MysticIdentity portal hook, or null when MysticIdentity is not installed. */
+    public MysticIdentityPortal identityPortal() {
+        return identityPortal;
+    }
+
+    /** What the web portal reads: quests and milestones, never through the game's caches. */
+    private QuestPortalSource portalSource() {
+        return new QuestPortalSource() {
+            @Override
+            public boolean available() {
+                return questService != null;
+            }
+
+            @Override
+            public PlayerQuestService.PlayerJournal journal(UUID player) throws IOException {
+                return questService.readOnlyJournal(player);
+            }
+
+            @Override
+            public List<NarrativeRuntime.Milestone> milestones(UUID player) throws IOException {
+                NarrativeIntegration current = narrative;
+                return current == null ? List.of() : current.runtime().milestones(player);
+            }
+        };
+    }
+
     public NarrativeIntegration narrative() {
         return narrative;
     }
@@ -490,6 +572,52 @@ public final class MysticQuestsRuntime implements AutoCloseable {
         }
     }
 
+    /**
+     * Everything held about one player, read-only (§21): v1 quests, then every narrative section.
+     * The shape of {@code /mq debug <player>}, its export, and the Studio's Live Sessions page.
+     */
+    public Map<String, List<String>> debugSnapshot(java.util.UUID playerId) {
+        Map<String, List<String>> snapshot = new LinkedHashMap<>();
+        snapshot.put("Quests (v1)", questService.journal(playerId).stream()
+                .map(entry -> entry.questId() + "  " + entry.displayName()).toList());
+        if (narrative != null) {
+            snapshot.putAll(narrative.runtime().debug().snapshot(playerId));
+        }
+        return snapshot;
+    }
+
+    /** What the web Studio's Live Sessions page reads; it never changes anything. */
+    private StudioLive studioLive() {
+        return new StudioLive() {
+            @Override
+            public Overview overview() {
+                List<OnlinePlayer> players = new ArrayList<>();
+                onlinePlayerNamesById.forEach((id, name) -> players.add(new OnlinePlayer(id, name, activeStories(id))));
+                players.sort(Comparator.comparing(OnlinePlayer::name, String.CASE_INSENSITIVE_ORDER));
+                List<Integration> integrations = IntegrationStatus.collect(MysticQuestsRuntime.this).stream()
+                        .map(entry -> new Integration(entry.name(), entry.state().name().toLowerCase(Locale.ROOT), entry.detail()))
+                        .toList();
+                return new Overview(players, narrative == null ? null : narrative.runtime().metricsSnapshot(), integrations);
+            }
+
+            @Override
+            public Map<String, List<String>> player(java.util.UUID player) {
+                return debugSnapshot(player);
+            }
+        };
+    }
+
+    private int activeStories(java.util.UUID player) {
+        if (narrative == null) {
+            return 0;
+        }
+        int active = 0;
+        for (SessionOwner owner : narrative.runtime().audiences().owners(player)) {
+            active += (int) narrative.runtime().sessions().load(owner).stream().filter(QuestSession::active).count();
+        }
+        return active;
+    }
+
     public Collection<String> onlinePlayerNames() {
         return onlinePlayerNamesById.values().stream().sorted(String.CASE_INSENSITIVE_ORDER).toList();
     }
@@ -505,6 +633,14 @@ public final class MysticQuestsRuntime implements AutoCloseable {
     public void close() {
         // Withdrawn first, so no other mod can call into services that are about to shut down.
         MysticQuestsApi.uninstall();
+        if (studio != null) {
+            studio.close();
+            studio = null;
+        }
+        if (identityPortal != null) {
+            identityPortal.close();
+            identityPortal = null;
+        }
         if (scheduleService != null) {
             scheduleService.close();
         }

@@ -1,5 +1,7 @@
 package org.hyzionstudios.mysticquests.narrative.puzzle;
 
+import org.hyzionstudios.mysticquests.narrative.NarrativeMetrics;
+import org.hyzionstudios.mysticquests.narrative.NarrativeMetrics.Counter;
 import org.hyzionstudios.mysticquests.narrative.action.ActionContext;
 import org.hyzionstudios.mysticquests.narrative.action.ActionDefinition;
 import org.hyzionstudios.mysticquests.narrative.action.ActionExecutor;
@@ -91,6 +93,7 @@ public final class QuestPuzzleService {
     private final ConditionEvaluator conditions;
     private final Clock clock;
     private final Consumer<String> problems;
+    private final NarrativeMetrics metrics;
 
     /**
      * @param contentVersions the release version of a content package, stamped onto sessions it opens
@@ -103,7 +106,9 @@ public final class QuestPuzzleService {
             ActionExecutor executor,
             ConditionEvaluator conditions,
             Clock clock,
-            Consumer<String> problems) {
+            Consumer<String> problems,
+            NarrativeMetrics metrics) {
+        this.metrics = metrics;
         this.puzzles = puzzles;
         this.contentVersions = contentVersions;
         this.sessions = sessions;
@@ -154,6 +159,9 @@ public final class QuestPuzzleService {
             }
             Outcome rejected = apply(session, definition, state, inputId, context);
             if (rejected != null) {
+                if (rejected == Outcome.MISTAKE) {
+                    metrics.increment(Counter.PUZZLE_MISTAKES);
+                }
                 return result(rejected, rejected == Outcome.MISTAKE ? "wrong input; progress reset" : "", session, null);
             }
             int accepted = state.nextAccepted();
@@ -244,6 +252,7 @@ public final class QuestPuzzleService {
         TransitionReport outputs = run(definition.outputs(), completionKey(definition, state), session, context);
         if (definition.repeatable() && outputs.complete()) {
             state.newRound(initialState(definition));
+            metrics.increment(Counter.PUZZLE_RESETS);
             session.markChanged();
         }
         return result(Outcome.COMPLETED, "solved", session, outputs);

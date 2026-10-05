@@ -1,5 +1,8 @@
 package org.hyzionstudios.mysticquests.command;
 
+import org.hyzionstudios.mysticquests.narrative.media.QuestMediaService;
+import org.hyzionstudios.mysticquests.studio.StudioCapability;
+import org.hyzionstudios.mysticquests.integration.studio.StudioIntegration;
 import org.hyzionstudios.mysticquests.MysticQuestsRuntime;
 import org.hyzionstudios.mysticquests.integration.HyCitizensBridge.CitizenView;
 import org.hyzionstudios.mysticquests.integration.IntegrationStatus;
@@ -12,6 +15,7 @@ import org.hyzionstudios.mysticquests.service.QuestResult;
 import org.hyzionstudios.mysticquests.service.StageView;
 import org.hyzionstudios.mysticquests.narrative.cutscene.QuestCutsceneService;
 import org.hyzionstudios.mysticquests.service.VisibilityService;
+import org.hyzionstudios.mysticquests.ui.QuestHudCoordinator;
 
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.hypixel.hytale.server.core.Message;
@@ -101,7 +105,8 @@ public final class MQuestCommand extends AbstractCommand {
         }
         CompletableFuture<Void> future = switch (args[0].toLowerCase()) {
             case "reload" -> completed(reload(context));
-            case "admin", "editor", "studio" -> questStudio(context);
+            case "admin", "editor" -> questStudio(context);
+            case "studio" -> args.length > 1 ? completed(webStudio(context, args)) : questStudio(context);
             case "start" -> completed(start(context, args));
             case "complete" -> completed(complete(context, args));
             case "progress" -> journal(context, args, false);
@@ -109,8 +114,10 @@ public final class MQuestCommand extends AbstractCommand {
             case "menu", "quest", "quests" -> questMenu(context);
             case "track" -> completed(track(context, args));
             case "untrack" -> completed(untrack(context));
+            case "hud" -> completed(hud(context, args));
             case "abandon" -> completed(abandon(context, args));
             case "skip" -> completed(skip(context));
+            case "audio" -> completed(audio(context, args));
             case "reaccept" -> completed(reaccept(context, args));
             case "cancel" -> completed(cancel(context, args));
             case "entity" -> entity(context, args);
@@ -155,7 +162,7 @@ public final class MQuestCommand extends AbstractCommand {
 
     private boolean isSubcommand(String value) {
         return switch (value.toLowerCase()) {
-            case "reload", "admin", "editor", "studio", "start", "complete", "progress", "journal", "menu", "quest", "quests", "track", "untrack", "abandon", "reaccept", "cancel", "entity", "state", "block", "volume", "hycitizens", "debug", "narrative", "visibility", "integrations" -> true;
+            case "reload", "admin", "editor", "studio", "start", "complete", "progress", "journal", "menu", "quest", "quests", "track", "untrack", "hud", "abandon", "reaccept", "cancel", "entity", "state", "block", "volume", "hycitizens", "debug", "narrative", "visibility", "integrations" -> true;
             default -> false;
         };
     }
@@ -185,6 +192,9 @@ public final class MQuestCommand extends AbstractCommand {
         track.withRequiredArg("quest", "Quest ID", suggested("quest", this::questIds));
         addSubCommand(track);
         addSubCommand(route("untrack"));
+        RouteCommand hud = route("hud");
+        hud.withOptionalArg("mode", "Tracker mode", suggested("mode", () -> List.of("auto", "compact", "expanded")));
+        addSubCommand(hud);
         RouteCommand abandon = route("abandon");
         abandon.withRequiredArg("quest", "Quest ID", suggested("quest", this::questIds));
         addSubCommand(abandon);
@@ -361,6 +371,57 @@ public final class MQuestCommand extends AbstractCommand {
             success(context, "MysticQuests reloaded " + count + " quests.");
         } catch (IOException exception) {
             error(context, "MysticQuests reload failed: " + exception.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * {@code studio login|status|revoke <player>}: the web Creator Studio (§11). {@code login} gives a
+     * one-time code and a link that signs the player in; the link carries the code after {@code #},
+     * so it never reaches server logs or other sites.
+     */
+    private Void webStudio(CommandContext context, String[] args) {
+        StudioIntegration studio = runtime.studio();
+        if (studio == null) {
+            warn(context, "The web Studio is off. Set studio.enabled in config.json and restart the server.");
+            return null;
+        }
+        switch (args[1].toLowerCase(Locale.ROOT)) {
+            case "login" -> {
+                if (!context.isPlayer()) {
+                    warn(context, "Run this in game: the code signs you in as your own player.");
+                    return null;
+                }
+                UUID player = context.sender().getUuid();
+                if (!studio.mayLogin(player)) {
+                    error(context, "Missing permission: " + StudioCapability.LOGIN.permission());
+                    return null;
+                }
+                StudioIntegration.Login login = studio.login(player, context.sender().getUsername());
+                context.sendMessage(Message.raw("Open the Studio: ").color(TEXT)
+                        .insert(Message.raw(login.url()).color(BLUE).link(login.url())));
+                send(context, "Or enter the code " + login.code() + " there. It works once, for 5 minutes; never share it.", MUTED);
+            }
+            case "status" -> {
+                if (requireAdmin(context, StudioCapability.ADMIN.permission())) {
+                    info(context, "Studio at " + studio.url() + ", " + studio.activeSessions() + " signed in, "
+                            + studio.liveObservers() + " watching live sessions.");
+                }
+            }
+            case "revoke" -> {
+                if (!requireAdmin(context, StudioCapability.ADMIN.permission())) {
+                    return null;
+                }
+                if (args.length < 3) {
+                    usage(context, "/mquest studio revoke <player uuid>");
+                    return null;
+                }
+                UUID target = playerId(context, args[2]);
+                if (target != null) {
+                    success(context, "Signed " + args[2] + " out of " + studio.revoke(target) + " Studio session(s).");
+                }
+            }
+            default -> usage(context, "/mquest studio [login|status|revoke <player>]  (no argument opens the in-game editor)");
         }
         return null;
     }
@@ -556,6 +617,42 @@ public final class MQuestCommand extends AbstractCommand {
         return null;
     }
 
+    /**
+     * {@code audio [voice <locale|auto>] [subtitles <on|off>]} (§16): a player's own story audio
+     * settings. The voice language can differ from the client's, so a player can hear one language
+     * and read subtitles in another; both are saved with the player.
+     */
+    private Void audio(CommandContext context, String[] args) {
+        if (!requirePermission(context, "mysticquests.command.journal")) {
+            return null;
+        }
+        if (!context.isPlayer() || runtime.narrative() == null) {
+            warn(context, "Story audio settings are for players, on a server running the story runtime.");
+            return null;
+        }
+        UUID playerId = context.sender().getUuid();
+        QuestMediaService media = runtime.narrative().runtime().media();
+        if (args.length >= 3 && args[1].equalsIgnoreCase("voice")) {
+            String locale = args[2].equalsIgnoreCase("auto") ? null : args[2];
+            if (locale != null && !locale.matches("[A-Za-z]{2,3}([-_][A-Za-z0-9]{2,8})*")) {
+                warn(context, "Use a language code such as en-US or fr-FR, or auto to follow your game language.");
+                return null;
+            }
+            media.setVoiceLocale(playerId, locale);
+            info(context, locale == null ? "Voice lines follow your game language." : "Voice lines play in " + locale + " when recorded in it.");
+        } else if (args.length >= 3 && args[1].equalsIgnoreCase("subtitles")) {
+            boolean on = !args[2].equalsIgnoreCase("off");
+            media.setSubtitles(playerId, on);
+            info(context, on ? "Story subtitles are on." : "Story subtitles are off.");
+        } else {
+            QuestMediaService.Preferences preferences = media.preferences(playerId);
+            info(context, "Voice language: " + (preferences.voiceLocale() == null ? "your game language" : preferences.voiceLocale())
+                    + ". Subtitles: " + (preferences.subtitles() ? "on" : "off") + ".");
+            usage(context, "/mquest audio voice <locale|auto>  ·  /mquest audio subtitles <on|off>");
+        }
+        return null;
+    }
+
     /** Skips the story cutscene the player is watching, when the scene allows it (§17.1). */
     private Void skip(CommandContext context) {
         if (!requirePermission(context, "mysticquests.command.journal")) {
@@ -609,6 +706,37 @@ public final class MQuestCommand extends AbstractCommand {
         }
         QuestResult result = runtime.questService().untrackQuest(context.sender().getUuid());
         result(context, result);
+        return null;
+    }
+
+    private Void hud(CommandContext context, String[] args) {
+        if (!requirePermission(context, "mysticquests.command.journal")) {
+            return null;
+        }
+        if (!context.isPlayer()) {
+            warn(context, "Only players can change the quest HUD mode.");
+            return null;
+        }
+        if (args.length < 2) {
+            info(context, "Quest HUD mode: "
+                    + runtime.hudService().preference(context.sender().getUuid()).name().toLowerCase());
+            usage(context, "Usage: /mquest hud <auto|compact|expanded|hidden>");
+            return null;
+        }
+
+        QuestHudCoordinator.Preference preference = switch (args[1].toLowerCase()) {
+            case "auto", "automatic" -> QuestHudCoordinator.Preference.AUTOMATIC;
+            case "compact" -> QuestHudCoordinator.Preference.COMPACT;
+            case "expanded" -> QuestHudCoordinator.Preference.EXPANDED;
+            case "hidden", "minimal", "off" -> QuestHudCoordinator.Preference.HIDDEN;
+            default -> null;
+        };
+        if (preference == null) {
+            usage(context, "Usage: /mquest hud <auto|compact|expanded|hidden>");
+            return null;
+        }
+        runtime.hudService().setPreference(context.sender().getUuid(), preference);
+        success(context, "Quest HUD mode set to " + preference.name().toLowerCase() + ".");
         return null;
     }
 
@@ -700,12 +828,7 @@ public final class MQuestCommand extends AbstractCommand {
      * {@code debug/} in the data directory, for attaching to a bug report.
      */
     private void debugPlayer(CommandContext context, UUID playerId, boolean export) {
-        Map<String, List<String>> snapshot = new LinkedHashMap<>();
-        snapshot.put("Quests (v1)", runtime.questService().journal(playerId).stream()
-                .map(entry -> entry.questId() + "  " + entry.displayName()).toList());
-        if (runtime.narrative() != null) {
-            snapshot.putAll(runtime.narrative().runtime().debug().snapshot(playerId));
-        }
+        Map<String, List<String>> snapshot = runtime.debugSnapshot(playerId);
         info(context, "Debug snapshot for " + playerId + " (visibility reasons: /mq visibility status <player>)");
         snapshot.forEach((section, lines) -> {
             context.sendMessage(Message.raw(section + (lines.isEmpty() ? ": none" : ":")).color(GOLD));
@@ -752,11 +875,11 @@ public final class MQuestCommand extends AbstractCommand {
                 Message.raw(" — quest log: current, completed, and abandoned quests").color(TEXT)));
         context.sendMessage(Message.join(
                 Message.raw("/mquest ").color(GOLD),
-                Message.raw("track, untrack, abandon, progress, skip (a story cutscene)").color(TEXT)));
+                Message.raw("track, untrack, hud, abandon, progress, skip (a story cutscene), audio (voice language, subtitles)").color(TEXT)));
         if (context.sender().hasPermission("mysticquests.admin")) {
             context.sendMessage(Message.join(
                     Message.raw("Admin: ").color(ORANGE),
-                    Message.raw("admin/editor, reload, start, complete, reaccept, entity, state, block, volume, hycitizens, debug, narrative, integrations").color(MUTED)));
+                    Message.raw("admin/editor, studio login, reload, start, complete, reaccept, entity, state, block, volume, hycitizens, debug, narrative, integrations").color(MUTED)));
         }
         if (context.sender().hasPermission(VisibilityService.BYPASS_PERMISSION)
                 || context.sender().hasPermission(VisibilityService.BYPASS_ALWAYS_PERMISSION)) {

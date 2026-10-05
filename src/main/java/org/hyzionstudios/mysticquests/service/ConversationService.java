@@ -9,6 +9,8 @@ import org.hyzionstudios.mysticquests.integration.HyCitizensBridge.CitizenView;
 import org.hyzionstudios.mysticquests.integration.MysticGenerationBridge;
 import org.hyzionstudios.mysticquests.integration.MysticGenerationBridge.GenerationNpc;
 import org.hyzionstudios.mysticquests.ui.ConversationPage;
+import org.hyzionstudios.mysticquests.ui.QuestHudCoordinator;
+import org.hyzionstudios.mysticquests.ui.QuestHudService;
 import org.hyzionstudios.mysticquests.ui.UiDocuments;
 
 import com.hypixel.hytale.component.Archetype;
@@ -65,6 +67,8 @@ public final class ConversationService {
     private final Map<UUID, Ref<EntityStore>> onlinePlayers = new ConcurrentHashMap<>();
     private final Map<String, Interactions> originalInteractions = new ConcurrentHashMap<>();
     private final Map<UUID, Long> lastReconcileNanos = new ConcurrentHashMap<>();
+    private final Map<UUID, Map<String, ConversationChoice>> choiceTokens = new ConcurrentHashMap<>();
+    private final Map<UUID, List<TranscriptLine>> transcripts = new ConcurrentHashMap<>();
 
     /**
      * Hands out the token that says which page currently owns a player's session.
@@ -78,6 +82,7 @@ public final class ConversationService {
     /** Null until MysticQuests has built the optional bridge, and when it is switched off. */
     private volatile MysticGenerationBridge generationBridge;
     private volatile VoicePlayer voicePlayer;
+    private volatile QuestHudService hudService;
 
     /** Plays a node's narrative voice line to the reader; bound by the narrative integration. */
     @FunctionalInterface
@@ -105,6 +110,10 @@ public final class ConversationService {
         this.voicePlayer = voicePlayer;
     }
 
+    public void bindHud(QuestHudService hudService) {
+        this.hudService = hudService;
+    }
+
     public void bindGenerationSupport(MysticGenerationBridge generationBridge) {
         this.generationBridge = generationBridge;
     }
@@ -123,6 +132,9 @@ public final class ConversationService {
             // A player who logs out mid-conversation must come back able to talk again, and neither
             // map is otherwise ever pruned.
             sessions.remove(playerId);
+            choiceTokens.remove(playerId);
+            transcripts.remove(playerId);
+            clearCinematicHud(playerId);
             lastReconcileNanos.remove(playerId);
         }
     }
@@ -341,32 +353,37 @@ public final class ConversationService {
             return null;
         }
         ConversationDefinition conversation = contentSupplier.get().conversations().get(session.conversationId());
-        if (conversation == null) {
-            sessions.remove(playerId);
-            return null;
-        }
-        ConversationNode node = node(conversation, session.nodeId());
+        ConversationNode node = conversation == null ? null : node(conversation, session.nodeId());
         if (node == null) {
+            // The conversation or its node went away in a reload: the session ends here, and so
+            // must everything it put on screen.
             sessions.remove(playerId);
+            choiceTokens.remove(playerId);
+            transcripts.remove(playerId);
+            clearCinematicHud(playerId);
             return null;
         }
         List<ConversationChoice> choices = visibleChoices(playerId, conversation, node, session.targetContext());
-        List<ConversationChoice> resolvedChoices = choices.stream().map(choice -> {
-            ConversationChoice copy = new ConversationChoice();
-            copy.setText(questService.resolveText(playerId, conversation.packageId(), choice.text()));
-            copy.setNext(choice.next());
-            copy.setConditions(choice.conditions());
-            copy.setEvents(choice.events());
-            return copy;
-        }).toList();
+        Map<String, ConversationChoice> issuedTokens = new java.util.LinkedHashMap<>();
+        List<ConversationOption> resolvedChoices = new ArrayList<>();
+        for (int index = 0; index < choices.size(); index++) {
+            String token = UUID.randomUUID().toString();
+            issuedTokens.put(token, choices.get(index));
+            resolvedChoices.add(new ConversationOption(
+                    token,
+                    questService.resolveText(playerId, conversation.packageId(), choices.get(index).text())));
+        }
+        choiceTokens.put(playerId, Map.copyOf(issuedTokens));
         return new ConversationView(
                 questService.resolveText(playerId, conversation.packageId(), conversation.speaker()),
                 conversation.id(),
                 questService.resolveText(playerId, conversation.packageId(), node.text()),
+                node.voice() != null,
+                List.copyOf(transcripts.getOrDefault(playerId, List.of())),
                 resolvedChoices);
     }
 
-    public boolean choose(UUID playerId, int choiceIndex, Ref<EntityStore> playerEntity, Store<EntityStore> store) {
+    public boolean choose(UUID playerId, String choiceToken, Ref<EntityStore> playerEntity, Store<EntityStore> store) {
         ConversationSession session = sessions.get(playerId);
         if (session == null) {
             return false;
@@ -377,11 +394,11 @@ public final class ConversationService {
             end(playerId, playerEntity, store);
             return false;
         }
-        List<ConversationChoice> choices = visibleChoices(playerId, conversation, node, session.targetContext());
-        if (choiceIndex < 0 || choiceIndex >= choices.size()) {
+        ConversationChoice choice = choiceTokens.getOrDefault(playerId, Map.of()).get(choiceToken);
+        if (choice == null) {
             return true;
         }
-        ConversationChoice choice = choices.get(choiceIndex);
+        choiceTokens.remove(playerId);
         questService.executeEvents(playerId, conversation.packageId(), choice.events(), session.targetContext());
         String next = choice.next();
         if (next == null || next.isBlank() || next.equalsIgnoreCase("end")) {
@@ -412,11 +429,22 @@ public final class ConversationService {
         if (playerId == null) {
             return;
         }
-        sessions.computeIfPresent(playerId, (id, session) -> session.token() == token ? null : session);
+        sessions.computeIfPresent(playerId, (id, session) -> {
+            if (session.token() != token) {
+                return session;
+            }
+            choiceTokens.remove(playerId);
+            transcripts.remove(playerId);
+            clearCinematicHud(playerId);
+            return null;
+        });
     }
 
     public void end(UUID playerId, Ref<EntityStore> playerEntity, Store<EntityStore> store) {
         sessions.remove(playerId);
+        choiceTokens.remove(playerId);
+        transcripts.remove(playerId);
+        clearCinematicHud(playerId);
         Player player = store.getComponent(playerEntity, Player.getComponentType());
         if (player != null) {
             player.getPageManager().setPage(playerEntity, store, Page.None);
@@ -436,6 +464,9 @@ public final class ConversationService {
         if (sessions.remove(playerId) == null) {
             return;
         }
+        choiceTokens.remove(playerId);
+        transcripts.remove(playerId);
+        clearCinematicHud(playerId);
         Ref<EntityStore> playerEntity = onlinePlayers.get(playerId);
         if (playerEntity == null || !playerEntity.isValid()) {
             return;
@@ -788,6 +819,11 @@ public final class ConversationService {
                 node.id(),
                 targetContext,
                 token));
+        transcripts.put(playerId, new ArrayList<>());
+        QuestHudService hud = hudService;
+        if (hud != null) {
+            hud.setContext(playerId, new QuestHudCoordinator.Context(true, false));
+        }
         enterNode(playerId, conversation, node, targetContext);
         return token;
     }
@@ -814,6 +850,9 @@ public final class ConversationService {
             voice.play(playerId, node.voice(), targetContext == null ? null : targetContext.entityId());
         }
         String conversationId = conversation.packageId() + ":" + conversation.id();
+        transcripts.computeIfAbsent(playerId, ignored -> new ArrayList<>()).add(new TranscriptLine(
+                questService.resolveText(playerId, conversation.packageId(), conversation.speaker()),
+                questService.resolveText(playerId, conversation.packageId(), node.text())));
         signalBus.publish(QuestSignal.simple(playerId, "dialogue", conversationId + ":" + node.id(), 1));
     }
 
@@ -947,6 +986,25 @@ public final class ConversationService {
         }
     }
 
-    public record ConversationView(String speaker, String conversationId, String text, List<ConversationChoice> choices) {
+    private void clearCinematicHud(UUID playerId) {
+        QuestHudService hud = hudService;
+        if (hud != null) {
+            hud.setContext(playerId, QuestHudCoordinator.Context.EXPLORATION);
+        }
+    }
+
+    public record ConversationOption(String token, String text) {
+    }
+
+    public record TranscriptLine(String speaker, String text) {
+    }
+
+    public record ConversationView(
+            String speaker,
+            String conversationId,
+            String text,
+            boolean voiced,
+            List<TranscriptLine> transcript,
+            List<ConversationOption> choices) {
     }
 }

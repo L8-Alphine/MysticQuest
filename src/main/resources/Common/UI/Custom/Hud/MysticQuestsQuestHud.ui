@@ -1,12 +1,19 @@
+// MysticQuests 2.0 tracked-quest HUD.
+//
 // HUD documents live in the shared Custom/Hud/ root beside the base game's own, with the mod name in
-// the file name so packs cannot collide — the same layout MysticRPG's working Hud/MysticRPGVitals.ui
-// uses. Appended from Java as "Hud/MysticQuestsQuestHud.ui".
+// the file name so packs cannot collide. Appended from Java as "Hud/MysticQuestsQuestHud.ui".
+//
+// One document holds both tracker compositions — compact and expanded — so QuestHudCoordinator can
+// switch between them by patching Visible rather than removing and re-adding the HUD. A hidden
+// element is skipped by its parent's layout, so whichever composition is visible sits at the edge.
+//
+// The puzzle card is NOT here. It sits bottom-centre, and one layout tree cannot place blocks in two
+// corners: Anchor offsets are relative to where the layout puts an element, not to the screen. It is
+// its own HUD layer instead — Hud/MysticQuestsPuzzleHud.ui — the way MysticRPG keeps its experience
+// bar apart from its vitals.
 //
 // Right-side wrapper is required: Anchor.Right is only an offset from the parent's layout origin.
-//
-// The objective rows show one step of the quest, not the whole quest — QuestHud.java picks the step
-// and fills #TrackedStep*/#TrackedTotal* with where that step sits in the quest. A quest whose
-// objectives are ungrouped has exactly one step, and the step line hides itself.
+// Right-layout children stretch on the cross axis, so each composition carries an explicit height.
 
 $MQ = "../mysticquests/Theme.ui";
 
@@ -14,289 +21,371 @@ Group {
     LayoutMode: Right;
     FlexWeight: 1;
 
-    Group #TrackedQuest {
-        Anchor: (Top: 50, Right: 22, Width: 350, Height: 338);
-        LayoutMode: Top;
-        Background: #090D19(0.94);
-        Padding: (Left: 12, Right: 12, Top: 10, Bottom: 12);
+    // ---------------------------------------------------------------- compact
+    //
+    // Title, one immediate objective, one progress signal. Height is the sum of the rows below plus
+    // the padding (218); keep the two in step when a row changes.
+    Group #CompactTracker {
+        Anchor: (Top: 70, Right: 24, Width: 344, Height: 220);
 
-        Group {
-            Anchor: (Height: 32, Bottom: 5);
-            LayoutMode: Left;
-            Background: $MQ.@ButtonPressed;
-            Padding: (Horizontal: 8);
-
-            AssetImage {
-                AssetPath: $MQ.@IconTracker;
-                Anchor: (Width: 26, Height: 26, Right: 7);
-            }
-
-            Label {
-                Text: "WAYFINDER";
-                Style: (...$MQ.@SmallBoldStyle, FontSize: 10, TextColor: $MQ.@AccentBlue);
-                Anchor: (Right: 7);
-            }
-
-            Label {
-                Text: "TRACKED QUEST";
-                Style: (...$MQ.@SmallBoldStyle, FontSize: 9, TextColor: $MQ.@TextMuted);
-            }
-        }
-
-        Group {
+        Group #TrackedQuest {
+            Anchor: (Full: 0);
             LayoutMode: Top;
-            Padding: (Horizontal: 5, Top: 3, Bottom: 4);
+            Background: $MQ.@HudBackground;
+            OutlineColor: $MQ.@HudBorder;
+            OutlineSize: 1;
+            Padding: (Left: 14, Right: 14, Top: 12, Bottom: 11);
+
+            Group {
+                Anchor: (Height: 22, Bottom: 8);
+                LayoutMode: Left;
+
+                Group {
+                    Anchor: (Width: 76, Height: 22);
+                    Background: $MQ.@NarrativePurple;
+                    Padding: (Horizontal: 8);
+
+                    Label #TrackedCategory {
+                        Text: "QUEST";
+                        Style: (...$MQ.@BadgeLabelStyle, TextColor: #FFFFFF);
+                    }
+                }
+
+                Group { FlexWeight: 1; }
+
+                Group {
+                    Anchor: (Width: 72, Height: 22);
+                    Background: #2A2416;
+                    OutlineColor: $MQ.@QuestGold;
+                    OutlineSize: 1;
+                    Padding: (Horizontal: 8);
+
+                    Label #TrackedState {
+                        Text: "TRACKED";
+                        Style: (...$MQ.@BadgeLabelStyle, TextColor: $MQ.@QuestGold);
+                    }
+                }
+            }
 
             Label #TrackedQuestName {
                 Text: "";
-                Style: (...$MQ.@QuestTitleStyle, FontSize: 16, TextColor: $MQ.@AccentGold);
-                Anchor: (Bottom: 1);
+                Style: (FontSize: 18, RenderBold: true, TextColor: #F4F1EA, Wrap: true,
+                        ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 15);
+                Anchor: (Height: 28, Bottom: 1);
             }
 
-            Label #TrackedQuestId {
+            Label #TrackedContext {
                 Text: "";
-                Style: (FontSize: 9, TextColor: $MQ.@TextMuted);
+                Style: (FontSize: 10, RenderUppercase: true, LetterSpacing: 1,
+                        TextColor: $MQ.@MutedText, ShrinkTextToFit: true,
+                        MinShrinkTextToFitFontSize: 8);
+                Anchor: (Height: 16, Bottom: 7);
             }
-        }
-
-        // Whole-quest progress, always shown: the step list below only ever tells part of the story.
-        Group #TrackedQuestProgressBlock {
-            Anchor: (Height: 40, Bottom: 5);
-            LayoutMode: Top;
-            Background: #11182B(0.88);
-            Padding: (Horizontal: 8, Top: 5, Bottom: 4);
 
             Group {
-                Anchor: (Height: 16);
+                Anchor: (Height: 1, Bottom: 8);
+                Background: #343D52;
+            }
+
+            Label {
+                Text: "PRIMARY OBJECTIVE";
+                Style: (FontSize: 10, RenderBold: true, RenderUppercase: true,
+                        LetterSpacing: 1, TextColor: $MQ.@QuestGold);
+                Anchor: (Height: 15, Bottom: 2);
+            }
+
+            Label #TrackedObjectiveText {
+                Text: "";
+                Style: (FontSize: 13, RenderBold: true, TextColor: #F4F1EA, Wrap: true,
+                        ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 11);
+                Anchor: (Height: 30, Bottom: 3);
+            }
+
+            Group {
+                Anchor: (Height: 16, Bottom: 2);
                 LayoutMode: Left;
 
-                Label #TrackedStepLabel {
-                    Text: "";
-                    Style: (FontSize: 9, RenderBold: true, RenderUppercase: true, LetterSpacing: 1, TextColor: $MQ.@AccentGold);
-                    Anchor: (Width: 78, Right: 6);
-                }
-
-                Label #TrackedStageName {
-                    Text: "";
-                    Style: (FontSize: 11, RenderBold: true, TextColor: $MQ.@TextPrimary, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 9);
+                Label {
+                    Text: "PROGRESS";
+                    Style: (FontSize: 9, RenderBold: true, RenderUppercase: true,
+                            TextColor: $MQ.@MutedText);
                     FlexWeight: 1;
                 }
 
-                Label #TrackedTotalProgress {
+                Label #TrackedObjectiveProgress {
                     Text: "";
-                    Style: (...$MQ.@ProgressStyle, FontSize: 10);
-                    Anchor: (Width: 52, Left: 5);
+                    Style: (FontSize: 10, RenderBold: true, TextColor: $MQ.@GuidanceCyan,
+                            HorizontalAlignment: End);
+                    Anchor: (Width: 62);
                 }
             }
 
-            $MQ.@ObjectiveProgressBar #TrackedTotalMeter {
-                @Anchor = (Top: 4);
+            ProgressBar #TrackedObjectiveMeter {
+                Anchor: (Height: 8, Bottom: 8);
+                Background: "../mysticquests/Assets/meters/objective_frame.png";
+                BarTexturePath: "../mysticquests/Assets/meters/objective_fill.png";
+                Value: 0;
+            }
+
+            Group {
+                Anchor: (Height: 20);
+                LayoutMode: Left;
+
+                Label #TrackedGuidance {
+                    Text: "";
+                    Style: (FontSize: 9, TextColor: $MQ.@MutedText, ShrinkTextToFit: true,
+                            MinShrinkTextToFitFontSize: 8);
+                    FlexWeight: 1;
+                }
+
+                Label #TrackedQuestProgress {
+                    Text: "";
+                    Style: (FontSize: 9, RenderBold: true, RenderUppercase: true,
+                            TextColor: $MQ.@QuestGold, HorizontalAlignment: End);
+                    Anchor: (Width: 82, Left: 8);
+                }
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------- expanded
+    //
+    // One primary objective plus at most three supporting rows. Rows the step does not fill are
+    // hidden, and the spacer above the footer takes up the slack.
+    Group #ExpandedTracker {
+        Anchor: (Top: 70, Right: 24, Width: 420, Height: 410);
+        LayoutMode: Top;
+        Background: $MQ.@HudBackground;
+        OutlineColor: $MQ.@NarrativePurple;
+        OutlineSize: 1;
+        Padding: (Left: 16, Right: 16, Top: 13, Bottom: 12);
+        Visible: false;
+
+        Group {
+            Anchor: (Height: 22, Bottom: 8);
+            LayoutMode: Left;
+
+            Group {
+                Anchor: (Width: 82, Height: 22);
+                Background: $MQ.@NarrativePurple;
+                Padding: (Horizontal: 8);
+
+                Label #ExpandedCategory {
+                    Text: "QUEST";
+                    Style: (...$MQ.@BadgeLabelStyle, TextColor: #FFFFFF);
+                }
+            }
+
+            Group { FlexWeight: 1; }
+
+            Group {
+                Anchor: (Width: 78, Height: 22);
+                Background: #2A2416;
+                OutlineColor: $MQ.@QuestGold;
+                OutlineSize: 1;
+                Padding: (Horizontal: 8);
+
+                Label #ExpandedState {
+                    Text: "TRACKED";
+                    Style: (...$MQ.@BadgeLabelStyle, TextColor: $MQ.@QuestGold);
+                }
             }
         }
 
-        Group #TrackedObjectiveList {
+        Label #ExpandedQuestName {
+            Text: "";
+            Style: (FontSize: 20, RenderBold: true, TextColor: #F4F1EA, Wrap: true,
+                    ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 16);
+            Anchor: (Height: 30, Bottom: 1);
+        }
+
+        Label #ExpandedContext {
+            Text: "";
+            Style: (FontSize: 11, RenderUppercase: true, LetterSpacing: 1,
+                    TextColor: $MQ.@MutedText, ShrinkTextToFit: true,
+                    MinShrinkTextToFitFontSize: 9);
+            Anchor: (Height: 17, Bottom: 7);
+        }
+
+        Group {
+            Anchor: (Height: 1, Bottom: 9);
+            Background: #343D52;
+        }
+
+        Label {
+            Text: "PRIMARY OBJECTIVE";
+            Style: (FontSize: 10, RenderBold: true, RenderUppercase: true,
+                    LetterSpacing: 1, TextColor: $MQ.@QuestGold);
+            Anchor: (Height: 15, Bottom: 3);
+        }
+
+        Label #ExpandedPrimaryText {
+            Text: "";
+            Style: (FontSize: 15, RenderBold: true, TextColor: #F4F1EA, Wrap: true,
+                    ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 12);
+            Anchor: (Height: 34, Bottom: 3);
+        }
+
+        Group {
+            Anchor: (Height: 16, Bottom: 2);
+            LayoutMode: Left;
+
+            Label #ExpandedGuidance {
+                Text: "";
+                Style: (FontSize: 9, TextColor: $MQ.@MutedText, ShrinkTextToFit: true,
+                        MinShrinkTextToFitFontSize: 8);
+                FlexWeight: 1;
+            }
+
+            Label #ExpandedPrimaryProgress {
+                Text: "";
+                Style: (FontSize: 10, RenderBold: true, TextColor: $MQ.@GuidanceCyan,
+                        HorizontalAlignment: End);
+                Anchor: (Width: 60);
+            }
+        }
+
+        ProgressBar #ExpandedPrimaryMeter {
+            Anchor: (Height: 8, Bottom: 10);
+            Background: "../mysticquests/Assets/meters/objective_frame.png";
+            BarTexturePath: "../mysticquests/Assets/meters/objective_fill.png";
+            Value: 0;
+        }
+
+        Group #ExpandedRow0 {
+            Anchor: (Height: 48, Bottom: 3);
             LayoutMode: Top;
 
-            Group #HudObjective0 {
-                Anchor: (Height: 38, Bottom: 2);
-                LayoutMode: Top;
-                Background: #11182B(0.88);
-                Padding: (Horizontal: 5, Top: 3);
+            Group {
+                Anchor: (Height: 24);
+                LayoutMode: Left;
 
-                Group {
-                    Anchor: (Height: 20);
-                    LayoutMode: Left;
-
-                    AssetImage #HudObjectiveIcon0 {
-                        FallbackTexturePath: $MQ.@MissingIcon;
-                        Anchor: (Width: 18, Height: 18, Right: 5);
-                    }
-
-                    Label #HudObjectiveState0 {
-                        Text: "";
-                        Style: (FontSize: 9, RenderBold: true, TextColor: $MQ.@AccentBlue);
-                        Anchor: (Width: 30, Right: 4);
-                    }
-
-                    Label #HudObjectiveText0 {
-                        Text: "";
-                        Style: (FontSize: 11, TextColor: $MQ.@TextSecondary, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 9);
-                        FlexWeight: 1;
-                    }
-
-                    Label #HudObjectiveProgress0 {
-                        Text: "";
-                        Style: (...$MQ.@ProgressStyle, FontSize: 9);
-                        Anchor: (Width: 38, Left: 5);
-                    }
+                Label #ExpandedRowRole0 {
+                    Text: "";
+                    Anchor: (Width: 80);
+                    Style: (FontSize: 9, RenderBold: true, RenderUppercase: true,
+                            TextColor: $MQ.@GuidanceCyan);
                 }
 
-                $MQ.@ObjectiveProgressBar #HudObjectiveMeter0 {
-                    @Anchor = (Top: 2);
+                Label #ExpandedRowText0 {
+                    Text: "";
+                    FlexWeight: 1;
+                    Style: (FontSize: 11, TextColor: #D8DCE5, ShrinkTextToFit: true,
+                            MinShrinkTextToFitFontSize: 9);
+                }
+
+                Label #ExpandedRowProgress0 {
+                    Text: "";
+                    Anchor: (Width: 48);
+                    Style: (FontSize: 9, TextColor: $MQ.@MutedText, HorizontalAlignment: End);
                 }
             }
 
-            Group #HudObjective1 {
-                Anchor: (Height: 38, Bottom: 2);
-                LayoutMode: Top;
-                Background: #11182B(0.88);
-                Padding: (Horizontal: 5, Top: 3);
+            ProgressBar #ExpandedRowMeter0 {
+                Anchor: (Height: 5);
+                Background: "../mysticquests/Assets/meters/objective_frame.png";
+                BarTexturePath: "../mysticquests/Assets/meters/objective_fill.png";
+                Value: 0;
+            }
+        }
 
-                Group {
-                    Anchor: (Height: 20);
-                    LayoutMode: Left;
+        Group #ExpandedRow1 {
+            Anchor: (Height: 48, Bottom: 3);
+            LayoutMode: Top;
 
-                    AssetImage #HudObjectiveIcon1 {
-                        FallbackTexturePath: $MQ.@MissingIcon;
-                        Anchor: (Width: 18, Height: 18, Right: 5);
-                    }
+            Group {
+                Anchor: (Height: 24);
+                LayoutMode: Left;
 
-                    Label #HudObjectiveState1 {
-                        Text: "";
-                        Style: (FontSize: 9, RenderBold: true, TextColor: $MQ.@AccentBlue);
-                        Anchor: (Width: 30, Right: 4);
-                    }
-
-                    Label #HudObjectiveText1 {
-                        Text: "";
-                        Style: (FontSize: 11, TextColor: $MQ.@TextSecondary, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 9);
-                        FlexWeight: 1;
-                    }
-
-                    Label #HudObjectiveProgress1 {
-                        Text: "";
-                        Style: (...$MQ.@ProgressStyle, FontSize: 9);
-                        Anchor: (Width: 38, Left: 5);
-                    }
+                Label #ExpandedRowRole1 {
+                    Text: "";
+                    Anchor: (Width: 80);
+                    Style: (FontSize: 9, RenderBold: true, RenderUppercase: true,
+                            TextColor: $MQ.@GuidanceCyan);
                 }
 
-                $MQ.@ObjectiveProgressBar #HudObjectiveMeter1 {
-                    @Anchor = (Top: 2);
+                Label #ExpandedRowText1 {
+                    Text: "";
+                    FlexWeight: 1;
+                    Style: (FontSize: 11, TextColor: #D8DCE5, ShrinkTextToFit: true,
+                            MinShrinkTextToFitFontSize: 9);
+                }
+
+                Label #ExpandedRowProgress1 {
+                    Text: "";
+                    Anchor: (Width: 48);
+                    Style: (FontSize: 9, TextColor: $MQ.@MutedText, HorizontalAlignment: End);
                 }
             }
 
-            Group #HudObjective2 {
-                Anchor: (Height: 38, Bottom: 2);
-                LayoutMode: Top;
-                Background: #11182B(0.88);
-                Padding: (Horizontal: 5, Top: 3);
+            ProgressBar #ExpandedRowMeter1 {
+                Anchor: (Height: 5);
+                Background: "../mysticquests/Assets/meters/objective_frame.png";
+                BarTexturePath: "../mysticquests/Assets/meters/objective_fill.png";
+                Value: 0;
+            }
+        }
 
-                Group {
-                    Anchor: (Height: 20);
-                    LayoutMode: Left;
+        Group #ExpandedRow2 {
+            Anchor: (Height: 48, Bottom: 3);
+            LayoutMode: Top;
 
-                    AssetImage #HudObjectiveIcon2 {
-                        FallbackTexturePath: $MQ.@MissingIcon;
-                        Anchor: (Width: 18, Height: 18, Right: 5);
-                    }
+            Group {
+                Anchor: (Height: 24);
+                LayoutMode: Left;
 
-                    Label #HudObjectiveState2 {
-                        Text: "";
-                        Style: (FontSize: 9, RenderBold: true, TextColor: $MQ.@AccentBlue);
-                        Anchor: (Width: 30, Right: 4);
-                    }
-
-                    Label #HudObjectiveText2 {
-                        Text: "";
-                        Style: (FontSize: 11, TextColor: $MQ.@TextSecondary, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 9);
-                        FlexWeight: 1;
-                    }
-
-                    Label #HudObjectiveProgress2 {
-                        Text: "";
-                        Style: (...$MQ.@ProgressStyle, FontSize: 9);
-                        Anchor: (Width: 38, Left: 5);
-                    }
+                Label #ExpandedRowRole2 {
+                    Text: "";
+                    Anchor: (Width: 80);
+                    Style: (FontSize: 9, RenderBold: true, RenderUppercase: true,
+                            TextColor: $MQ.@GuidanceCyan);
                 }
 
-                $MQ.@ObjectiveProgressBar #HudObjectiveMeter2 {
-                    @Anchor = (Top: 2);
+                Label #ExpandedRowText2 {
+                    Text: "";
+                    FlexWeight: 1;
+                    Style: (FontSize: 11, TextColor: #D8DCE5, ShrinkTextToFit: true,
+                            MinShrinkTextToFitFontSize: 9);
+                }
+
+                Label #ExpandedRowProgress2 {
+                    Text: "";
+                    Anchor: (Width: 48);
+                    Style: (FontSize: 9, TextColor: $MQ.@MutedText, HorizontalAlignment: End);
                 }
             }
 
-            Group #HudObjective3 {
-                Anchor: (Height: 38, Bottom: 2);
-                LayoutMode: Top;
-                Background: #11182B(0.88);
-                Padding: (Horizontal: 5, Top: 3);
+            ProgressBar #ExpandedRowMeter2 {
+                Anchor: (Height: 5);
+                Background: "../mysticquests/Assets/meters/objective_frame.png";
+                BarTexturePath: "../mysticquests/Assets/meters/objective_fill.png";
+                Value: 0;
+            }
+        }
 
-                Group {
-                    Anchor: (Height: 20);
-                    LayoutMode: Left;
+        Group { FlexWeight: 1; }
 
-                    AssetImage #HudObjectiveIcon3 {
-                        FallbackTexturePath: $MQ.@MissingIcon;
-                        Anchor: (Width: 18, Height: 18, Right: 5);
-                    }
+        Group {
+            Anchor: (Height: 1, Bottom: 8);
+            Background: #343D52;
+        }
 
-                    Label #HudObjectiveState3 {
-                        Text: "";
-                        Style: (FontSize: 9, RenderBold: true, TextColor: $MQ.@AccentBlue);
-                        Anchor: (Width: 30, Right: 4);
-                    }
+        Group {
+            Anchor: (Height: 24);
+            LayoutMode: Left;
 
-                    Label #HudObjectiveText3 {
-                        Text: "";
-                        Style: (FontSize: 11, TextColor: $MQ.@TextSecondary, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 9);
-                        FlexWeight: 1;
-                    }
-
-                    Label #HudObjectiveProgress3 {
-                        Text: "";
-                        Style: (...$MQ.@ProgressStyle, FontSize: 9);
-                        Anchor: (Width: 38, Left: 5);
-                    }
-                }
-
-                $MQ.@ObjectiveProgressBar #HudObjectiveMeter3 {
-                    @Anchor = (Top: 2);
-                }
+            Label #ExpandedActionHint {
+                Text: "OPEN JOURNAL  /journal";
+                Style: (FontSize: 10, RenderBold: true, RenderUppercase: true,
+                        TextColor: $MQ.@GuidanceCyan);
+                FlexWeight: 1;
             }
 
-            Group #HudObjective4 {
-                Anchor: (Height: 38);
-                LayoutMode: Top;
-                Background: #11182B(0.88);
-                Padding: (Horizontal: 5, Top: 3);
-
-                Group {
-                    Anchor: (Height: 20);
-                    LayoutMode: Left;
-
-                    AssetImage #HudObjectiveIcon4 {
-                        FallbackTexturePath: $MQ.@MissingIcon;
-                        Anchor: (Width: 18, Height: 18, Right: 5);
-                    }
-
-                    Label #HudObjectiveState4 {
-                        Text: "";
-                        Style: (FontSize: 9, RenderBold: true, TextColor: $MQ.@AccentBlue);
-                        Anchor: (Width: 30, Right: 4);
-                    }
-
-                    Label #HudObjectiveText4 {
-                        Text: "";
-                        Style: (FontSize: 11, TextColor: $MQ.@TextSecondary, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 9);
-                        FlexWeight: 1;
-                    }
-
-                    Label #HudObjectiveProgress4 {
-                        Text: "";
-                        Style: (...$MQ.@ProgressStyle, FontSize: 9);
-                        Anchor: (Width: 38, Left: 5);
-                    }
-                }
-
-                $MQ.@ObjectiveProgressBar #HudObjectiveMeter4 {
-                    @Anchor = (Top: 2);
-                }
-            }
-
-            // A step with more objectives than there are rows says so rather than truncating silently.
-            Label #HudObjectiveOverflow {
+            Label #ExpandedQuestProgress {
                 Text: "";
-                Style: (FontSize: 9, RenderBold: true, TextColor: $MQ.@TextMuted, HorizontalAlignment: Center);
-                Anchor: (Height: 14, Top: 3);
+                Style: (FontSize: 10, RenderBold: true, RenderUppercase: true,
+                        TextColor: $MQ.@QuestGold, HorizontalAlignment: End);
+                Anchor: (Width: 92);
             }
         }
     }

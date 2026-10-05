@@ -34,8 +34,19 @@ $Base = "../Common.ui";
 @BlueBg = #12333D;
 @OrangeBg = #3A2717;
 @GrayBg = #1A263B;
-@HudBackground = #090D19(0.92);
-@HudBorder = #39D5D2(0.42);
+@HudBackground = #0A0D13(0.94);
+@HudBorder = #7E5DD3(0.55);
+
+// MysticQuests 2.0 semantic palette. New surfaces use these names while legacy pages migrate in
+// focused slices, so the redesign does not destabilize every existing screen at once.
+@Void = #0A0D13;
+@RaisedSurface = #161B26;
+@NarrativePurple = #7E5DD3;
+@QuestGold = #CCAA58;
+@GuidanceCyan = #46C6C4;
+@SuccessGreen = #66D395;
+@CriticalRed = #EF6969;
+@MutedText = #9AA4B7;
 
 @PanelBackground = PatchStyle(TexturePath: "Assets/panels/reliquary_panel.png", Border: 64);
 @DarkPanelBackground = PatchStyle(TexturePath: "Assets/panels/reliquary_panel_dark.png", Border: 64);

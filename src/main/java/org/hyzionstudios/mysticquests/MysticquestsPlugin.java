@@ -6,6 +6,7 @@ import org.hyzionstudios.mysticquests.hytale.EntityIndexSystem;
 import org.hyzionstudios.mysticquests.hytale.EntityVisibilitySystem;
 import org.hyzionstudios.mysticquests.hytale.GatherObjectiveSystem;
 import org.hyzionstudios.mysticquests.hytale.KillObjectiveSystem;
+import org.hyzionstudios.mysticquests.hytale.StoryEntityDeathSystem;
 import org.hyzionstudios.mysticquests.hytale.NameplateVisibilitySystem;
 import org.hyzionstudios.mysticquests.hytale.StoryEntitySystems;
 import org.hyzionstudios.mysticquests.narrative.entity.StoryEntityRegistry;
@@ -68,6 +69,9 @@ public class MysticquestsPlugin extends JavaPlugin {
         getEntityStoreRegistry().registerSystem(new KillObjectiveSystem(
                 () -> runtime == null ? null : runtime.signalBus(),
                 () -> runtime == null ? null : runtime.generationBridge()));
+        // A claimed story NPC's death runs its onDeath actions for the audience that owns it (§8).
+        getEntityStoreRegistry().registerSystem(new StoryEntityDeathSystem(
+                () -> runtime == null || runtime.narrative() == null ? null : runtime.narrative().runtime()));
         // Gather objectives count held items on every inventory change, as Hytale's own gather tasks do.
         getEntityStoreRegistry().registerSystem(new GatherObjectiveSystem(() -> runtime == null ? null : runtime.questService()));
     }

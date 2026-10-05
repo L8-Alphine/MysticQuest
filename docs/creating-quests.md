@@ -209,7 +209,12 @@ quests:
 | Field | Purpose |
 |---|---|
 | `id` | Local ID (filled in automatically in map form). |
-| `displayName`, `description` | What players see on the board, journal and HUD. |
+| `displayName`, `description` | What players see on the board, journal and HUD. The description is the story recap in the Journal. |
+| `category` | Where the Journal files it and the badge on the tracker: `story`, `side`, `contract`, `guild`, `community`, `daily`, or a word of your own. Without one, the quest is filed under "Quests". |
+| `rewardText` | The rewards players are told about, shown in the Journal and on the board (for example `50 gold and a grove relic`). Rewards you do not mention stay a surprise. |
+| `difficulty` | Shown on the board in your words: `Easy`, `Hard`, `Level 10+`. |
+| `partySize` | The party size the board recommends; leave it out for a solo quest. |
+| `lockedText` | Puts the quest on the board as a locked card while the player cannot start it, with this text as the requirement (`Break the grove seal first.`). Without it, a locked quest stays off the board, so a secret prerequisite is never hinted at. |
 | `startConditions` | Conditions that must all pass before the quest can start. |
 | `startOnJoin: true` | Try to start it every time a player joins (use with a `notTag` gate). |
 | `objectives` | What the player must do. The quest completes when all are done. |

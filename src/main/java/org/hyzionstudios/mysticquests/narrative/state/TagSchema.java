@@ -16,14 +16,22 @@ import java.util.Objects;
  *
  * @param scope the one scope this tag lives in, or null for an undeclared tag in an open namespace
  * @param defaultTtl how long the tag lasts when the adding action gives no expiry; null for forever
+ * @param milestone player-facing text when the tag marks an important story moment, shown on the
+ *         player's web portal (MysticIdentity); null for an ordinary tag. Milestones are player-scoped
  */
-public record TagSchema(NamespacedId id, @Nullable VariableScope scope, @Nullable Duration defaultTtl, String description) {
+public record TagSchema(NamespacedId id, @Nullable VariableScope scope, @Nullable Duration defaultTtl, String description,
+                        @Nullable String milestone) {
     public TagSchema {
         Objects.requireNonNull(id, "id");
         description = description == null ? "" : description;
+        milestone = milestone == null || milestone.isBlank() ? null : milestone.strip();
         if (defaultTtl != null && (defaultTtl.isNegative() || defaultTtl.isZero())) {
             throw new IllegalArgumentException("Tag " + id + " has a non-positive default ttl.");
         }
+    }
+
+    public TagSchema(NamespacedId id, @Nullable VariableScope scope, @Nullable Duration defaultTtl, String description) {
+        this(id, scope, defaultTtl, description, null);
     }
 
     public boolean allows(VariableScope requested) {

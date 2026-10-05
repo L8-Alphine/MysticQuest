@@ -35,11 +35,14 @@ public final class NarrativeTestKit implements AutoCloseable {
     public final DocumentStore store;
     public final MutableClock clock;
     public final Map<UUID, String> parties = new ConcurrentHashMap<>();
+    /** Player to identity id, standing in for MysticIdentity in account-scope tests. */
+    public final Map<UUID, String> accounts = new ConcurrentHashMap<>();
     public final List<String> problems = new ArrayList<>();
     public final List<String> signals = new ArrayList<>();
     public final List<String> audits = new ArrayList<>();
     private final ScopeSupport scopes;
     private final PartyExitPolicy exitPolicy;
+    private final NarrativeLimits limits;
     private Map<String, JsonNode> lastSections = Map.of();
     private NarrativeRuntime runtime;
 
@@ -48,10 +51,19 @@ public final class NarrativeTestKit implements AutoCloseable {
     }
 
     public NarrativeTestKit(ScopeSupport scopes, PartyExitPolicy exitPolicy) {
+        this(scopes, exitPolicy, NarrativeLimits.DEFAULTS);
+    }
+
+    public NarrativeTestKit(NarrativeLimits limits) {
+        this(ScopeSupport.standard(true), PartyExitPolicy.FORK, limits);
+    }
+
+    public NarrativeTestKit(ScopeSupport scopes, PartyExitPolicy exitPolicy, NarrativeLimits limits) {
         this.store = new InMemoryDocumentStore();
         this.clock = new MutableClock(Instant.parse("2026-10-02T12:00:00Z"));
         this.scopes = scopes;
         this.exitPolicy = exitPolicy;
+        this.limits = limits;
         this.runtime = build();
     }
 
@@ -59,12 +71,14 @@ public final class NarrativeTestKit implements AutoCloseable {
         return new NarrativeRuntime(new NarrativeRuntime.Settings(
                 store, clock, "test-server", "test-network", scopes,
                 player -> Optional.ofNullable(parties.get(player)),
+                player -> Optional.ofNullable(accounts.get(player)),
                 List.of(),
                 (player, signal, amount) -> signals.add(player + " " + signal + " x" + amount),
                 exitPolicy,
                 0L,
                 problems::add,
-                audits::add));
+                audits::add,
+                limits));
     }
 
     public NarrativeRuntime runtime() {

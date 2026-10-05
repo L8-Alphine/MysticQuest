@@ -1,5 +1,8 @@
 package org.hyzionstudios.mysticquests.narrative.state;
 
+import java.util.function.Function;
+import java.util.UUID;
+import java.util.Optional;
 import javax.annotation.Nullable;
 import java.util.Objects;
 
@@ -29,12 +32,19 @@ public final class ScopeResolver {
     private final ScopeSupport support;
     private final String serverId;
     private final String networkId;
+    private final Function<UUID, Optional<String>> accountOf;
+
+    public ScopeResolver(ScopeSupport support, String serverId, String networkId) {
+        this(support, serverId, networkId, player -> Optional.empty());
+    }
 
     /**
      * @param serverId this server's stable id; also the owner of {@code SERVER} state, so it must not
      *         change between restarts or that state becomes unreachable
      */
-    public ScopeResolver(ScopeSupport support, String serverId, String networkId) {
+    /** @param accountOf the identity a player's account belongs to, for account scope when the context names none */
+    public ScopeResolver(ScopeSupport support, String serverId, String networkId, Function<UUID, Optional<String>> accountOf) {
+        this.accountOf = Objects.requireNonNull(accountOf, "accountOf");
         this.support = Objects.requireNonNull(support, "support");
         this.serverId = requireId(serverId, "serverId");
         this.networkId = requireId(networkId, "networkId");
@@ -74,9 +84,13 @@ public final class ScopeResolver {
                     : Resolution.of(new ScopeOwner(VariableScope.WORLD, context.world()));
             case SERVER -> Resolution.of(new ScopeOwner(VariableScope.SERVER, serverId));
             case NETWORK -> Resolution.of(new ScopeOwner(VariableScope.NETWORK, networkId));
-            case ACCOUNT -> isBlank(context.accountId())
-                    ? Resolution.fail("account scope needs an account id from the identity provider")
-                    : Resolution.of(new ScopeOwner(VariableScope.ACCOUNT, context.accountId()));
+            case ACCOUNT -> {
+                String account = !isBlank(context.accountId()) ? context.accountId()
+                        : context.actor() == null ? null : accountOf.apply(context.actor()).orElse(null);
+                yield isBlank(account)
+                        ? Resolution.fail("account scope needs the acting player to be linked to an identity")
+                        : Resolution.of(new ScopeOwner(VariableScope.ACCOUNT, account));
+            }
             case SEASON -> isBlank(context.seasonId())
                     ? Resolution.fail("season scope needs an active season")
                     : Resolution.of(new ScopeOwner(VariableScope.SEASON, context.seasonId()));

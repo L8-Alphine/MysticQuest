@@ -20,6 +20,16 @@ public final class QuestDefinition {
     private List<EventDefinition> rewards = new ArrayList<>();
     private Integer abandonCooldownSeconds;
     private List<ConditionDefinition> reacceptConditions = new ArrayList<>();
+    /** Where the Journal files the quest: story, side, contract, guild, community, daily or your own word. */
+    private String category;
+    /** The rewards players are told about in the Journal; rewards that are not mentioned stay a surprise. */
+    private String rewardText;
+    /** How hard the board says it is, in the author's words: "Easy", "Hard", "Level 10+". */
+    private String difficulty;
+    /** The party size the board recommends; null when it is not a group quest. */
+    private Integer partySize;
+    /** What a player is told while the quest is not available yet; without it a locked quest stays off the board. */
+    private String lockedText;
 
     public String id() {
         return id;
@@ -43,6 +53,28 @@ public final class QuestDefinition {
 
     public void setDisplayName(String displayName) {
         this.displayName = displayName;
+    }
+
+    /** The Journal category, lower case; empty when the author named none (filed under plain "Quests"). */
+    public String category() {
+        return category == null || category.isBlank() ? "" : category.strip().toLowerCase(java.util.Locale.ROOT);
+    }
+
+    public String rewardText() {
+        return rewardText == null ? "" : rewardText.strip();
+    }
+
+    public String difficulty() {
+        return difficulty == null ? "" : difficulty.strip();
+    }
+
+    /** The recommended party size, or 0 when the quest is not meant for a group. */
+    public int partySize() {
+        return partySize == null || partySize < 2 ? 0 : partySize;
+    }
+
+    public String lockedText() {
+        return lockedText == null ? "" : lockedText.strip();
     }
 
     public String description() {

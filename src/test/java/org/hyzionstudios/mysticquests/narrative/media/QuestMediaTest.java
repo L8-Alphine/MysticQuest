@@ -149,6 +149,29 @@ final class QuestMediaTest {
     }
 
     @Test
+    void playersChooseTheirVoiceLanguageAndSubtitlesAndKeepThem() throws Exception {
+        sink.locales.put(ALICE, "en-US");
+        media().setVoiceLocale(ALICE, "fr-FR");
+        media().setSubtitles(BOB, false);
+        MediaAsset warning = asset("hyzion:old_man.warning");
+        media().play(List.of(ALICE, BOB), warning, Placement.HEAD, true);
+
+        assertEquals(1, sink.count(ALICE, "VO_Warning_FR"), "Alice hears French although her game is in English");
+        assertEquals("dialogue.old_man.warning", sink.subtitles.get(ALICE).getFirst().key(),
+                "and reads the subtitle key, which her client shows in English");
+        assertEquals(1, sink.count(BOB, "VO_Warning_EN"), "Bob still hears the line");
+        assertNull(sink.subtitles.get(BOB), "but sees no subtitle");
+
+        kit.runtime().flush();
+        kit.restart();
+        assertEquals(new QuestMediaService.Preferences("fr-FR", true), kit.runtime().media().preferences(ALICE),
+                "preferences are saved with the player");
+        assertFalse(kit.runtime().media().preferences(BOB).subtitles());
+        kit.runtime().media().setVoiceLocale(ALICE, null);
+        assertNull(kit.runtime().media().preferences(ALICE).voiceLocale(), "auto follows the game language again");
+    }
+
+    @Test
     void aMissingVoiceLineStillShowsItsSubtitle() {
         PlayReport report = media().play(List.of(ALICE), asset("hyzion:ghost.whisper"), Placement.HEAD, true);
         assertEquals(1, report.started(), "the line counts as delivered through its subtitle");

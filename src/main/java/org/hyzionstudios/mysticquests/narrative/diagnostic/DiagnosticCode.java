@@ -39,5 +39,7 @@ public enum DiagnosticCode {
     SCHEMA_VERSION,
     MIGRATION,
     ACTION_FAILED,
-    CONDITION_FAILED
+    CONDITION_FAILED,
+    /** Content over one of the runtime's capacity limits (§28). */
+    LIMIT_EXCEEDED
 }

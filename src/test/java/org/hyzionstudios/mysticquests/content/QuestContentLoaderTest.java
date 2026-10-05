@@ -1,5 +1,7 @@
 package org.hyzionstudios.mysticquests.content;
 
+import org.hyzionstudios.mysticquests.model.ObjectiveDefinition;
+import org.hyzionstudios.mysticquests.model.ObjectiveMarker;
 import org.hyzionstudios.mysticquests.util.Json;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -184,6 +186,58 @@ final class QuestContentLoaderTest {
                 () -> new QuestContentLoader(Json.createMapper()).load(tempDir));
 
         assertTrue(exception.getMessage().contains("undeclared stage discovr"), exception.getMessage());
+    }
+
+    @Test
+    void readsAnObjectiveMapMarker() throws IOException {
+        Path packageDir = Files.createDirectories(tempDir.resolve("story"));
+        Files.writeString(packageDir.resolve("quests.json"), """
+                [
+                  {
+                    "id": "ruins",
+                    "objectives": [
+                      { "id": "search", "type": "reachLocation",
+                        "marker": { "world": "default", "x": 120.5, "y": 64, "z": -88, "label": "Druid Ruins", "area": true } },
+                      { "id": "report", "type": "custom" }
+                    ]
+                  }
+                ]
+                """);
+
+        LoadedContent content = new QuestContentLoader(Json.createMapper()).load(tempDir);
+        List<ObjectiveDefinition> objectives = content.quests().get("story:ruins").objectives();
+
+        ObjectiveMarker marker = ObjectiveMarker.of(objectives.get(0)).orElseThrow();
+        assertEquals("default", marker.world());
+        assertEquals(120.5D, marker.x());
+        assertEquals("Druid Ruins", marker.label());
+        assertTrue(marker.area());
+        assertEquals(ObjectiveMarker.DEFAULT_ICON, marker.icon());
+        assertTrue(ObjectiveMarker.of(objectives.get(1)).isEmpty());
+    }
+
+    /** A marker that cannot be placed is a content bug, so it fails the load instead of vanishing. */
+    @Test
+    void rejectsAMalformedObjectiveMarker() throws IOException {
+        Path packageDir = Files.createDirectories(tempDir.resolve("broken"));
+        Files.writeString(packageDir.resolve("quests.json"), """
+                [
+                  {
+                    "id": "lost",
+                    "objectives": [
+                      { "id": "find", "type": "reachLocation", "marker": { "world": "default", "x": 1, "y": "up", "z": 3 } },
+                      { "id": "icon", "type": "reachLocation", "marker": { "world": "default", "x": 1, "y": 2, "z": 3, "icon": "../../evil.png" } }
+                    ]
+                  }
+                ]
+                """);
+
+        IOException exception = assertThrows(IOException.class,
+                () -> new QuestContentLoader(Json.createMapper()).load(tempDir));
+
+        assertTrue(exception.getMessage().contains("broken:lost/find has an invalid marker: marker y must be a number"),
+                exception.getMessage());
+        assertTrue(exception.getMessage().contains("broken:lost/icon has an invalid marker"), exception.getMessage());
     }
 
     @Test

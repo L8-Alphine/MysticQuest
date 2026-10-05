@@ -1,7 +1,7 @@
 {
   "Group": "org.hyzionstudios",
   "Name": "mysticquests",
-  "Version": "1.0.3",
+  "Version": "2.0.0",
   "Main": "org.hyzionstudios.mysticquests.MysticquestsPlugin",
   "ServerVersion": ">=0.6.0 <0.7.0",
   "Description": "Questing System that is Tag and Variable Driven",
@@ -16,7 +16,8 @@
   "OptionalDependencies": {
     "HelpChat:PlaceholderAPI": "*",
     "TheNewEconomy:VaultUnlocked": "*",
-    "org.hyzionstudios:mysticgeneration": "*"
+    "org.hyzionstudios:mysticgeneration": "*",
+    "org.hyzionstudios:mysticidentity": "*"
   },
   "IncludesAssetPack": true
 }

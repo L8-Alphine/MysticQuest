@@ -74,6 +74,9 @@ public final class HytaleEventBridge {
             // out puzzle rewards that could not land while they were away.
             runtime.narrative().onJoin(event.getPlayer().getUuid());
         }
+        // Before join quests start: a quest that starts on a first join is announced, while
+        // everything the player already had is the baseline and announces nothing.
+        runtime.transitionService().seed(event.getPlayer().getUuid());
         questService.startJoinQuests(event.getPlayer().getUuid());
         // Never reconcile() here: a HUD append on the ready tick is what disconnects the client with
         // "Could not find document …". reconcileAfterJoin holds it until the client has settled.
@@ -148,6 +151,7 @@ public final class HytaleEventBridge {
         sessionService.unregister(playerId);
         runtime.unregisterOnlinePlayer(playerId);
         hudService.unregisterPlayer(playerId);
+        runtime.transitionService().forget(playerId);
         conversationService.unregisterPlayer(playerId);
         if (runtime.narrative() != null) {
             // Writes and unloads the player's story sessions, so a transfer to another server that

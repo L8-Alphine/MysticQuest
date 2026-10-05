@@ -1,5 +1,7 @@
 package org.hyzionstudios.mysticquests.narrative.action.builtin;
 
+import org.hyzionstudios.mysticquests.narrative.action.ActionCompiler;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import org.hyzionstudios.mysticquests.narrative.CompileContext;
 import org.hyzionstudios.mysticquests.narrative.ContentParams;
 import org.hyzionstudios.mysticquests.narrative.action.ActionContext;
@@ -45,6 +47,28 @@ public final class EntityActions {
     public static final NamespacedId RELEASE = NamespacedId.of("mysticquests", "entity.release");
 
     private EntityActions() {
+    }
+
+    /**
+     * The {@code onDeath} actions of a claim or spawn: run once in the owning session when the entity
+     * dies, so rewards for a story boss go to the audience that owns it (§8).
+     */
+    @Nullable
+    public static ArrayNode onDeath(ObjectNode parameters) {
+        return parameters.get("onDeath") instanceof ArrayNode actions && !actions.isEmpty() ? actions : null;
+    }
+
+    /** Checks {@code onDeath} at load, like any authored action list. */
+    public static void validateOnDeath(ObjectNode parameters, String path, CompileContext context, DiagnosticReport report) {
+        JsonNode actions = parameters.get("onDeath");
+        if (actions == null || actions.isNull()) {
+            return;
+        }
+        if (!actions.isArray()) {
+            report.error(DiagnosticCode.INVALID_PARAMETER, path + ".onDeath", "onDeath must be a list of actions");
+            return;
+        }
+        ActionCompiler.compile(actions, path + ".onDeath", context, report);
     }
 
     public static void register(ActionTypeRegistry registry, StoryEntityRegistry entities,
@@ -111,13 +135,17 @@ public final class EntityActions {
             if (!StoryEntityRegistry.supported(entity)) {
                 return ActionResult.terminal("cannot claim a '" + entity.kind() + "' entity reference");
             }
-            entities.claim(entity, session.get().id(), session.get().owner(), session.get().storyKey());
+            if (!entities.admits(entity)) {
+                return ActionResult.retryable("the story entity limit (" + entities.claimLimit() + ") is reached");
+            }
+            entities.claim(entity, session.get().id(), session.get().owner(), session.get().storyKey(), onDeath(parameters));
             return ActionResult.success();
         }
 
         @Override
         public void validate(ObjectNode parameters, String path, CompileContext context, DiagnosticReport report) {
             validateEntity(parameters, path, context, report);
+            validateOnDeath(parameters, path, context, report);
         }
     }
 
