@@ -1,0 +1,21 @@
+$MQ = "../Theme.ui";
+
+// One player in the admin page's list: name and a one-line summary. The whole row is one control;
+// the chosen player's row carries the selected card style. Appended to #PlayerList.
+
+Button #PlayerRow {
+  Anchor: (Height: 58, Bottom: 8);
+  LayoutMode: Top;
+  Padding: (Horizontal: 14, Top: 9, Bottom: 8);
+  Style: $MQ.@CardStyle;
+
+  Label #Name {
+    Anchor: (Height: 22);
+    Style: (FontSize: 15, RenderBold: true, TextColor: #F2F4F8, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 11);
+  }
+
+  Label #Sub {
+    Anchor: (Height: 18);
+    Style: (FontSize: 12, TextColor: #9AA4B7, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 9);
+  }
+}

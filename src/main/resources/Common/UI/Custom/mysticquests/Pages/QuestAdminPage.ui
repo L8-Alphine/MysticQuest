@@ -1,0 +1,924 @@
+$C = "../../Common.ui";
+$MQ = "../Theme.ui";
+
+// The in-game quest admin (Redesign Bible §9.1): inspect and correct one player's quest state, and
+// the quick quest builder and package script editor. Read-only inspection is the default; every
+// change to a player needs a reason and is audited (PlayerStateAdmin), destructive ones also ask
+// for confirmation.
+//
+// Rows are appended from QuestAdminPage (mysticquests/Rows/Admin*.ui) and addressed positionally.
+// Text fields are read with "@Key": "#Field.Value" bindings; the client owns their values after the
+// page opens, so the server only writes them on build.
+
+$C.@PageOverlay #AdminRoot {
+  LayoutMode: Middle;
+
+  Group #Frame {
+    Anchor: (Width: 1200, Height: 660);
+    LayoutMode: Top;
+    Background: $MQ.@FrameBackground;
+    Padding: (Full: 20);
+
+    Group #Header {
+      LayoutMode: Left;
+      Anchor: (Height: 40, Bottom: 14);
+
+      AssetImage #HeaderIcon {
+        AssetPath: $MQ.@IconAdmin;
+        Anchor: (Width: 34, Height: 34, Right: 12);
+      }
+
+      Label #ScreenTitle {
+        Text: "Quest Admin";
+        Style: $MQ.@ScreenTitleStyle;
+        Anchor: (Width: 240);
+      }
+
+      Label #StatusText {
+        FlexWeight: 1;
+        Anchor: (Right: 14);
+        Style: (FontSize: 14, HorizontalAlignment: End, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 10);
+      }
+
+      TextButton #CloseButton {
+        Text: "Close";
+        Style: $MQ.@SecondaryButtonStyle;
+        Anchor: (Width: 110, Height: 36);
+      }
+    }
+
+    Group #Body {
+      FlexWeight: 1;
+      LayoutMode: Left;
+
+      Group #Rail {
+        Anchor: (Width: 200, Right: 14);
+        LayoutMode: Top;
+        Background: $MQ.@PanelBackground;
+        Padding: (Full: 12);
+
+        TextButton #NavPlayers {
+          Text: "Players";
+          Style: $MQ.@NavStyle;
+          Anchor: (Height: 38, Bottom: 4);
+          Padding: (Horizontal: 14);
+        }
+
+        TextButton #NavBuilder {
+          Text: "Quest builder";
+          Style: $MQ.@NavStyle;
+          Anchor: (Height: 38, Bottom: 4);
+          Padding: (Horizontal: 14);
+        }
+
+        TextButton #NavScripts {
+          Text: "Package scripts";
+          Style: $MQ.@NavStyle;
+          Anchor: (Height: 38, Bottom: 4);
+          Padding: (Horizontal: 14);
+        }
+
+        Group #RailSpacer {
+          FlexWeight: 1;
+        }
+
+        Label #RailHint {
+          Text: "Every change to a player needs a reason and is written to the audit trail. The web Studio has the same tools.";
+          Style: $MQ.@HintStyle;
+        }
+      }
+
+      // ------------------------------------------------------------ players
+
+      Group #PlayersView {
+        FlexWeight: 1;
+        LayoutMode: Left;
+
+        Group #PlayerListPanel {
+          Anchor: (Width: 270, Right: 14);
+          LayoutMode: Top;
+          Background: $MQ.@PanelBackground;
+          Padding: (Full: 14);
+
+          Label #PlayersCaption {
+            Text: "Online players";
+            Anchor: (Height: 20, Bottom: 8);
+            Style: $MQ.@MicroGoldStyle;
+          }
+
+          Group #FindRow {
+            LayoutMode: Left;
+            Anchor: (Height: 36, Bottom: 10);
+
+            TextField #FindField {
+              FlexWeight: 1;
+              Anchor: (Right: 8);
+              Background: $MQ.@InputBackground;
+              Style: $MQ.@InputStyle;
+              PlaceholderStyle: $MQ.@InputPlaceholderStyle;
+              PlaceholderText: "Name or UUID";
+              Padding: (Horizontal: 10);
+            }
+
+            TextButton #FindButton {
+              Text: "Find";
+              Style: $MQ.@SmallSecondaryButtonStyle;
+              Anchor: (Width: 64);
+            }
+          }
+
+          Group #PlayerList {
+            FlexWeight: 1;
+            LayoutMode: TopScrolling;
+            ScrollbarStyle: $C.@TranslucentScrollbarStyle;
+          }
+        }
+
+        Group #Inspector {
+          FlexWeight: 1;
+          LayoutMode: Top;
+          Background: $MQ.@PanelBackground;
+          Padding: (Full: 18);
+
+          Group #InspectorEmpty {
+            FlexWeight: 1;
+            LayoutMode: Middle;
+            Visible: false;
+
+            Label #InspectorEmptyText {
+              Text: "Choose a player on the left, or find one by name or UUID.";
+              Anchor: (Width: 460, Height: 40);
+              Style: (FontSize: 15, TextColor: #9AA4B7, HorizontalAlignment: Center, VerticalAlignment: Center, Wrap: true);
+            }
+          }
+
+          Group #InspectorBody {
+            FlexWeight: 1;
+            LayoutMode: Top;
+
+            Group #PlayerHeader {
+              LayoutMode: Left;
+              Anchor: (Height: 48, Bottom: 10);
+
+              Group #PlayerTitle {
+                FlexWeight: 1;
+                LayoutMode: Top;
+
+                Label #PlayerName {
+                  Anchor: (Height: 28);
+                  Style: (FontSize: 22, RenderBold: true, TextColor: #F2F4F8, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 14);
+                }
+
+                Label #PlayerSub {
+                  Anchor: (Height: 18);
+                  Style: (FontSize: 13, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 10);
+                }
+              }
+
+              TextButton #RefreshButton {
+                Text: "Refresh";
+                Style: $MQ.@SmallSecondaryButtonStyle;
+                Anchor: (Width: 96, Height: 34, Right: 8, Top: 7);
+              }
+
+              TextButton #ClearButton {
+                Text: "Clear state";
+                Style: $MQ.@SmallDangerButtonStyle;
+                Anchor: (Width: 124, Height: 34, Top: 7);
+              }
+            }
+
+            Group #ReasonRow {
+              LayoutMode: Left;
+              Anchor: (Height: 36, Bottom: 10);
+
+              Label #ReasonLabel {
+                Text: "Reason";
+                Anchor: (Width: 70);
+                Style: (FontSize: 13, RenderBold: true, RenderUppercase: true, TextColor: #CCAA58, VerticalAlignment: Center);
+              }
+
+              TextField #ReasonField {
+                FlexWeight: 1;
+                Background: $MQ.@InputBackground;
+                Style: $MQ.@InputStyle;
+                PlaceholderStyle: $MQ.@InputPlaceholderStyle;
+                PlaceholderText: "Why you are changing this player (required, audited)";
+                Padding: (Horizontal: 10);
+              }
+            }
+
+            Group #TabRow {
+              LayoutMode: Left;
+              Anchor: (Height: 30, Bottom: 10);
+
+              TextButton #TabQuests {
+                Text: "Quests";
+                Style: $MQ.@ChipStyle;
+                Anchor: (Width: 120, Right: 8);
+              }
+
+              TextButton #TabState {
+                Text: "Tags and variables";
+                Style: $MQ.@ChipStyle;
+                Anchor: (Width: 180, Right: 8);
+              }
+
+              TextButton #TabStory {
+                Text: "Story state";
+                Style: $MQ.@ChipStyle;
+                Anchor: (Width: 130);
+              }
+            }
+
+            Group #InspectorScroll {
+              FlexWeight: 1;
+              LayoutMode: TopScrolling;
+              ScrollbarStyle: $C.@TranslucentScrollbarStyle;
+
+              Group #QuestsSection {
+                LayoutMode: Top;
+
+                Group #QuestRows {
+                  LayoutMode: Top;
+                }
+
+                Label #QuestsEmpty {
+                  Text: "No quest records.";
+                  Anchor: (Height: 24);
+                  Style: $MQ.@HintStyle;
+                }
+
+                Label #QuestFormCaption {
+                  Text: "Grant a quest or set an objective";
+                  Anchor: (Height: 20, Top: 12, Bottom: 6);
+                  Style: $MQ.@MicroMutedStyle;
+                }
+
+                Group #QuestForm {
+                  LayoutMode: Left;
+                  Anchor: (Height: 36);
+
+                  TextField #QuestField {
+                    FlexWeight: 1;
+                    Anchor: (Right: 8);
+                    Background: $MQ.@InputBackground;
+                    Style: $MQ.@InputStyle;
+                    PlaceholderStyle: $MQ.@InputPlaceholderStyle;
+                    PlaceholderText: "package:quest";
+                    Padding: (Horizontal: 10);
+                  }
+
+                  TextField #ObjectiveField {
+                    Anchor: (Width: 150, Right: 8);
+                    Background: $MQ.@InputBackground;
+                    Style: $MQ.@InputStyle;
+                    PlaceholderStyle: $MQ.@InputPlaceholderStyle;
+                    PlaceholderText: "objective";
+                    Padding: (Horizontal: 10);
+                  }
+
+                  TextField #ValueField {
+                    Anchor: (Width: 70, Right: 8);
+                    Background: $MQ.@InputBackground;
+                    Style: $MQ.@InputStyle;
+                    PlaceholderStyle: $MQ.@InputPlaceholderStyle;
+                    PlaceholderText: "value";
+                    Padding: (Horizontal: 10);
+                  }
+
+                  TextButton #StartQuestButton {
+                    Text: "Start quest";
+                    Style: $MQ.@SmallPrimaryButtonStyle;
+                    Anchor: (Width: 110, Right: 8);
+                  }
+
+                  TextButton #SetObjectiveButton {
+                    Text: "Set objective";
+                    Style: $MQ.@SmallSecondaryButtonStyle;
+                    Anchor: (Width: 120);
+                  }
+                }
+              }
+
+              Group #StateSection {
+                LayoutMode: Top;
+                Visible: false;
+
+                Label #TagsCaption {
+                  Text: "Tags  (v1, player scope)";
+                  Anchor: (Height: 20, Bottom: 6);
+                  Style: $MQ.@MicroGoldStyle;
+                }
+
+                Group #TagRows {
+                  LayoutMode: Top;
+                }
+
+                Group #TagForm {
+                  LayoutMode: Left;
+                  Anchor: (Height: 36, Top: 4, Bottom: 16);
+
+                  TextField #TagField {
+                    FlexWeight: 1;
+                    Anchor: (Right: 8);
+                    Background: $MQ.@InputBackground;
+                    Style: $MQ.@InputStyle;
+                    PlaceholderStyle: $MQ.@InputPlaceholderStyle;
+                    PlaceholderText: "tag";
+                    Padding: (Horizontal: 10);
+                  }
+
+                  TextButton #AddTagButton {
+                    Text: "Add tag";
+                    Style: $MQ.@SmallPrimaryButtonStyle;
+                    Anchor: (Width: 110);
+                  }
+                }
+
+                Label #VariablesCaption {
+                  Text: "Variables  (v1, player scope)";
+                  Anchor: (Height: 20, Bottom: 6);
+                  Style: $MQ.@MicroGoldStyle;
+                }
+
+                Group #VariableRows {
+                  LayoutMode: Top;
+                }
+
+                Group #VariableForm {
+                  LayoutMode: Left;
+                  Anchor: (Height: 36, Top: 4);
+
+                  TextField #VarKeyField {
+                    Anchor: (Width: 220, Right: 8);
+                    Background: $MQ.@InputBackground;
+                    Style: $MQ.@InputStyle;
+                    PlaceholderStyle: $MQ.@InputPlaceholderStyle;
+                    PlaceholderText: "variable";
+                    Padding: (Horizontal: 10);
+                  }
+
+                  TextField #VarValueField {
+                    FlexWeight: 1;
+                    Anchor: (Right: 8);
+                    Background: $MQ.@InputBackground;
+                    Style: $MQ.@InputStyle;
+                    PlaceholderStyle: $MQ.@InputPlaceholderStyle;
+                    PlaceholderText: "value";
+                    Padding: (Horizontal: 10);
+                  }
+
+                  TextButton #SetVariableButton {
+                    Text: "Set";
+                    Style: $MQ.@SmallPrimaryButtonStyle;
+                    Anchor: (Width: 90);
+                  }
+                }
+              }
+
+              Group #StorySection {
+                LayoutMode: Top;
+                Visible: false;
+
+                Label #StoryUnavailable {
+                  Text: "The story runtime is not running on this server.";
+                  Anchor: (Height: 24);
+                  Style: $MQ.@HintStyle;
+                }
+
+                Group #StoryContent {
+                  LayoutMode: Top;
+
+                  Label #SessionsCaption {
+                    Text: "Story sessions";
+                    Anchor: (Height: 20, Bottom: 6);
+                    Style: $MQ.@MicroGoldStyle;
+                  }
+
+                  Group #SessionRows {
+                    LayoutMode: Top;
+                  }
+
+                  Group #RewindForm {
+                    LayoutMode: Left;
+                    Anchor: (Height: 36, Top: 4, Bottom: 16);
+
+                    TextField #CheckpointField {
+                      FlexWeight: 1;
+                      Anchor: (Right: 8);
+                      Background: $MQ.@InputBackground;
+                      Style: $MQ.@InputStyle;
+                      PlaceholderStyle: $MQ.@InputPlaceholderStyle;
+                      PlaceholderText: "checkpoint label";
+                      Padding: (Horizontal: 10);
+                    }
+
+                    TextButton #RewindButton {
+                      Text: "Rewind";
+                      Style: $MQ.@SmallDangerButtonStyle;
+                      Anchor: (Width: 110);
+                    }
+                  }
+
+                  Label #StoryVariablesCaption {
+                    Text: "Story variables";
+                    Anchor: (Height: 20, Bottom: 6);
+                    Style: $MQ.@MicroGoldStyle;
+                  }
+
+                  Group #StoryVariableRows {
+                    LayoutMode: Top;
+                  }
+
+                  Group #StoryVariableForm {
+                    LayoutMode: Left;
+                    Anchor: (Height: 36, Top: 4, Bottom: 16);
+
+                    TextField #StoryVarField {
+                      Anchor: (Width: 260, Right: 8);
+                      Background: $MQ.@InputBackground;
+                      Style: $MQ.@InputStyle;
+                      PlaceholderStyle: $MQ.@InputPlaceholderStyle;
+                      PlaceholderText: "namespace:variable";
+                      Padding: (Horizontal: 10);
+                    }
+
+                    TextField #StoryValueField {
+                      FlexWeight: 1;
+                      Anchor: (Right: 8);
+                      Background: $MQ.@InputBackground;
+                      Style: $MQ.@InputStyle;
+                      PlaceholderStyle: $MQ.@InputPlaceholderStyle;
+                      PlaceholderText: "value";
+                      Padding: (Horizontal: 10);
+                    }
+
+                    TextButton #SetStoryVarButton {
+                      Text: "Set";
+                      Style: $MQ.@SmallPrimaryButtonStyle;
+                      Anchor: (Width: 90);
+                    }
+                  }
+
+                  Label #StoryTagsCaption {
+                    Text: "Story tags";
+                    Anchor: (Height: 20, Bottom: 6);
+                    Style: $MQ.@MicroGoldStyle;
+                  }
+
+                  Group #StoryTagRows {
+                    LayoutMode: Top;
+                  }
+
+                  Group #StoryTagForm {
+                    LayoutMode: Left;
+                    Anchor: (Height: 36, Top: 4);
+
+                    TextField #StoryTagField {
+                      FlexWeight: 1;
+                      Anchor: (Right: 8);
+                      Background: $MQ.@InputBackground;
+                      Style: $MQ.@InputStyle;
+                      PlaceholderStyle: $MQ.@InputPlaceholderStyle;
+                      PlaceholderText: "namespace:tag";
+                      Padding: (Horizontal: 10);
+                    }
+
+                    TextButton #AddStoryTagButton {
+                      Text: "Add tag";
+                      Style: $MQ.@SmallPrimaryButtonStyle;
+                      Anchor: (Width: 110);
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // ------------------------------------------------------------ quest builder
+
+      Group #BuilderView {
+        FlexWeight: 1;
+        LayoutMode: Left;
+        Visible: false;
+
+        Group #BuilderForm {
+          Anchor: (Width: 540, Right: 14);
+          LayoutMode: Top;
+          Background: $MQ.@PanelBackground;
+          Padding: (Full: 16);
+
+          Label #IdentityCaption {
+            Text: "Quest";
+            Anchor: (Height: 20, Bottom: 8);
+            Style: $MQ.@MicroGoldStyle;
+          }
+
+          Group #IdentityRow {
+            LayoutMode: Left;
+            Anchor: (Height: 34, Bottom: 8);
+
+            Label #PackageLabel {
+              Text: "Package";
+              Anchor: (Width: 74);
+              Style: (FontSize: 13, TextColor: #9AA4B7, VerticalAlignment: Center);
+            }
+
+            TextField #PackageInput {
+              FlexWeight: 1;
+              Anchor: (Right: 10);
+              Background: $MQ.@InputBackground;
+              Style: $MQ.@InputStyle;
+              PlaceholderStyle: $MQ.@InputPlaceholderStyle;
+              Padding: (Horizontal: 10);
+            }
+
+            Label #QuestIdLabel {
+              Text: "Quest id";
+              Anchor: (Width: 66);
+              Style: (FontSize: 13, TextColor: #9AA4B7, VerticalAlignment: Center);
+            }
+
+            TextField #QuestIdInput {
+              FlexWeight: 1;
+              Background: $MQ.@InputBackground;
+              Style: $MQ.@InputStyle;
+              PlaceholderStyle: $MQ.@InputPlaceholderStyle;
+              Padding: (Horizontal: 10);
+            }
+          }
+
+          Group #TitleRow {
+            LayoutMode: Left;
+            Anchor: (Height: 34, Bottom: 8);
+
+            Label #TitleLabel {
+              Text: "Title";
+              Anchor: (Width: 74);
+              Style: (FontSize: 13, TextColor: #9AA4B7, VerticalAlignment: Center);
+            }
+
+            TextField #QuestTitleInput {
+              FlexWeight: 1;
+              Background: $MQ.@InputBackground;
+              Style: $MQ.@InputStyle;
+              PlaceholderStyle: $MQ.@InputPlaceholderStyle;
+              Padding: (Horizontal: 10);
+            }
+          }
+
+          Group #SummaryRow {
+            LayoutMode: Left;
+            Anchor: (Height: 34, Bottom: 8);
+
+            Label #SummaryLabel {
+              Text: "Summary";
+              Anchor: (Width: 74);
+              Style: (FontSize: 13, TextColor: #9AA4B7, VerticalAlignment: Center);
+            }
+
+            TextField #QuestDescriptionInput {
+              FlexWeight: 1;
+              Background: $MQ.@InputBackground;
+              Style: $MQ.@InputStyle;
+              PlaceholderStyle: $MQ.@InputPlaceholderStyle;
+              Padding: (Horizontal: 10);
+            }
+          }
+
+          Group #OptionsRow {
+            LayoutMode: Left;
+            Anchor: (Height: 34, Bottom: 12);
+
+            $C.@CheckBox #StartOnJoinInput {
+              Value: false;
+            }
+
+            Label #StartOnJoinLabel {
+              Text: "Start on join";
+              Anchor: (Width: 130, Left: 10);
+              Style: (FontSize: 13, TextColor: #C9CFDA, VerticalAlignment: Center);
+            }
+
+            Label #CooldownLabel {
+              Text: "Re-accept cooldown (s)";
+              FlexWeight: 1;
+              Style: (FontSize: 13, TextColor: #9AA4B7, HorizontalAlignment: End, VerticalAlignment: Center);
+            }
+
+            TextField #CooldownInput {
+              Anchor: (Width: 90, Left: 10);
+              Background: $MQ.@InputBackground;
+              Style: $MQ.@InputStyle;
+              PlaceholderStyle: $MQ.@InputPlaceholderStyle;
+              Padding: (Horizontal: 10);
+            }
+          }
+
+          Label #ObjectivesFormCaption {
+            Text: "Objectives";
+            Anchor: (Height: 20, Bottom: 2);
+            Style: $MQ.@MicroGoldStyle;
+          }
+
+          Label #ObjectiveTypesHint {
+            Text: "Types: kill, gather, craft, interactEntity, interactObject, dialogue, triggerEnter, triggerExit, reachLocation, timer, custom";
+            Anchor: (Height: 18, Bottom: 6);
+            Style: (FontSize: 11, TextColor: #6B7487, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 9);
+          }
+
+          Group #ObjectiveHeaderRow {
+            LayoutMode: Left;
+            Anchor: (Height: 18, Bottom: 4);
+
+            Label #HeaderObjectiveId {
+              Text: "Id";
+              Anchor: (Width: 92, Right: 6);
+              Style: $MQ.@MicroMutedStyle;
+            }
+
+            Label #HeaderObjectiveType {
+              Text: "Type";
+              Anchor: (Width: 92, Right: 6);
+              Style: $MQ.@MicroMutedStyle;
+            }
+
+            Label #HeaderObjectiveText {
+              Text: "Player text";
+              FlexWeight: 1;
+              Anchor: (Right: 6);
+              Style: $MQ.@MicroMutedStyle;
+            }
+
+            Label #HeaderObjectiveTarget {
+              Text: "Target";
+              Anchor: (Width: 92, Right: 6);
+              Style: $MQ.@MicroMutedStyle;
+            }
+
+            Label #HeaderObjectiveAmount {
+              Text: "Count";
+              Anchor: (Width: 52);
+              Style: $MQ.@MicroMutedStyle;
+            }
+          }
+
+          Group #ObjectiveRow1 {
+            LayoutMode: Left;
+            Anchor: (Height: 32, Bottom: 4);
+
+            TextField #Objective1Id { Anchor: (Width: 92, Right: 6); Background: $MQ.@InputBackground; Style: $MQ.@InputStyle; Padding: (Horizontal: 6); }
+            TextField #Objective1Type { Anchor: (Width: 92, Right: 6); Background: $MQ.@InputBackground; Style: $MQ.@InputStyle; Padding: (Horizontal: 6); }
+            TextField #Objective1Title { FlexWeight: 1; Anchor: (Right: 6); Background: $MQ.@InputBackground; Style: $MQ.@InputStyle; Padding: (Horizontal: 6); }
+            TextField #Objective1Target { Anchor: (Width: 92, Right: 6); Background: $MQ.@InputBackground; Style: $MQ.@InputStyle; Padding: (Horizontal: 6); }
+            TextField #Objective1Amount { Anchor: (Width: 52); Background: $MQ.@InputBackground; Style: $MQ.@InputStyle; Padding: (Horizontal: 6); }
+          }
+
+          Group #ObjectiveRow2 {
+            LayoutMode: Left;
+            Anchor: (Height: 32, Bottom: 4);
+
+            TextField #Objective2Id { Anchor: (Width: 92, Right: 6); Background: $MQ.@InputBackground; Style: $MQ.@InputStyle; Padding: (Horizontal: 6); }
+            TextField #Objective2Type { Anchor: (Width: 92, Right: 6); Background: $MQ.@InputBackground; Style: $MQ.@InputStyle; Padding: (Horizontal: 6); }
+            TextField #Objective2Title { FlexWeight: 1; Anchor: (Right: 6); Background: $MQ.@InputBackground; Style: $MQ.@InputStyle; Padding: (Horizontal: 6); }
+            TextField #Objective2Target { Anchor: (Width: 92, Right: 6); Background: $MQ.@InputBackground; Style: $MQ.@InputStyle; Padding: (Horizontal: 6); }
+            TextField #Objective2Amount { Anchor: (Width: 52); Background: $MQ.@InputBackground; Style: $MQ.@InputStyle; Padding: (Horizontal: 6); }
+          }
+
+          Group #ObjectiveRow3 {
+            LayoutMode: Left;
+            Anchor: (Height: 32, Bottom: 4);
+
+            TextField #Objective3Id { Anchor: (Width: 92, Right: 6); Background: $MQ.@InputBackground; Style: $MQ.@InputStyle; Padding: (Horizontal: 6); }
+            TextField #Objective3Type { Anchor: (Width: 92, Right: 6); Background: $MQ.@InputBackground; Style: $MQ.@InputStyle; Padding: (Horizontal: 6); }
+            TextField #Objective3Title { FlexWeight: 1; Anchor: (Right: 6); Background: $MQ.@InputBackground; Style: $MQ.@InputStyle; Padding: (Horizontal: 6); }
+            TextField #Objective3Target { Anchor: (Width: 92, Right: 6); Background: $MQ.@InputBackground; Style: $MQ.@InputStyle; Padding: (Horizontal: 6); }
+            TextField #Objective3Amount { Anchor: (Width: 52); Background: $MQ.@InputBackground; Style: $MQ.@InputStyle; Padding: (Horizontal: 6); }
+          }
+
+          Group #ObjectiveRow4 {
+            LayoutMode: Left;
+            Anchor: (Height: 32, Bottom: 4);
+
+            TextField #Objective4Id { Anchor: (Width: 92, Right: 6); Background: $MQ.@InputBackground; Style: $MQ.@InputStyle; Padding: (Horizontal: 6); }
+            TextField #Objective4Type { Anchor: (Width: 92, Right: 6); Background: $MQ.@InputBackground; Style: $MQ.@InputStyle; Padding: (Horizontal: 6); }
+            TextField #Objective4Title { FlexWeight: 1; Anchor: (Right: 6); Background: $MQ.@InputBackground; Style: $MQ.@InputStyle; Padding: (Horizontal: 6); }
+            TextField #Objective4Target { Anchor: (Width: 92, Right: 6); Background: $MQ.@InputBackground; Style: $MQ.@InputStyle; Padding: (Horizontal: 6); }
+            TextField #Objective4Amount { Anchor: (Width: 52); Background: $MQ.@InputBackground; Style: $MQ.@InputStyle; Padding: (Horizontal: 6); }
+          }
+
+          Group #BuilderSpacer {
+            FlexWeight: 1;
+          }
+
+          Group #BuilderActions {
+            LayoutMode: Left;
+            Anchor: (Height: 38);
+
+            TextButton #LoadQuestButton {
+              Text: "Load";
+              Style: $MQ.@SecondaryButtonStyle;
+              Anchor: (Width: 110, Right: 8);
+            }
+
+            TextButton #NewQuestButton {
+              Text: "Clear form";
+              Style: $MQ.@SecondaryButtonStyle;
+              Anchor: (Width: 130, Right: 8);
+            }
+
+            TextButton #PublishQuestButton {
+              Text: "Validate and publish";
+              Style: $MQ.@PrimaryButtonStyle;
+              FlexWeight: 1;
+            }
+          }
+        }
+
+        Group #BuilderAdvanced {
+          FlexWeight: 1;
+          LayoutMode: Top;
+          Background: $MQ.@PanelBackground;
+          Padding: (Full: 16);
+
+          Label #AdvancedCaption {
+            Text: "Advanced rules";
+            Anchor: (Height: 20, Bottom: 2);
+            Style: $MQ.@MicroGoldStyle;
+          }
+
+          Label #AdvancedHint {
+            Text: "JSON arrays; empty means none. The web Studio has full editors for these.";
+            Anchor: (Height: 18, Bottom: 8);
+            Style: (FontSize: 12, TextColor: #6B7487, VerticalAlignment: Center);
+          }
+
+          Group #AdvancedScroll {
+            FlexWeight: 1;
+            LayoutMode: TopScrolling;
+            ScrollbarStyle: $C.@TranslucentScrollbarStyle;
+
+            Label #ExtraObjectivesLabel { Text: "More objectives"; Anchor: (Height: 18); Style: $MQ.@MicroMutedStyle; }
+            MultilineTextField #ExtraObjectivesInput { Anchor: (Height: 58, Bottom: 8); Background: $MQ.@InputBackground; Style: $MQ.@InputStyle; Padding: (Full: 8); ScrollbarStyle: $C.@DefaultScrollbarStyle; }
+
+            Label #StartConditionsLabel { Text: "Start conditions"; Anchor: (Height: 18); Style: $MQ.@MicroMutedStyle; }
+            MultilineTextField #StartConditionsInput { Anchor: (Height: 58, Bottom: 8); Background: $MQ.@InputBackground; Style: $MQ.@InputStyle; Padding: (Full: 8); ScrollbarStyle: $C.@DefaultScrollbarStyle; }
+
+            Label #StartEventsLabel { Text: "Start events"; Anchor: (Height: 18); Style: $MQ.@MicroMutedStyle; }
+            MultilineTextField #StartEventsInput { Anchor: (Height: 58, Bottom: 8); Background: $MQ.@InputBackground; Style: $MQ.@InputStyle; Padding: (Full: 8); ScrollbarStyle: $C.@DefaultScrollbarStyle; }
+
+            Label #CompleteEventsLabel { Text: "Completion events"; Anchor: (Height: 18); Style: $MQ.@MicroMutedStyle; }
+            MultilineTextField #CompleteEventsInput { Anchor: (Height: 58, Bottom: 8); Background: $MQ.@InputBackground; Style: $MQ.@InputStyle; Padding: (Full: 8); ScrollbarStyle: $C.@DefaultScrollbarStyle; }
+
+            Label #RewardsLabel { Text: "Rewards"; Anchor: (Height: 18); Style: $MQ.@MicroMutedStyle; }
+            MultilineTextField #RewardsInput { Anchor: (Height: 58, Bottom: 8); Background: $MQ.@InputBackground; Style: $MQ.@InputStyle; Padding: (Full: 8); ScrollbarStyle: $C.@DefaultScrollbarStyle; }
+
+            Label #ReacceptConditionsLabel { Text: "Re-accept conditions"; Anchor: (Height: 18); Style: $MQ.@MicroMutedStyle; }
+            MultilineTextField #ReacceptConditionsInput { Anchor: (Height: 58); Background: $MQ.@InputBackground; Style: $MQ.@InputStyle; Padding: (Full: 8); ScrollbarStyle: $C.@DefaultScrollbarStyle; }
+          }
+        }
+      }
+
+      // ------------------------------------------------------------ package scripts
+
+      Group #ScriptsView {
+        FlexWeight: 1;
+        LayoutMode: Top;
+        Background: $MQ.@PanelBackground;
+        Padding: (Full: 16);
+        Visible: false;
+
+        Group #ScriptHeader {
+          LayoutMode: Left;
+          Anchor: (Height: 36, Bottom: 12);
+
+          Label #ScriptPackageLabel {
+            Text: "Package";
+            Anchor: (Width: 70);
+            Style: (FontSize: 13, TextColor: #9AA4B7, VerticalAlignment: Center);
+          }
+
+          TextField #ScriptPackageInput {
+            Anchor: (Width: 200, Right: 14);
+            Background: $MQ.@InputBackground;
+            Style: $MQ.@InputStyle;
+            PlaceholderStyle: $MQ.@InputPlaceholderStyle;
+            Padding: (Horizontal: 10);
+          }
+
+          Label #ScriptFileLabel {
+            Text: "File";
+            Anchor: (Width: 44);
+            Style: (FontSize: 13, TextColor: #9AA4B7, VerticalAlignment: Center);
+          }
+
+          TextField #ScriptFileInput {
+            Anchor: (Width: 220);
+            Background: $MQ.@InputBackground;
+            Style: $MQ.@InputStyle;
+            PlaceholderStyle: $MQ.@InputPlaceholderStyle;
+            Padding: (Horizontal: 10);
+          }
+
+          Group #ScriptSpacer {
+            FlexWeight: 1;
+          }
+
+          TextButton #LoadScriptButton {
+            Text: "Load";
+            Style: $MQ.@SecondaryButtonStyle;
+            Anchor: (Width: 110, Right: 8);
+          }
+
+          TextButton #PublishScriptButton {
+            Text: "Validate and publish";
+            Style: $MQ.@PrimaryButtonStyle;
+            Anchor: (Width: 210);
+          }
+        }
+
+        MultilineTextField #ScriptSourceInput {
+          FlexWeight: 1;
+          Background: $MQ.@InputBackground;
+          Style: $MQ.@InputStyle;
+          Padding: (Full: 10);
+          ScrollbarStyle: $C.@DefaultScrollbarStyle;
+        }
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------- clear dialog
+
+$C.@PageOverlay #ClearDialog {
+  LayoutMode: Middle;
+  Visible: false;
+
+  Group #ClearFrame {
+    Anchor: (Width: 560, Height: 510);
+    LayoutMode: Top;
+    Background: $MQ.@FrameBackground;
+    Padding: (Full: 22);
+
+    Label #ClearTitle {
+      Text: "Clear player state";
+      Anchor: (Height: 30, Bottom: 2);
+      Style: (FontSize: 22, RenderBold: true, TextColor: #F2F4F8, VerticalAlignment: Center);
+    }
+
+    Label #ClearTarget {
+      Anchor: (Height: 20, Bottom: 8);
+      Style: (FontSize: 14, TextColor: #9AA4B7, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 10);
+    }
+
+    Label #ClearHint {
+      Text: "Choose what to clear. Rewards already given are not taken back, and party stories are never cleared here.";
+      Anchor: (Height: 38, Bottom: 10);
+      Style: (FontSize: 13, TextColor: #9AA4B7, Wrap: true);
+    }
+
+    TextButton #PartQuests { Text: "v1 quests: active, completed, abandoned"; Style: $MQ.@SecondaryButtonStyle; Anchor: (Height: 34, Bottom: 6); }
+    TextButton #PartTags { Text: "v1 tags"; Style: $MQ.@SecondaryButtonStyle; Anchor: (Height: 34, Bottom: 6); }
+    TextButton #PartVariables { Text: "v1 variables"; Style: $MQ.@SecondaryButtonStyle; Anchor: (Height: 34, Bottom: 6); }
+    TextButton #PartStory { Text: "Story state: variables, tags, overrides"; Style: $MQ.@SecondaryButtonStyle; Anchor: (Height: 34, Bottom: 6); }
+    TextButton #PartSessions { Text: "Their own story sessions"; Style: $MQ.@SecondaryButtonStyle; Anchor: (Height: 34, Bottom: 6); }
+    TextButton #PartPreferences { Text: "Saved settings: tracker, subtitles, voice"; Style: $MQ.@SecondaryButtonStyle; Anchor: (Height: 34, Bottom: 12); }
+
+    TextField #ClearReasonField {
+      Anchor: (Height: 36, Bottom: 14);
+      Background: $MQ.@InputBackground;
+      Style: $MQ.@InputStyle;
+      PlaceholderStyle: $MQ.@InputPlaceholderStyle;
+      PlaceholderText: "Reason (required, audited)";
+      Padding: (Horizontal: 10);
+    }
+
+    Group #ClearActions {
+      LayoutMode: Left;
+      Anchor: (Height: 40);
+
+      Label #ClearSummary {
+        FlexWeight: 1;
+        Style: (FontSize: 13, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 10);
+      }
+
+      TextButton #CancelClearButton {
+        Text: "Cancel";
+        Style: $MQ.@SecondaryButtonStyle;
+        Anchor: (Width: 120, Right: 10);
+      }
+
+      TextButton #ConfirmClearButton {
+        Text: "Clear selected";
+        Style: $MQ.@DangerButtonStyle;
+        Anchor: (Width: 170);
+      }
+    }
+  }
+}
+
+$C.@BackButton {}

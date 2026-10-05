@@ -564,6 +564,37 @@ public final class PlayerQuestService {
         return QuestResult.success("Reset quest state: " + questId);
     }
 
+    /**
+     * Staff reset: forgets every quest this player has active, completed or abandoned, with each
+     * quest's variables and the tracked quest. Rewards already given are not taken back.
+     */
+    public QuestResult resetAllQuests(UUID playerId) {
+        PlayerQuestData data = data(playerId);
+        int records = data.activeQuests().size() + data.completedQuests().size() + data.abandonedQuests().size();
+        data.activeQuests().clear();
+        data.completedQuests().clear();
+        data.abandonedQuests().clear();
+        data.questVariables().clear();
+        data.setTrackedQuestId(null);
+        save(data);
+        return QuestResult.success(records == 1 ? "Cleared 1 quest record." : "Cleared " + records + " quest records.");
+    }
+
+    /**
+     * Drops the pre-2.0 copies of player tags and variables still kept in the quest file. They are
+     * migrated into scoped state once per server start, so after a staff clear they would otherwise
+     * come back on the next restart.
+     */
+    public void forgetLegacyState(UUID playerId) {
+        PlayerQuestData data = data(playerId);
+        if (data.tags().isEmpty() && data.playerVariables().isEmpty()) {
+            return;
+        }
+        data.tags().clear();
+        data.playerVariables().clear();
+        save(data);
+    }
+
     /** Runs a named package canceler, cleaning only the state declared by that canceler. */
     public QuestResult cancelQuest(UUID playerId, String packageId, String cancelerId) {
         LoadedContent content = contentSupplier.get();

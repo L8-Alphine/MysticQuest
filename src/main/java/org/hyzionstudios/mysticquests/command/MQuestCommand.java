@@ -73,6 +73,7 @@ public final class MQuestCommand extends AbstractCommand {
     private final String defaultSubcommand;
     private final NarrativeCommand narrative;
     private final VisibilityCommand visibility;
+    private final PlayerCommand player;
 
     public MQuestCommand(MysticQuestsRuntime runtime) {
         this(runtime, "mquest", "");
@@ -83,6 +84,7 @@ public final class MQuestCommand extends AbstractCommand {
         this.runtime = runtime;
         this.narrative = new NarrativeCommand(runtime);
         this.visibility = new VisibilityCommand(runtime);
+        this.player = new PlayerCommand(runtime);
         this.defaultSubcommand = defaultSubcommand == null ? "" : defaultSubcommand;
         setAllowsExtraArguments(true);
         if (defaultSubcommand.isBlank()) {
@@ -134,6 +136,10 @@ public final class MQuestCommand extends AbstractCommand {
                 visibility.execute(context, args);
                 yield CompletableFuture.completedFuture(null);
             }
+            case "player" -> {
+                player.execute(context, args);
+                yield CompletableFuture.completedFuture(null);
+            }
             case "integrations" -> completed(integrations(context));
             default -> completed(sendHelp(context));
         };
@@ -162,13 +168,17 @@ public final class MQuestCommand extends AbstractCommand {
 
     private boolean isSubcommand(String value) {
         return switch (value.toLowerCase()) {
-            case "reload", "admin", "editor", "studio", "start", "complete", "progress", "journal", "menu", "quest", "quests", "track", "untrack", "hud", "abandon", "reaccept", "cancel", "entity", "state", "block", "volume", "hycitizens", "debug", "narrative", "visibility", "integrations" -> true;
+            case "reload", "admin", "editor", "studio", "start", "complete", "progress", "journal", "menu", "quest", "quests", "track", "untrack", "hud", "abandon", "reaccept", "cancel", "entity", "state", "block", "volume", "hycitizens", "debug", "narrative", "visibility", "integrations", "player" -> true;
             default -> false;
         };
     }
 
     private void registerCompletions() {
         addSubCommand(route("reload"));
+        RouteCommand playerRoute = route("player");
+        playerRoute.withRequiredArg("player", "Player UUID, name, or self", suggested("player", this::playerTargets));
+        playerRoute.withOptionalArg("action", "What to do", suggested("action", () -> PlayerCommand.ACTIONS));
+        addSubCommand(playerRoute);
         addSubCommand(route("admin"));
         addSubCommand(route("editor"));
         RouteCommand start = route("start");
@@ -879,7 +889,7 @@ public final class MQuestCommand extends AbstractCommand {
         if (context.sender().hasPermission("mysticquests.admin")) {
             context.sendMessage(Message.join(
                     Message.raw("Admin: ").color(ORANGE),
-                    Message.raw("admin/editor, studio login, reload, start, complete, reaccept, entity, state, block, volume, hycitizens, debug, narrative, integrations").color(MUTED)));
+                    Message.raw("admin/editor, studio login, reload, player, start, complete, reaccept, entity, state, block, volume, hycitizens, debug, narrative, integrations").color(MUTED)));
         }
         if (context.sender().hasPermission(VisibilityService.BYPASS_PERMISSION)
                 || context.sender().hasPermission(VisibilityService.BYPASS_ALWAYS_PERMISSION)) {
@@ -1015,7 +1025,7 @@ public final class MQuestCommand extends AbstractCommand {
         switch (args[1].toLowerCase()) {
             case "uuid" -> {
                 warn(context, "Trigger volume lookup is not exposed by the current Hytale API.");
-                info(context, "Use configured volume keys as <worldName>:<volumeId>, or <volumeId> if world name is unavailable.");
+                info(context, "Use configured volume keys as <worldName>:<volumeName>, or <volumeName> if world name is unavailable.");
             }
             case "state" -> volumeState(context, args);
             case "tag" -> volumeTag(context, args);

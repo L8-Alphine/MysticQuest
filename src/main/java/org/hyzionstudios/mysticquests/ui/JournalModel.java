@@ -44,9 +44,13 @@ public final class JournalModel {
     public record Section(String title, List<Item> items) {
     }
 
+    /** One line of a quest's history: when it happened (empty for "now") and what happened. */
+    public record Moment(String when, String what) {
+    }
+
     /** A selected quest, with what the detail pane shows about it. */
     public record QuestDetail(JournalEntry entry, State state, String category, String rewardText,
-                              List<String> timeline, @Nullable String when) {
+                              List<Moment> timeline, @Nullable String when) {
     }
 
     private final List<Section> sections;
@@ -150,6 +154,20 @@ public final class JournalModel {
                 .or(() -> all.stream().findFirst());
     }
 
+    /** The section holding {@code item}, matched by kind and id; empty when it is not in the rail. */
+    public Optional<Section> sectionOf(Item item) {
+        return sections.stream()
+                .filter(section -> section.items().stream()
+                        .anyMatch(candidate -> candidate.kind() == item.kind() && candidate.id().equals(item.id())))
+                .findFirst();
+    }
+
+    /** The section with this title, if the rail still has it. */
+    public Optional<Section> section(@Nullable String title) {
+        return title == null ? Optional.empty()
+                : sections.stream().filter(section -> section.title().equals(title)).findFirst();
+    }
+
     public Optional<JournalSources.Story> story(String key) {
         return Optional.ofNullable(stories.get(key));
     }
@@ -160,20 +178,20 @@ public final class JournalModel {
             return Optional.empty();
         }
         State state = states.get(questId);
-        List<String> timeline = new ArrayList<>();
+        List<Moment> timeline = new ArrayList<>();
         Instant accepted = started.get(questId);
         if (accepted != null) {
-            timeline.add("Accepted on " + DATE.format(accepted));
+            timeline.add(new Moment(DATE.format(accepted), "Accepted"));
         }
         StageView stage = entry.currentStage();
         if ((state == State.ACTIVE || state == State.TRACKED) && entry.grouped() && stage != null) {
-            timeline.add("Now on " + stage.stepLabel().toLowerCase(Locale.ROOT) + ": " + stage.displayName());
+            timeline.add(new Moment("Now", "On " + stage.stepLabel().toLowerCase(Locale.ROOT) + ": " + stage.displayName()));
         }
         Instant ended = finished.get(questId);
         if (state == State.COMPLETE) {
-            timeline.add(ended == null ? "Completed" : "Completed on " + DATE.format(ended));
+            timeline.add(new Moment(ended == null ? "" : DATE.format(ended), "Completed"));
         } else if (state == State.ABANDONED) {
-            timeline.add(ended == null ? "Abandoned" : "Abandoned on " + DATE.format(ended));
+            timeline.add(new Moment(ended == null ? "" : DATE.format(ended), "Abandoned"));
         }
         String when = switch (state) {
             case COMPLETE, ABANDONED -> ended == null ? null : DATE.format(ended);
@@ -182,7 +200,7 @@ public final class JournalModel {
         return Optional.of(new QuestDetail(entry, state, categoryOf.apply(questId), rewardTextOf.apply(questId), timeline, when));
     }
 
-    static String date(@Nullable Instant at, String prefix) {
+    public static String date(@Nullable Instant at, String prefix) {
         return at == null ? "" : prefix + DATE.format(at);
     }
 }

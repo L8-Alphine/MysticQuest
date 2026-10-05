@@ -1,2 +1,0 @@
-// Compatibility import for older documents. New MysticQuests UI imports Theme.ui directly.
-$Theme = "Theme.ui";

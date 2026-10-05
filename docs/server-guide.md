@@ -101,7 +101,8 @@ content errors, so a typo never stops the server from starting.
 |---|---|
 | `mysticquests.command.journal` | Player commands: progress, track, untrack, abandon, skip. Give it to everyone. |
 | `mysticquests.command.admin.reload` | `/mquest reload` |
-| `mysticquests.command.admin.editor` | The in-game Quest Studio (`/mquest admin`) |
+| `mysticquests.command.admin.editor` | The in-game quest admin (`/mquest admin`): the player inspector, quest builder and package scripts. Changing a player there also needs `admin.player`. |
+| `mysticquests.command.admin.player` | Change a player's state: `/mquest player ... clear\|quest\|objective\|tag\|var\|story`, and the same actions in `/mquest admin`. Every change needs a reason and is audited. |
 | `mysticquests.command.admin.quest` | Start, complete, re-accept and cancel quests for players. |
 | `mysticquests.command.admin.entity` | Entity, block and HyCitizens binding tools. |
 | `mysticquests.command.admin.volume` | Trigger volume state and tags. |
@@ -146,6 +147,28 @@ Fixing (audited, with an optional reason at the end):
 | `/mquest narrative goto <world:volume>` / `goto <player> <puzzle> [n]` | Teleports you to a quest location, or to the n-th puzzle input that player was dealt. |
 
 Every intervention is written to the audit log in the story data folder and to the server log.
+
+### Player state
+
+`/mquest player <player>` shows everything held about one player — v1 quests (active, completed,
+abandoned, tracked), v1 tags and variables, their own story variables and tags (player, per-quest and
+temporary scope, with their saved settings marked) and the story sessions they take part in.
+`<player>` is an online name, `self`, or any player's UUID. Reading needs `admin.debug`; every change
+below needs `admin.player` and is audited with its reason.
+
+| Command | Does |
+|---|---|
+| `/mquest player <player> clear <parts> <reason...>` | Clears parts of their state. `<parts>` is `progress` (everything but their settings), `all`, or a list such as `quests,story`. Parts: `quests`, `tags`, `variables`, `story`, `sessions` (their own active stories restart; party stories are never touched), `preferences` (tracker, pop-ups, subtitles, voice language). A reason is required. Rewards already given are not taken back. |
+| `/mquest player <player> quest start\|complete\|abandon\|reset\|allow\|track <quest> [reason]` | One quest. `reset` forgets every record of it; `allow` lets an abandoned quest be taken again at once. |
+| `/mquest player <player> objective <quest> <objective> <n> [reason]` | Sets an active objective's progress; reaching the target completes the quest. |
+| `/mquest player <player> tag add\|remove <tag> [reason]` / `var set <key> <value>` / `var remove <key>` | Their v1 player tags and variables. |
+| `/mquest player <player> story var set <id> <value>` / `story var remove <owner> <id>` | A story variable. Only variables declared for the player's scope can be set, and the value must fit the declared type; `<owner>` is the owner shown by the info view, such as `player/<uuid>`. |
+| `/mquest player <player> story tag add <id>` / `story tag remove <owner> <id>` | A declared story tag. |
+| `/mquest player <player> story restart <story>` / `story rewind <label>` | Restarts one of their stories, or rewinds it to a checkpoint. A party story restarts for the whole party. |
+
+The in-game admin page (`/mquest admin`, then **Players**) and the web Studio's **Players** page do
+the same through the same service: the destructive ones (reset, abandon, restart, rewind, clear)
+ask for a second press or a confirmation, and nothing changes without a reason.
 
 Web Studio:
 

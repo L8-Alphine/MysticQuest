@@ -8,24 +8,33 @@ import com.hypixel.hytale.codec.KeyedCodec;
 import com.hypixel.hytale.codec.builder.BuilderCodec;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
-import com.hypixel.hytale.protocol.packets.interface_.CustomPageLifetime;
 import com.hypixel.hytale.protocol.packets.interface_.CustomUIEventBindingType;
-import com.hypixel.hytale.server.core.entity.entities.player.pages.InteractiveCustomUIPage;
 import com.hypixel.hytale.server.core.ui.builder.EventData;
 import com.hypixel.hytale.server.core.ui.builder.UICommandBuilder;
 import com.hypixel.hytale.server.core.ui.builder.UIEventBuilder;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 
+import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
-public final class ConversationPage extends InteractiveCustomUIPage<ConversationPage.PageEventData> {
-    private static final int MAX_CHOICES = 8;
+/**
+ * Cinematic dialogue (Redesign Bible §6.5): speaker, line, voice state, choices and transcript in one
+ * band along the bottom of the screen. Choices carry server-issued tokens that are re-issued on every
+ * render, so a forged or stale choice selects nothing.
+ */
+public final class ConversationPage extends MysticQuestsPage<ConversationPage.PageEventData> {
+    static final String DOCUMENT = "mysticquests/Pages/ConversationPage.ui";
+    static final String CHOICE_ROW = "mysticquests/Rows/ConversationChoiceRow.ui";
+    private static final int MAX_CHOICES = 12;
+    private static final int TRANSCRIPT_LINES = 12;
+
     private static final BuilderCodec<PageEventData> EVENT_CODEC = BuilderCodec
             .builder(PageEventData.class, PageEventData::new)
-            .addField(new KeyedCodec<>("Choice", Codec.STRING), PageEventData::setChoice, PageEventData::choice)
-            .addField(new KeyedCodec<>("Action", Codec.STRING), PageEventData::setAction, PageEventData::action)
+            .append(new KeyedCodec<>("Choice", Codec.STRING), PageEventData::setChoice, PageEventData::choice).add()
+            .append(new KeyedCodec<>("Action", Codec.STRING), PageEventData::setAction, PageEventData::action).add()
             .build();
 
     private final UUID playerId;
@@ -34,7 +43,7 @@ public final class ConversationPage extends InteractiveCustomUIPage<Conversation
     private boolean transcriptVisible;
 
     public ConversationPage(PlayerRef playerRef, UUID playerId, long sessionToken, ConversationService conversationService) {
-        super(playerRef, CustomPageLifetime.CanDismissOrCloseThroughInteraction, EVENT_CODEC);
+        super(playerRef, EVENT_CODEC);
         this.playerId = playerId;
         this.sessionToken = sessionToken;
         this.conversationService = conversationService;
@@ -49,90 +58,87 @@ public final class ConversationPage extends InteractiveCustomUIPage<Conversation
      * would resume — or restart — instead of opening fresh.
      */
     @Override
-    public void onDismiss(Ref<EntityStore> playerEntity, Store<EntityStore> store) {
+    public void onDismiss(@Nonnull Ref<EntityStore> playerEntity, @Nonnull Store<EntityStore> store) {
         conversationService.pageDismissed(playerId, sessionToken);
     }
 
     @Override
-    public void build(Ref<EntityStore> playerEntity, UICommandBuilder builder, UIEventBuilder eventBuilder, Store<EntityStore> store) {
-        builder.append("mysticquests/Pages/ConversationPage.ui");
-        renderState(builder, eventBuilder);
+    protected String document() {
+        return DOCUMENT;
     }
 
     @Override
-    public void handleDataEvent(Ref<EntityStore> playerEntity, Store<EntityStore> store, PageEventData data) {
-        if ("transcript".equals(data.action())) {
-            transcriptVisible = !transcriptVisible;
-            UICommandBuilder builder = new UICommandBuilder();
-            UIEventBuilder eventBuilder = new UIEventBuilder();
-            renderState(builder, eventBuilder);
-            sendUpdate(builder, eventBuilder, false);
-            return;
-        }
-        if (data.choice().isBlank()) {
-            return;
-        }
-        if (conversationService.choose(playerId, data.choice(), playerEntity, store)) {
-            UICommandBuilder builder = new UICommandBuilder();
-            UIEventBuilder eventBuilder = new UIEventBuilder();
-            renderState(builder, eventBuilder);
-            sendUpdate(builder, eventBuilder, false);
+    protected void handle(Ref<EntityStore> ref, Store<EntityStore> store, PageEventData data) {
+        switch (data.action()) {
+            case "transcript" -> transcriptVisible = !transcriptVisible;
+            case "leave" -> closePage();
+            default -> {
+                if (!data.choice().isBlank() && !conversationService.choose(playerId, data.choice(), ref, store)) {
+                    // The scene ended and the service closed the page; nothing more to send.
+                    markClosed();
+                }
+            }
         }
     }
 
-    private void renderState(UICommandBuilder builder, UIEventBuilder eventBuilder) {
+    @Override
+    protected void render(UICommandBuilder commands, UIEventBuilder events) {
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#TranscriptToggle", EventData.of("Action", "transcript"));
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#LeaveButton", EventData.of("Action", "leave"));
+        commands.clear("#ChoiceList");
+
         ConversationService.ConversationView view = conversationService.view(playerId);
         if (view == null) {
-            builder.set("#SpeakerName.Text", "MysticQuests");
-            builder.set("#SpeakerInitials.Text", "MQ");
-            builder.set("#SpeakerTitle.Text", "");
-            builder.set("#DialogueText.Text", "");
-            builder.set("#VoiceBadge.Visible", false);
-            builder.set("#TranscriptPanel.Visible", false);
-            appendChoices(builder, eventBuilder, List.of());
+            commands.set("#SpeakerName.Text", "");
+            commands.set("#SpeakerInitials.Text", "");
+            commands.set("#SpeakerTitle.Text", "");
+            commands.set("#DialogueText.Text", "");
+            commands.set("#VoiceBadge.Visible", false);
+            commands.set("#TranscriptPanel.Visible", false);
+            commands.set("#FooterHint.Text", "This conversation has ended.");
             return;
         }
-        builder.set("#SpeakerName.Text", view.speaker());
-        builder.set("#SpeakerInitials.Text", initials(view.speaker()));
-        builder.set("#SpeakerTitle.Text", view.conversationId());
-        builder.set("#DialogueText.Text", view.text());
-        builder.set("#VoiceBadge.Visible", view.voiced());
-        builder.set("#TranscriptPanel.Visible", transcriptVisible);
-        builder.set("#TranscriptText.Text", transcript(view.transcript()));
-        eventBuilder.addEventBinding(
-                CustomUIEventBindingType.Activating,
-                "#TranscriptToggle",
-                EventData.of("Action", "transcript"));
-        appendChoices(builder, eventBuilder, view.choices());
-    }
+        commands.set("#SpeakerName.Text", UiText.oneLine(view.speaker()));
+        commands.set("#SpeakerInitials.Text", initials(view.speaker()));
+        commands.set("#SpeakerTitle.Text", UiText.oneLine(view.speaker()));
+        commands.set("#DialogueText.Text", UiText.safe(view.text()));
+        commands.set("#VoiceBadge.Visible", view.voiced());
+        commands.set("#TranscriptPanel.Visible", transcriptVisible);
+        commands.set("#TranscriptText.Text", transcript(view.transcript()));
+        commands.set("#TranscriptToggle.Text", transcriptVisible ? "Hide transcript" : "Transcript");
 
-    private void appendChoices(UICommandBuilder builder, UIEventBuilder eventBuilder, List<ConversationOption> choices) {
-        int visibleChoices = Math.min(choices.size(), MAX_CHOICES);
-        for (int index = 0; index < MAX_CHOICES; index++) {
-            String id = "Choice" + index;
-            boolean visible = index < visibleChoices;
-            builder.set("#" + id + ".Visible", visible);
-            builder.set("#ChoiceText" + index + ".Text", visible ? choices.get(index).text() : "");
-            if (!visible) {
-                continue;
+        List<ConversationOption> choices = view.choices();
+        int shown = Math.min(choices.size(), MAX_CHOICES);
+        commands.set("#FooterHint.Text", shown == 0
+                ? "Leave to end the conversation."
+                : "Choose a reply. Leaving ends the conversation.");
+        for (int index = 0; index < shown; index += 2) {
+            String row = "#ChoiceList[" + (index / 2) + "]";
+            commands.append("#ChoiceList", CHOICE_ROW);
+            choice(commands, events, row + " #ChoiceA", index, choices.get(index));
+            boolean second = index + 1 < shown;
+            commands.set(row + " #ChoiceB.Visible", second);
+            if (second) {
+                choice(commands, events, row + " #ChoiceB", index + 1, choices.get(index + 1));
             }
-            eventBuilder.addEventBinding(
-                    CustomUIEventBindingType.Activating,
-                    "#" + id,
-                    EventData.of("Choice", choices.get(index).token()));
         }
     }
 
-    private String transcript(List<ConversationService.TranscriptLine> lines) {
-        int from = Math.max(0, lines.size() - 6);
-        return lines.subList(from, lines.size()).stream()
-                .map(line -> line.speaker() + ": " + line.text())
-                .collect(java.util.stream.Collectors.joining("\n\n"));
+    private static void choice(UICommandBuilder commands, UIEventBuilder events, String selector, int index, ConversationOption option) {
+        commands.set(selector + ".Text", (index + 1) + "   " + UiText.oneLine(option.text()));
+        events.addEventBinding(CustomUIEventBindingType.Activating, selector, EventData.of("Choice", option.token()));
     }
 
-    private String initials(String text) {
+    private static String transcript(List<ConversationService.TranscriptLine> lines) {
+        int from = Math.max(0, lines.size() - TRANSCRIPT_LINES);
+        return lines.subList(from, lines.size()).stream()
+                .map(line -> line.speaker() + ":  " + line.text())
+                .collect(Collectors.joining("\n\n"));
+    }
+
+    private static String initials(String text) {
         if (text == null || text.isBlank()) {
-            return "MQ";
+            return "";
         }
         String[] parts = text.trim().split("\\s+");
         if (parts.length == 1) {

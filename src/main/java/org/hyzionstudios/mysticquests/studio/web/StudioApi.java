@@ -39,6 +39,9 @@ import java.util.Map;
  * POST   /api/audio/build                                  write the generated sound pack (needs audio and publish)
  * GET    /api/live                                         online players and runtime metrics (needs live)
  * GET    /api/live/player?player=                          one player's story state, as /mq debug shows it
+ * GET    /api/players/find?query=                          an online player by name, or a player by UUID (needs live)
+ * GET    /api/players/state?player=                        a player's quests, tags, variables, story state and sessions (needs live)
+ * POST   /api/players/change     { player, action, reason, ... }  an audited change to a player (needs players)
  * </pre>
  */
 final class StudioApi {
@@ -105,6 +108,10 @@ final class StudioApi {
             }
             return studio.livePlayer(session, player);
         });
+        server.route("GET", "/api/players/find", (session, request) -> studio.findPlayer(session, required(request, "query")));
+        server.route("GET", "/api/players/state", (session, request) -> studio.playerState(session, player(request)));
+        server.route("POST", "/api/players/change", (session, request) ->
+                studio.changePlayer(session, player(request), request.body()));
         server.route("GET", "/api/releases/export", (session, request) -> {
             int number = request.intParam("number");
             return new StudioHttpServer.Binary(studio.exportRelease(session, number), "application/zip",
@@ -114,6 +121,14 @@ final class StudioApi {
                 Map.of("files", studio.importBundle(session, request.raw())));
         server.route("GET", "/api/audit", (session, request) ->
                 studio.auditTrail(session, request.query().containsKey("limit") ? request.intParam("limit") : 100));
+    }
+
+    private static UUID player(StudioHttpServer.Request request) throws StudioException {
+        try {
+            return UUID.fromString(required(request, "player"));
+        } catch (IllegalArgumentException invalid) {
+            throw new StudioException(StudioException.Status.BAD_REQUEST, "'player' must be a player UUID.");
+        }
     }
 
     private static String required(StudioHttpServer.Request request, String name) throws StudioException {

@@ -1,180 +1,134 @@
-$Base = "../../Common.ui";
+$C = "../../Common.ui";
 $MQ = "../Theme.ui";
 
-// Cinematic dialogue keeps the world visible while giving subtitles and choices one clear band.
-Group {
-  Anchor: (Full: 0);
-  Background: #000000(0.28);
+// Cinematic dialogue (Redesign Bible §6.5): the world stays visible, and one band along the bottom
+// carries the speaker, the line, the voice state and the choices. Choices are server-issued tokens,
+// re-issued on every render, so the client can never pick a branch it was not offered.
+//
+// Positioning: #ConversationRoot has no LayoutMode, so its children are placed by their own Anchor
+// offsets from its edges; each band then centres its fixed-width content with LayoutMode: Center.
+// Choice rows are appended from ConversationPage (mysticquests/Rows/ConversationChoiceRow.ui).
 
-  Group {
-    Anchor: (Bottom: 34, Height: 320);
+Group #ConversationRoot {
+  Anchor: (Full: 0);
+  Background: #000000(0.30);
+
+  Group #TranscriptBand {
+    Anchor: (Bottom: 352, Height: 250);
     LayoutMode: Center;
 
-    Group {
-      Anchor: (Width: 1180, Height: 320);
-      LayoutMode: Left;
+    Group #TranscriptPanel {
+      Anchor: (Width: 900, Height: 250);
+      LayoutMode: Top;
+      Background: $MQ.@PanelBackground;
+      Padding: (Full: 18);
+      Visible: false;
 
-      Group #SpeakerPortrait {
-        Anchor: (Width: 184, Height: 286, Right: 20, Top: 34);
-        LayoutMode: Top;
-        Background: $MQ.@DarkPanelBackground;
-        OutlineColor: $MQ.@NarrativePurple;
-        OutlineSize: 1;
-        Padding: (Horizontal: 18, Top: 22, Bottom: 14);
-
-        // @IconConversation is an asset-root path, so it must go through AssetImage.AssetPath. As a
-        // Background it would be read as a document-relative texture path and resolve to nothing.
-        Group {
-          Anchor: (Height: 72, Bottom: 12);
-          LayoutMode: Center;
-
-          AssetImage {
-            AssetPath: $MQ.@IconConversation;
-            Anchor: (Width: 72, Height: 72);
-          }
-        }
-
-        Group {
-          Anchor: (Height: 116, Bottom: 10);
-          Background: $MQ.@BlueBg;
-
-          Label #SpeakerInitials {
-            Text: "MQ";
-            Style: (...$MQ.@PageTitleStyle, FontSize: 28, TextColor: $MQ.@AccentBlue,
-                    HorizontalAlignment: Center, VerticalAlignment: Center);
-          }
-        }
-
-        Label #SpeakerName {
-          Text: "Quest Giver";
-          Style: (FontSize: 15, RenderBold: true, RenderUppercase: true,
-                  TextColor: $MQ.@AccentGold, HorizontalAlignment: Center,
-                  ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 11);
-          Anchor: (Height: 30);
-        }
+      Label #TranscriptTitle {
+        Text: "Transcript";
+        Anchor: (Height: 20, Bottom: 8);
+        Style: $MQ.@MicroCyanStyle;
       }
 
-      Group #DialoguePanel {
-        Anchor: (Width: 976, Height: 286, Top: 34);
-        LayoutMode: Top;
-        Background: $MQ.@DarkPanelBackground;
-        OutlineColor: $MQ.@NarrativePurple;
-        OutlineSize: 1;
-        Padding: (Horizontal: 24, Top: 18, Bottom: 14);
+      Group #TranscriptScroll {
+        FlexWeight: 1;
+        LayoutMode: TopScrolling;
+        ScrollbarStyle: $C.@TranslucentScrollbarStyle;
 
-        Group {
-          Anchor: (Height: 24, Bottom: 8);
-          LayoutMode: Left;
-
-          Group #VoiceBadge {
-            Anchor: (Width: 82, Height: 24, Right: 10);
-            Background: $MQ.@NarrativePurple;
-            Padding: (Horizontal: 8);
-
-            Label {
-              Text: "VOICE";
-              Style: (...$MQ.@BadgeLabelStyle, TextColor: #FFFFFF);
-            }
-          }
-
-          Label #SpeakerTitle {
-            Text: "NPC";
-            Style: (FontSize: 10, RenderBold: true, RenderUppercase: true,
-                    LetterSpacing: 1, TextColor: $MQ.@MutedText,
-                    VerticalAlignment: Center, ShrinkTextToFit: true,
-                    MinShrinkTextToFitFontSize: 8);
-            FlexWeight: 1;
-          }
-
-          Label {
-            Text: "PERSONAL CHOICE";
-            Style: (FontSize: 9, RenderBold: true, RenderUppercase: true,
-                    TextColor: $MQ.@MutedText, HorizontalAlignment: End,
-                    VerticalAlignment: Center);
-            Anchor: (Width: 130);
-          }
-        }
-
-        Label #DialogueText {
-          Text: "";
-          Style: (...$MQ.@BodyTextStyle, FontSize: 18, TextColor: $MQ.@TextPrimary,
-                  Wrap: true, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 14);
-          Anchor: (Height: 66, Bottom: 10);
-        }
-
-        Group #ChoiceList {
-          Anchor: (Height: 126, Bottom: 8);
-          LayoutMode: TopScrolling;
-          ScrollbarStyle: $Base.@DefaultScrollbarStyle;
-
-          Button #Choice0 { Anchor: (Height: 38, Bottom: 6); LayoutMode: Left; Padding: (Horizontal: 12); Style: $MQ.@ChoiceButtonStyle;
-            Label #ChoiceText0 { Text: ""; Style: (FontSize: 14, TextColor: $MQ.@TextPrimary, VerticalAlignment: Center, Wrap: true); FlexWeight: 1; }
-          }
-          Button #Choice1 { Anchor: (Height: 38, Bottom: 6); LayoutMode: Left; Padding: (Horizontal: 12); Style: $MQ.@ChoiceButtonStyle;
-            Label #ChoiceText1 { Text: ""; Style: (FontSize: 14, TextColor: $MQ.@TextPrimary, VerticalAlignment: Center, Wrap: true); FlexWeight: 1; }
-          }
-          Button #Choice2 { Anchor: (Height: 38, Bottom: 6); LayoutMode: Left; Padding: (Horizontal: 12); Style: $MQ.@ChoiceButtonStyle;
-            Label #ChoiceText2 { Text: ""; Style: (FontSize: 14, TextColor: $MQ.@TextPrimary, VerticalAlignment: Center, Wrap: true); FlexWeight: 1; }
-          }
-          Button #Choice3 { Anchor: (Height: 38, Bottom: 6); LayoutMode: Left; Padding: (Horizontal: 12); Style: $MQ.@ChoiceButtonStyle;
-            Label #ChoiceText3 { Text: ""; Style: (FontSize: 14, TextColor: $MQ.@TextPrimary, VerticalAlignment: Center, Wrap: true); FlexWeight: 1; }
-          }
-          Button #Choice4 { Anchor: (Height: 38, Bottom: 6); LayoutMode: Left; Padding: (Horizontal: 12); Style: $MQ.@ChoiceButtonStyle;
-            Label #ChoiceText4 { Text: ""; Style: (FontSize: 14, TextColor: $MQ.@TextPrimary, VerticalAlignment: Center, Wrap: true); FlexWeight: 1; }
-          }
-          Button #Choice5 { Anchor: (Height: 38, Bottom: 6); LayoutMode: Left; Padding: (Horizontal: 12); Style: $MQ.@ChoiceButtonStyle;
-            Label #ChoiceText5 { Text: ""; Style: (FontSize: 14, TextColor: $MQ.@TextPrimary, VerticalAlignment: Center, Wrap: true); FlexWeight: 1; }
-          }
-          Button #Choice6 { Anchor: (Height: 38, Bottom: 6); LayoutMode: Left; Padding: (Horizontal: 12); Style: $MQ.@ChoiceButtonStyle;
-            Label #ChoiceText6 { Text: ""; Style: (FontSize: 14, TextColor: $MQ.@TextPrimary, VerticalAlignment: Center, Wrap: true); FlexWeight: 1; }
-          }
-          Button #Choice7 { Anchor: (Height: 38, Bottom: 6); LayoutMode: Left; Padding: (Horizontal: 12); Style: $MQ.@ChoiceButtonStyle;
-            Label #ChoiceText7 { Text: ""; Style: (FontSize: 14, TextColor: $MQ.@TextPrimary, VerticalAlignment: Center, Wrap: true); FlexWeight: 1; }
-          }
-        }
-
-        Group {
-          Anchor: (Height: 28);
-          LayoutMode: Right;
-
-          Button #TranscriptToggle {
-            Anchor: (Width: 132, Height: 28);
-            LayoutMode: Center;
-            Style: $MQ.@ChoiceButtonStyle;
-
-            Label {
-              Text: "TRANSCRIPT";
-              Style: (FontSize: 10, RenderBold: true, RenderUppercase: true,
-                      TextColor: $MQ.@GuidanceCyan, VerticalAlignment: Center,
-                      HorizontalAlignment: Center);
-            }
-          }
+        Label #TranscriptText {
+          Style: (FontSize: 14, TextColor: #C9CFDA, Wrap: true);
         }
       }
     }
   }
 
-  Group #TranscriptPanel {
-    Anchor: (Right: 72, Bottom: 370, Width: 520, Height: 236);
-    LayoutMode: Top;
-    Background: $MQ.@DarkPanelBackground;
-    OutlineColor: $MQ.@NarrativePurple;
-    OutlineSize: 1;
-    Padding: (Horizontal: 18, Top: 14, Bottom: 14);
-    Visible: false;
+  Group #DialogueBand {
+    Anchor: (Bottom: 36, Height: 300);
+    LayoutMode: Center;
 
-    Label {
-      Text: "RECENT TRANSCRIPT";
-      Style: (FontSize: 10, RenderBold: true, RenderUppercase: true,
-              LetterSpacing: 1, TextColor: $MQ.@AccentPurple);
-      Anchor: (Height: 20, Bottom: 8);
-    }
+    Group #DialogueRow {
+      Anchor: (Width: 1160, Height: 300);
+      LayoutMode: Left;
 
-    Label #TranscriptText {
-      Text: "";
-      Style: (FontSize: 12, TextColor: $MQ.@TextSecondary, Wrap: true,
-              ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 9);
-      FlexWeight: 1;
+      Group #SpeakerPortrait {
+        Anchor: (Width: 200, Right: 20);
+        LayoutMode: Top;
+        Background: $MQ.@SelectedCardBackground;
+        Padding: (Full: 16);
+
+        Group #PortraitFrame {
+          FlexWeight: 1;
+          LayoutMode: Middle;
+          Background: $MQ.@InsetBackground;
+          Anchor: (Bottom: 12);
+
+          Label #SpeakerInitials {
+            Anchor: (Height: 60);
+            Style: (FontSize: 40, RenderBold: true, TextColor: #B9A2F2, HorizontalAlignment: Center, VerticalAlignment: Center);
+          }
+        }
+
+        Label #SpeakerName {
+          Anchor: (Height: 24);
+          Style: (FontSize: 15, RenderBold: true, RenderUppercase: true, TextColor: #CCAA58, HorizontalAlignment: Center, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 10);
+        }
+      }
+
+      Group #DialoguePanel {
+        FlexWeight: 1;
+        LayoutMode: Top;
+        Background: $MQ.@SelectedCardBackground;
+        Padding: (Horizontal: 24, Top: 18, Bottom: 14);
+
+        Group #SpeakerRow {
+          LayoutMode: Left;
+          Anchor: (Height: 28, Bottom: 10);
+
+          TextButton #VoiceBadge {
+            Text: "Voice";
+            Anchor: (Width: 84, Height: 26, Right: 12);
+            Style: $MQ.@BadgePurple;
+          }
+
+          Label #SpeakerTitle {
+            FlexWeight: 1;
+            Style: (FontSize: 20, RenderBold: true, TextColor: #F2F4F8, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 13);
+          }
+        }
+
+        Label #DialogueText {
+          Anchor: (Height: 66, Bottom: 10);
+          Style: (FontSize: 19, RenderBold: true, TextColor: #F2F4F8, Wrap: true, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 13);
+        }
+
+        Group #ChoiceList {
+          FlexWeight: 1;
+          LayoutMode: TopScrolling;
+          ScrollbarStyle: $C.@TranslucentScrollbarStyle;
+        }
+
+        Group #Footer {
+          LayoutMode: Left;
+          Anchor: (Height: 30, Top: 6);
+
+          Label #FooterHint {
+            FlexWeight: 1;
+            Style: (FontSize: 13, TextColor: #9AA4B7, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 10);
+          }
+
+          TextButton #TranscriptToggle {
+            Text: "Transcript";
+            Anchor: (Width: 130, Height: 30, Right: 8);
+            Style: $MQ.@SecondaryButtonStyle;
+          }
+
+          TextButton #LeaveButton {
+            Text: "Leave";
+            Anchor: (Width: 110, Height: 30);
+            Style: $MQ.@SecondaryButtonStyle;
+          }
+        }
+      }
     }
   }
 }

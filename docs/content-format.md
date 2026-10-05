@@ -583,7 +583,7 @@ Entity and block scopes can omit `target` when they run from an interaction or c
 { "type": "setVariable", "scope": "block", "key": "opened", "value": "true" }
 ```
 
-Volume scopes can omit `target` when they run from native trigger-volume objectives or HyExtras trigger context. Volume keys use `worldName:volumeId`, falling back to `volumeId` when the world is unavailable.
+Volume scopes can omit `target` when they run from native trigger-volume objectives or HyExtras trigger context. Volume keys use `worldName:volumeName`, falling back to `volumeName` when the world is unavailable. The name is the one the trigger-volume tool shows; the engine's generated volume id is not used, and a volume without a name falls back to that id.
 
 ```json
 { "type": "tag", "scope": "volume", "tag": "ruins_unlocked" }

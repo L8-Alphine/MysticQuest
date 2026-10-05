@@ -1,0 +1,22 @@
+$MQ = "../Theme.ui";
+
+// Two dialogue choices side by side (Redesign Bible §6.5). A row with one choice hides #ChoiceB.
+// Appended to #ChoiceList, addressed #ChoiceList[i] #ChoiceA.
+
+Group #ChoiceRow {
+  LayoutMode: Left;
+  Anchor: (Height: 40, Bottom: 8);
+
+  TextButton #ChoiceA {
+    FlexWeight: 1;
+    Anchor: (Right: 10);
+    Padding: (Horizontal: 16);
+    Style: $MQ.@ChoiceButtonStyle;
+  }
+
+  TextButton #ChoiceB {
+    FlexWeight: 1;
+    Padding: (Horizontal: 16);
+    Style: $MQ.@ChoiceButtonStyle;
+  }
+}

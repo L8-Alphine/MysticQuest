@@ -1,4 +1,4 @@
-// MysticQuests puzzle information card.
+// MysticQuests puzzle information card (Redesign Bible §6.4).
 //
 // Its own HUD layer, separate from the quest tracker, because the two sit in different places: the
 // tracker top-right, this card bottom-centre. One layout tree cannot put blocks in two corners —
@@ -10,97 +10,82 @@
 // It never shows input ids, candidate selections or a solution order; the server sends only what
 // QuestPuzzleHudState already redacted.
 //
+// No theme import, for the same reason as the tracker: a HUD document must not depend on anything
+// that could fail while a player joins. Colours are the Bible's palette, inlined.
+//
 // ---------------------------------------------------------------- positioning
 //
 // The wrapper takes the full height and lays out from the bottom; the row inside lays out Center.
 // Bottom clears the base game's hotbar stack (about 115 units) and MysticRPG's experience bar
 // (Bottom 176, Height 56), so the three never overlap.
 
-$MQ = "../mysticquests/Theme.ui";
-
 Group {
     LayoutMode: Bottom;
     FlexWeight: 1;
 
-    Group {
+    Group #PuzzleBand {
         LayoutMode: Center;
-        Anchor: (Bottom: 244, Height: 132);
+        Anchor: (Bottom: 244, Height: 136);
 
         Group #PuzzleCard {
-            Anchor: (Width: 580, Height: 132);
+            Anchor: (Width: 600, Height: 136);
             LayoutMode: Top;
-            Background: $MQ.@HudBackground;
-            OutlineColor: $MQ.@QuestGold;
-            OutlineSize: 1;
-            Padding: (Left: 20, Right: 20, Top: 14, Bottom: 12);
+            Background: (TexturePath: "../mysticquests/Assets/v2/OutlineHudPurple.png", Border: 14);
+            Padding: (Left: 22, Right: 22, Top: 16, Bottom: 14);
 
-            Group {
-                Anchor: (Height: 22, Bottom: 7);
+            Group #PuzzleHeader {
+                Anchor: (Height: 22, Bottom: 8);
                 LayoutMode: Left;
 
-                Group {
-                    Anchor: (Width: 84, Height: 22);
-                    Background: $MQ.@QuestGold;
-                    Padding: (Horizontal: 8);
+                Group #PuzzlePill {
+                    Anchor: (Width: 86, Height: 22, Right: 12);
+                    Background: (TexturePath: "../mysticquests/Assets/v2/PillGold.png", Border: 11);
 
-                    Label {
-                        Text: "PUZZLE";
-                        Style: (...$MQ.@BadgeLabelStyle, TextColor: #171207);
+                    Label #PuzzlePillText {
+                        Text: "Puzzle";
+                        Style: (FontSize: 11, RenderBold: true, RenderUppercase: true, LetterSpacing: 1, TextColor: #14110A, HorizontalAlignment: Center, VerticalAlignment: Center);
                     }
                 }
 
                 Label #PuzzleTitle {
                     Text: "";
-                    Style: (FontSize: 12, RenderBold: true, RenderUppercase: true,
-                            LetterSpacing: 1, TextColor: $MQ.@QuestGold,
-                            ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 9);
+                    Style: (FontSize: 14, RenderBold: true, RenderUppercase: true, LetterSpacing: 1, TextColor: #F2F4F8, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 10);
                     FlexWeight: 1;
-                    Padding: (Left: 12);
                 }
 
                 Label #PuzzleState {
-                    Text: "IN PROGRESS";
-                    Style: (FontSize: 9, RenderBold: true, RenderUppercase: true,
-                            TextColor: $MQ.@GuidanceCyan, HorizontalAlignment: End,
-                            ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 8);
-                    Anchor: (Width: 132);
+                    Text: "";
+                    Style: (FontSize: 11, RenderBold: true, RenderUppercase: true, TextColor: #46C6C4, HorizontalAlignment: End, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 8);
+                    Anchor: (Width: 140);
                 }
             }
 
             Label #PuzzleHint {
                 Text: "";
-                Style: (FontSize: 14, TextColor: #F4F1EA, Wrap: true,
-                        ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 11);
-                Anchor: (Height: 34, Bottom: 5);
+                Style: (FontSize: 15, TextColor: #F2F4F8, Wrap: true, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 11);
+                Anchor: (Height: 40, Bottom: 6);
             }
 
-            Group {
-                Anchor: (Height: 18, Bottom: 5);
+            Group #PuzzleFooter {
+                Anchor: (Height: 18);
                 LayoutMode: Left;
 
                 Label #PuzzleStatus {
-                    Text: "Puzzle active";
-                    Style: (FontSize: 9, RenderBold: true, RenderUppercase: true,
-                            TextColor: $MQ.@MutedText, ShrinkTextToFit: true,
-                            MinShrinkTextToFitFontSize: 8);
+                    Text: "";
+                    Style: (FontSize: 11, RenderBold: true, RenderUppercase: true, TextColor: #9AA4B7, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 8);
                     FlexWeight: 1;
                 }
 
                 Label #PuzzleFeedback {
                     Text: "";
-                    Style: (FontSize: 10, RenderBold: true, RenderUppercase: true,
-                            TextColor: $MQ.@GuidanceCyan, ShrinkTextToFit: true,
-                            MinShrinkTextToFitFontSize: 8);
-                    Anchor: (Width: 170);
-                    Padding: (Left: 10);
+                    Style: (FontSize: 11, RenderBold: true, RenderUppercase: true, TextColor: #CCAA58, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 8);
+                    Anchor: (Width: 180, Left: 10);
                 }
 
                 Label #PuzzleSession {
                     Text: "";
-                    Style: (FontSize: 9, TextColor: $MQ.@MutedText,
-                            HorizontalAlignment: End, ShrinkTextToFit: true,
-                            MinShrinkTextToFitFontSize: 8);
-                    Anchor: (Width: 230, Left: 10);
+                    Style: (FontSize: 11, TextColor: #6B7487, HorizontalAlignment: End, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 8);
+                    Anchor: (Width: 200, Left: 10);
                 }
             }
         }

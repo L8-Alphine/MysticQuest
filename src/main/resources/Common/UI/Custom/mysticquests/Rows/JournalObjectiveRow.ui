@@ -1,0 +1,22 @@
+// One objective in the Journal's detail: a state word, the verb-first objective, and its count.
+// State is a word as well as a colour (Redesign Bible §11). Appended to #ObjectiveList.
+
+Group #ObjectiveRow {
+  LayoutMode: Left;
+  Anchor: (Height: 30, Bottom: 2);
+
+  Label #Mark {
+    Anchor: (Width: 64);
+    Style: (FontSize: 11, RenderBold: true, RenderUppercase: true, LetterSpacing: 1, VerticalAlignment: Center);
+  }
+
+  Label #Name {
+    FlexWeight: 1;
+    Style: (FontSize: 15, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 11);
+  }
+
+  Label #Progress {
+    Anchor: (Width: 90);
+    Style: (FontSize: 13, RenderBold: true, HorizontalAlignment: End, VerticalAlignment: Center);
+  }
+}

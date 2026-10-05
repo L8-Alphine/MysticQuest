@@ -42,6 +42,7 @@ import org.hyzionstudios.mysticquests.service.VisibilityService;
 import org.hyzionstudios.mysticquests.service.ConversationService;
 import org.hyzionstudios.mysticquests.service.PlayerInventoryService;
 import org.hyzionstudios.mysticquests.service.PlayerQuestService;
+import org.hyzionstudios.mysticquests.service.PlayerStateAdmin;
 import org.hyzionstudios.mysticquests.service.PlayerSessionService;
 import org.hyzionstudios.mysticquests.service.PlayerVisibilityService;
 import org.hyzionstudios.mysticquests.service.QuestActionServices;
@@ -119,6 +120,7 @@ public final class MysticQuestsRuntime implements AutoCloseable {
     private PlayerUiPreferences uiPreferences;
     private StudioIntegration studio;
     private MysticIdentityPortal identityPortal;
+    private volatile PlayerStateAdmin playerAdmin;
     /**
      * False only during the first content load in {@link #start()}. That load tolerates narrative
      * errors; every reload after it is transactional across both runtimes.
@@ -536,6 +538,31 @@ public final class MysticQuestsRuntime implements AutoCloseable {
         return authoringService;
     }
 
+    /**
+     * Staff reading and changing of one player's state, shared by {@code /mquest player}, the in-game
+     * admin page and the web Studio. Audited to the story runtime's trail when it runs, else logged.
+     */
+    public PlayerStateAdmin playerAdmin() {
+        PlayerStateAdmin admin = playerAdmin;
+        if (admin == null) {
+            admin = new PlayerStateAdmin(questService, scopedStateService,
+                    () -> narrative == null ? null : narrative.runtime(),
+                    (actor, action, player, sessionId, before, after, reason) -> {
+                        if (narrative != null) {
+                            narrative.runtime().audit().record(actor, action, player.toString(), sessionId, before, after, reason);
+                        } else {
+                            plugin.getLogger().at(Level.INFO).log("audit " + action + " by " + actor + " on " + player
+                                    + (sessionId == null ? "" : " session " + sessionId) + ": " + before + " -> " + after
+                                    + " (" + reason + ")");
+                        }
+                    },
+                    id -> Optional.ofNullable(onlinePlayerNamesById.get(id)),
+                    onlinePlayerNamesById::containsKey);
+            playerAdmin = admin;
+        }
+        return admin;
+    }
+
     public void registerOnlinePlayer(PlayerRef playerRef) {
         if (playerRef == null || playerRef.getUsername() == null || playerRef.getUsername().isBlank()) {
             return;
@@ -604,6 +631,57 @@ public final class MysticQuestsRuntime implements AutoCloseable {
             public Map<String, List<String>> player(java.util.UUID player) {
                 return debugSnapshot(player);
             }
+
+            @Override
+            public Optional<PlayerStateAdmin.Snapshot> playerState(java.util.UUID player) {
+                return Optional.of(playerAdmin().snapshot(player));
+            }
+
+            @Override
+            public Optional<java.util.UUID> findPlayer(String nameOrUuid) {
+                Optional<java.util.UUID> online = resolveOnlinePlayer(nameOrUuid);
+                if (online.isPresent()) {
+                    return online;
+                }
+                try {
+                    return Optional.of(java.util.UUID.fromString(nameOrUuid.trim()));
+                } catch (IllegalArgumentException notUuid) {
+                    return Optional.empty();
+                }
+            }
+
+            /**
+             * An online player's state is changed on their world thread, where the game changes it;
+             * the Studio's request thread waits a few seconds for the answer. An offline player has no
+             * world thread, so their change runs here.
+             */
+            @Override
+            public PlayerStateAdmin.Outcome changePlayer(java.util.UUID player,
+                                                         java.util.function.Function<PlayerStateAdmin, PlayerStateAdmin.Outcome> change) {
+                PlayerStateAdmin admin = playerAdmin();
+                if (!onlinePlayerNamesById.containsKey(player)) {
+                    return change.apply(admin);
+                }
+                java.util.concurrent.CompletableFuture<PlayerStateAdmin.Outcome> result = new java.util.concurrent.CompletableFuture<>();
+                sessionService.runOnWorld(player, (entity, store) -> {
+                    try {
+                        result.complete(change.apply(admin));
+                    } catch (RuntimeException failure) {
+                        result.completeExceptionally(failure);
+                    }
+                });
+                try {
+                    return result.get(5, java.util.concurrent.TimeUnit.SECONDS);
+                } catch (java.util.concurrent.TimeoutException slow) {
+                    return new PlayerStateAdmin.Outcome(false,
+                            "The game server did not answer within 5 seconds. Refresh to see whether the change applied.");
+                } catch (java.util.concurrent.ExecutionException failed) {
+                    return new PlayerStateAdmin.Outcome(false, "The change failed: " + failed.getCause().getMessage());
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    return new PlayerStateAdmin.Outcome(false, "Interrupted before the server answered.");
+                }
+            }
         };
     }
 
@@ -616,6 +694,11 @@ public final class MysticQuestsRuntime implements AutoCloseable {
             active += (int) narrative.runtime().sessions().load(owner).stream().filter(QuestSession::active).count();
         }
         return active;
+    }
+
+    /** Online players by id, with their names; a copy. */
+    public Map<java.util.UUID, String> onlinePlayers() {
+        return Map.copyOf(onlinePlayerNamesById);
     }
 
     public Collection<String> onlinePlayerNames() {

@@ -26,8 +26,8 @@ public final class QuestLocations {
     }
 
     /**
-     * @param volumeKey {@code world:volumeId} as content writes it; a bare id is looked up in the
-     *         staff member's own world
+     * @param volumeKey {@code world:volume} as content writes it, the volume by name or engine id; a
+     *         bare volume is looked up in the staff member's own world
      * @param reply receives one line saying what happened, on a world thread
      */
     public static void teleportToVolume(PlayerSessionService players, UUID staff, String volumeKey, Consumer<String> reply) {
@@ -46,7 +46,7 @@ public final class QuestLocations {
         world.execute(() -> {
             TriggerVolumeManager manager = world.getEntityStore().getStore()
                     .getResource(TriggerVolumesPlugin.get().getManagerResourceType());
-            VolumeEntry volume = manager == null ? null : manager.getVolume(volumeId);
+            VolumeEntry volume = manager == null ? null : VolumeNames.find(manager, volumeId);
             if (volume == null) {
                 reply.accept("No trigger volume " + volumeId + " in world " + world.getName() + ".");
                 return;

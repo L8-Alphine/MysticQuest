@@ -1,0 +1,17 @@
+// One line of narrative history (Redesign Bible §7.2): when, and what happened, in the player's
+// words. Raw runtime traces stay in staff tools. Used by the Journal's timeline and milestones.
+
+Group #TimelineRow {
+  LayoutMode: Left;
+  Anchor: (Height: 24, Bottom: 2);
+
+  Label #When {
+    Anchor: (Width: 130);
+    Style: (FontSize: 13, TextColor: #6B7487, VerticalAlignment: Center);
+  }
+
+  Label #Text {
+    FlexWeight: 1;
+    Style: (FontSize: 14, TextColor: #C9CFDA, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 11);
+  }
+}

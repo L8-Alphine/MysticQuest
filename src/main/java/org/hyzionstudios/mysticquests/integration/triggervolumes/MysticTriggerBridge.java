@@ -157,7 +157,7 @@ public final class MysticTriggerBridge {
 
     public static QuestTargetContext targetContext(TriggerContext context) {
         VolumeEntry volume = context.getVolume();
-        String volumeId = volume == null ? "" : volume.getId();
+        String volumeId = volume == null ? "" : VolumeNames.label(volume);
         String volumeWorld = volume == null ? "" : volume.getWorldName();
         String volumeKey = volumeWorld == null || volumeWorld.isBlank() ? volumeId : volumeWorld + ":" + volumeId;
         Ref<EntityStore> entityRef = context.getEntityRef();

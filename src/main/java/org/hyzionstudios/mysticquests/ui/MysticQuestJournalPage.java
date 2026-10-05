@@ -4,6 +4,7 @@ import org.hyzionstudios.mysticquests.model.QuestDefinition;
 import org.hyzionstudios.mysticquests.service.JournalEntry;
 import org.hyzionstudios.mysticquests.service.ObjectiveView;
 import org.hyzionstudios.mysticquests.service.PlayerQuestService;
+import org.hyzionstudios.mysticquests.service.QuestResult;
 import org.hyzionstudios.mysticquests.service.StageView;
 import org.hyzionstudios.mysticquests.storage.ActiveQuestData;
 import org.hyzionstudios.mysticquests.storage.PlayerQuestData;
@@ -13,15 +14,15 @@ import com.hypixel.hytale.codec.KeyedCodec;
 import com.hypixel.hytale.codec.builder.BuilderCodec;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
-import com.hypixel.hytale.protocol.packets.interface_.CustomPageLifetime;
 import com.hypixel.hytale.protocol.packets.interface_.CustomUIEventBindingType;
-import com.hypixel.hytale.server.core.entity.entities.player.pages.InteractiveCustomUIPage;
+import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.ui.builder.EventData;
 import com.hypixel.hytale.server.core.ui.builder.UICommandBuilder;
 import com.hypixel.hytale.server.core.ui.builder.UIEventBuilder;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 
+import javax.annotation.Nullable;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -32,73 +33,126 @@ import java.util.UUID;
 
 /**
  * The Quest Journal (Redesign Bible §7.1-7.2, §7.4). {@link JournalModel} decides what shows; this
- * page draws it: the rail of sections and rows, the detail of the selected quest or story, and the
- * settings panel, which shares the detail pane.
+ * page draws it in three panels — the rail of sections, the quests in the chosen section, and the
+ * chosen quest's detail — and the settings, which take the place of the last two.
+ *
+ * <p>Every action goes back through {@link PlayerQuestService}, which checks it again; the page never
+ * assumes a click worked (§10.2) and always redraws from the service's state.
  */
-public final class MysticQuestJournalPage extends InteractiveCustomUIPage<MysticQuestJournalPage.PageEventData> {
+public final class MysticQuestJournalPage extends MysticQuestsPage<MysticQuestJournalPage.PageEventData> {
+    static final String DOCUMENT = "mysticquests/Pages/JournalPage.ui";
+    static final String RAIL_ROW = "mysticquests/Rows/JournalRailRow.ui";
+    static final String QUEST_CARD = "mysticquests/Rows/JournalQuestCard.ui";
+    static final String OBJECTIVE_ROW = "mysticquests/Rows/JournalObjectiveRow.ui";
+    static final String STEP_ROW = "mysticquests/Rows/JournalStepRow.ui";
+    static final String TIMELINE_ROW = "mysticquests/Rows/TimelineRow.ui";
+
     private static final BuilderCodec<PageEventData> EVENT_CODEC = BuilderCodec
             .builder(PageEventData.class, PageEventData::new)
-            .addField(new KeyedCodec<>("Kind", Codec.STRING), PageEventData::setKind, PageEventData::kind)
-            .addField(new KeyedCodec<>("Id", Codec.STRING), PageEventData::setId, PageEventData::id)
-            .addField(new KeyedCodec<>("Action", Codec.STRING), PageEventData::setAction, PageEventData::action)
-            .addField(new KeyedCodec<>("Setting", Codec.STRING), PageEventData::setSetting, PageEventData::setting)
-            .addField(new KeyedCodec<>("Value", Codec.STRING), PageEventData::setValue, PageEventData::value)
+            .append(new KeyedCodec<>("Action", Codec.STRING), PageEventData::setAction, PageEventData::action).add()
+            .append(new KeyedCodec<>("Kind", Codec.STRING), PageEventData::setKind, PageEventData::kind).add()
+            .append(new KeyedCodec<>("Id", Codec.STRING), PageEventData::setId, PageEventData::id).add()
+            .append(new KeyedCodec<>("Setting", Codec.STRING), PageEventData::setSetting, PageEventData::setting).add()
+            .append(new KeyedCodec<>("Value", Codec.STRING), PageEventData::setValue, PageEventData::value).add()
             .build();
 
     private final PlayerQuestService questService;
     private final JournalSources sources;
     private final UUID playerId;
+
+    private boolean settingsOpen;
+    @Nullable
+    private String selectedSection;
+    @Nullable
     private JournalModel.Kind selectedKind;
+    @Nullable
     private String selectedId;
-    /** Quest awaiting a second Abandon press; cleared on any other interaction. */
+    /** Quest awaiting a second Abandon press; cleared by any other action. */
+    @Nullable
     private String abandonPendingQuestId;
+    /** What the last action did, shown beside the action buttons until the next action. */
+    @Nullable
+    private Message actionNote;
 
     public MysticQuestJournalPage(PlayerRef playerRef, UUID playerId, PlayerQuestService questService, JournalSources sources) {
-        super(playerRef, CustomPageLifetime.CanDismissOrCloseThroughInteraction, EVENT_CODEC);
+        super(playerRef, EVENT_CODEC);
         this.playerId = playerId;
         this.questService = questService;
         this.sources = sources;
     }
 
     @Override
-    public void build(Ref<EntityStore> playerEntity, UICommandBuilder builder, UIEventBuilder eventBuilder, Store<EntityStore> store) {
-        render(builder, eventBuilder);
+    protected String document() {
+        return DOCUMENT;
+    }
+
+    // --- Events ---
+
+    @Override
+    protected void handle(Ref<EntityStore> ref, Store<EntityStore> store, PageEventData data) {
+        String action = data.action();
+        if (!action.equals("abandon")) {
+            abandonPendingQuestId = null;
+        }
+        actionNote = null;
+        switch (action) {
+            case "close" -> closePage();
+            case "section" -> {
+                settingsOpen = false;
+                selectedSection = data.id();
+                selectedKind = null;
+                selectedId = null;
+            }
+            case "select" -> {
+                settingsOpen = false;
+                selectedKind = parseKind(data.kind());
+                selectedId = data.id();
+            }
+            case "settings" -> settingsOpen = true;
+            case "setting" -> applySetting(data.setting(), data.value());
+            case "defaults" -> {
+                sources.setTracker(playerId, QuestHudCoordinator.Preference.AUTOMATIC);
+                sources.setSubtitles(playerId, true);
+                sources.followGameLanguage(playerId);
+                sources.setPopups(playerId, true);
+            }
+            case "track", "untrack", "abandon" -> questAction(action);
+            default -> {
+                // An action from an older page; the refresh shows the current state.
+            }
+        }
     }
 
     @Override
-    public void handleDataEvent(Ref<EntityStore> playerEntity, Store<EntityStore> store, PageEventData data) {
-        if (!data.kind().isBlank()) {
-            JournalModel.Kind kind = parseKind(data.kind());
-            if (kind != selectedKind || !data.id().equals(selectedId)) {
-                abandonPendingQuestId = null;
-            }
-            selectedKind = kind;
-            selectedId = data.id();
+    protected void onFailure(RuntimeException failure) {
+        actionNote = UiText.of("That did not work. Try again, or tell staff if it keeps happening.", UiText.RED);
+    }
+
+    private void questAction(String action) {
+        if (selectedKind != JournalModel.Kind.QUEST || selectedId == null) {
+            return;
         }
-        if (!data.setting().isBlank()) {
-            applySetting(data.setting(), data.value());
-        }
-        if (selectedKind == JournalModel.Kind.QUEST && selectedId != null && !data.action().isBlank()) {
-            switch (data.action()) {
-                case "track" -> questService.trackQuest(playerId, selectedId);
-                case "untrack" -> questService.untrackQuest(playerId);
-                case "abandon" -> {
-                    // Second press confirms; the button relabels itself in between.
-                    if (selectedId.equals(abandonPendingQuestId)) {
-                        questService.abandonQuest(playerId, selectedId);
-                        abandonPendingQuestId = null;
-                        selectedId = null;
-                    } else {
-                        abandonPendingQuestId = selectedId;
-                    }
+        QuestResult result = switch (action) {
+            case "track" -> questService.trackQuest(playerId, selectedId);
+            case "untrack" -> questService.untrackQuest(playerId);
+            default -> {
+                if (!selectedId.equals(abandonPendingQuestId)) {
+                    abandonPendingQuestId = selectedId;
+                    actionNote = UiText.of("Press Confirm to abandon. Your progress on this quest is lost.", UiText.RED);
+                    yield null;
                 }
-                default -> abandonPendingQuestId = null;
+                abandonPendingQuestId = null;
+                QuestResult abandoned = questService.abandonQuest(playerId, selectedId);
+                if (abandoned.success()) {
+                    selectedId = null;
+                    selectedKind = null;
+                }
+                yield abandoned;
             }
+        };
+        if (result != null) {
+            actionNote = UiText.status(result.message(), result.success());
         }
-        UICommandBuilder builder = new UICommandBuilder();
-        UIEventBuilder eventBuilder = new UIEventBuilder();
-        render(builder, eventBuilder);
-        sendUpdate(builder, eventBuilder, true);
     }
 
     private void applySetting(String setting, String value) {
@@ -107,14 +161,14 @@ public final class MysticQuestJournalPage extends InteractiveCustomUIPage<Mystic
                 try {
                     sources.setTracker(playerId, QuestHudCoordinator.Preference.valueOf(value));
                 } catch (IllegalArgumentException unknown) {
-                    // A stale page from before a change; ignore rather than guess.
+                    // A value from an older page; the refresh shows the current setting.
                 }
             }
             case "subtitles" -> sources.setSubtitles(playerId, value.equals("on"));
             case "voice" -> sources.followGameLanguage(playerId);
             case "popups" -> sources.setPopups(playerId, value.equals("on"));
             default -> {
-                // Unknown setting from an older page; nothing to do.
+                // Unknown setting from an older page.
             }
         }
     }
@@ -141,143 +195,293 @@ public final class MysticQuestJournalPage extends InteractiveCustomUIPage<Mystic
                 id -> questService.definition(id).map(QuestDefinition::rewardText).orElse(""));
     }
 
-    private void render(UICommandBuilder builder, UIEventBuilder eventBuilder) {
-        builder.append("mysticquests/Pages/JournalPage.ui");
+    @Override
+    protected void render(UICommandBuilder commands, UIEventBuilder events) {
         JournalModel model = model();
         PlayerQuestData data = questService.data(playerId);
-        builder.set("#ActiveCount.Text", Integer.toString(data.activeQuests().size()));
-        builder.set("#StoryCount.Text", Integer.toString(model.storyCount()));
-        builder.set("#CompletedCount.Text", Integer.toString(data.completedQuests().size()));
+        commands.set("#HeaderSummary.Text", data.activeQuests().size() + " active   "
+                + model.storyCount() + " stories   " + data.completedQuests().size() + " completed");
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#CloseButton", EventData.of("Action", "close"));
 
-        Optional<JournalModel.Item> selected = selectedKind == JournalModel.Kind.SETTINGS
-                ? Optional.empty() : model.select(selectedKind, selectedId);
-        selected.ifPresent(item -> {
-            selectedKind = item.kind();
-            selectedId = item.id();
+        // Resolve the selection: the chosen entry if it is still there, else the first entry of the
+        // chosen section, else the model's default (the tracked quest).
+        Optional<JournalModel.Section> section = model.section(selectedSection);
+        Optional<JournalModel.Item> item = model.select(selectedKind, selectedId);
+        if (section.isPresent() && (item.isEmpty() || !model.sectionOf(item.get())
+                .map(found -> found.title().equals(section.get().title())).orElse(false))) {
+            item = section.get().items().stream().findFirst();
+        }
+        item.ifPresent(found -> {
+            selectedKind = found.kind();
+            selectedId = found.id();
         });
-        appendRail(builder, eventBuilder, model, selected.orElse(null));
-        appendSettingsEntry(builder, eventBuilder);
+        JournalModel.Section activeSection = item.flatMap(model::sectionOf).or(() -> section)
+                .orElse(model.sections().isEmpty() ? null : model.sections().get(0));
+        selectedSection = activeSection == null ? null : activeSection.title();
 
-        builder.set("#SettingsPanel.Visible", selectedKind == JournalModel.Kind.SETTINGS);
-        if (selectedKind == JournalModel.Kind.SETTINGS) {
-            builder.set("#EmptyState.Visible", false);
-            builder.set("#QuestDetails.Visible", false);
-            appendSettings(builder, eventBuilder);
+        renderRail(commands, events, model, activeSection);
+        commands.set("#SettingsButton.Style", settingsOpen ? UiStyles.NAV_SELECTED : UiStyles.NAV);
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#SettingsButton", EventData.of("Action", "settings"));
+
+        commands.set("#SettingsPanel.Visible", settingsOpen);
+        commands.set("#ListPanel.Visible", !settingsOpen);
+        commands.set("#DetailPanel.Visible", !settingsOpen);
+        if (settingsOpen) {
+            renderSettings(commands, events);
             return;
         }
-        if (selected.isEmpty()) {
-            builder.set("#EmptyState.Visible", true);
-            builder.set("#QuestDetails.Visible", false);
-            builder.set("#EmptyStateTitle.Text", "Your journal is empty");
-            builder.set("#EmptyStateBody.Text", "Accept a quest with /quest, or speak with a quest giver.");
+        renderList(commands, events, activeSection, item.orElse(null));
+        if (item.isEmpty()) {
+            commands.set("#EmptyState.Visible", true);
+            commands.set("#QuestDetails.Visible", false);
+            commands.set("#EmptyTitle.Text", "Your journal is empty");
+            commands.set("#EmptyBody.Text", "Find a quest board with /quest, or speak with a quest giver. Quests you take on appear here.");
             return;
         }
-        builder.set("#EmptyState.Visible", false);
-        builder.set("#QuestDetails.Visible", true);
-        if (selected.get().kind() == JournalModel.Kind.STORY) {
-            model.story(selected.get().id()).ifPresent(story -> renderStory(builder, story));
+        commands.set("#EmptyState.Visible", false);
+        commands.set("#QuestDetails.Visible", true);
+        if (item.get().kind() == JournalModel.Kind.STORY) {
+            model.story(item.get().id()).ifPresent(story -> renderStory(commands, story));
         } else {
-            model.quest(selected.get().id()).ifPresent(detail -> renderQuest(builder, eventBuilder, detail));
+            model.quest(item.get().id()).ifPresent(detail -> renderQuest(commands, events, detail));
         }
     }
 
-    private void appendRail(UICommandBuilder builder, UIEventBuilder eventBuilder, JournalModel model, JournalModel.Item selected) {
-        int head = 0;
-        int row = 0;
+    private void renderRail(UICommandBuilder commands, UIEventBuilder events, JournalModel model,
+                            @Nullable JournalModel.Section active) {
+        commands.clear("#RailList");
+        int index = 0;
         for (JournalModel.Section section : model.sections()) {
-            builder.appendInline("#RailList", sectionHeader("RailHead" + head++, section.title(), section.items().size()));
-            for (JournalModel.Item item : section.items()) {
-                String rowId = "RailRow" + row++;
-                boolean isSelected = selected != null && item.kind() == selected.kind() && item.id().equals(selected.id());
-                builder.appendInline("#RailList", railRow(rowId, isSelected, item));
-                eventBuilder.addEventBinding(CustomUIEventBindingType.Activating, "#" + rowId,
-                        EventData.of("Kind", item.kind().name()).append("Id", item.id()));
+            boolean selected = !settingsOpen && section == active;
+            String row = "#RailList[" + index + "]";
+            commands.append("#RailList", RAIL_ROW);
+            commands.set(row + ".Style", selected ? UiStyles.NAV_ROW_SELECTED : UiStyles.NAV_ROW);
+            commands.set(row + " #Name.TextSpans", selected
+                    ? UiText.bold(railName(section.title()), UiText.TEXT)
+                    : UiText.of(railName(section.title()), UiText.MUTED));
+            commands.set(row + " #Count.TextSpans", UiText.of(Integer.toString(section.items().size()),
+                    selected ? UiText.PURPLE_TEXT : UiText.DIM));
+            events.addEventBinding(CustomUIEventBindingType.Activating, row,
+                    new EventData().append("Action", "section").append("Id", section.title()));
+            index++;
+        }
+    }
+
+    /** "STORY QUESTS" reads as "Story quests" in the rail; the list heading keeps the capitals. */
+    private static String railName(String title) {
+        if (title.isEmpty()) {
+            return title;
+        }
+        String lower = title.toLowerCase(java.util.Locale.ROOT);
+        return Character.toUpperCase(lower.charAt(0)) + lower.substring(1);
+    }
+
+    private void renderList(UICommandBuilder commands, UIEventBuilder events, @Nullable JournalModel.Section section,
+                            @Nullable JournalModel.Item selected) {
+        commands.clear("#QuestList");
+        commands.set("#ListTitle.Text", section == null ? "Quests" : section.title());
+        if (section == null) {
+            return;
+        }
+        int index = 0;
+        for (JournalModel.Item item : section.items()) {
+            boolean isSelected = selected != null && item.kind() == selected.kind() && item.id().equals(selected.id());
+            String card = "#QuestList[" + index + "]";
+            commands.append("#QuestList", QUEST_CARD);
+            commands.set(card + ".Style", isSelected ? UiStyles.CARD_SELECTED : UiStyles.CARD);
+            commands.set(card + " #Title.TextSpans", UiText.bold(UiText.oneLine(item.title()), UiText.TEXT));
+            commands.set(card + " #Context.TextSpans", UiText.muted(cardContext(item)));
+            commands.set(card + " #Status.TextSpans", cardStatus(item));
+            events.addEventBinding(CustomUIEventBindingType.Activating, card,
+                    new EventData().append("Action", "select").append("Kind", item.kind().name()).append("Id", item.id()));
+            index++;
+        }
+    }
+
+    private String cardContext(JournalModel.Item item) {
+        if (item.kind() == JournalModel.Kind.STORY) {
+            return item.subtitle();
+        }
+        String category = questService.definition(item.id()).map(QuestDefinition::category).orElse("");
+        String label = QuestCategories.section(category);
+        return label.charAt(0) + label.substring(1).toLowerCase(java.util.Locale.ROOT);
+    }
+
+    private static Message cardStatus(JournalModel.Item item) {
+        return switch (item.state()) {
+            case TRACKED -> UiText.pair("Tracked  ", UiText.GOLD, item.subtitle(), UiText.GOLD);
+            case COMPLETE -> UiText.of(item.subtitle(), UiText.GREEN);
+            case ABANDONED -> UiText.of(item.subtitle(), UiText.DIM);
+            case STORY -> UiText.of("In progress", UiText.PURPLE_TEXT);
+            default -> UiText.of(item.subtitle(), UiText.GOLD);
+        };
+    }
+
+    private void renderQuest(UICommandBuilder commands, UIEventBuilder events, JournalModel.QuestDetail detail) {
+        JournalEntry entry = detail.entry();
+        boolean ongoing = detail.state() == JournalModel.State.ACTIVE || detail.state() == JournalModel.State.TRACKED;
+        commands.set("#DetailCategory.Text", QuestCategories.badge(detail.category()));
+        commands.set("#DetailCategory.Style", UiStyles.categoryTone(detail.category()).style());
+        commands.set("#DetailState.Text", switch (detail.state()) {
+            case TRACKED -> "Tracked";
+            case COMPLETE -> "Complete";
+            case ABANDONED -> "Abandoned";
+            default -> "Active";
+        });
+        commands.set("#DetailState.Style", switch (detail.state()) {
+            case TRACKED -> UiStyles.Tone.GOLD_OUTLINE.style();
+            case COMPLETE -> UiStyles.Tone.GREEN.style();
+            default -> UiStyles.Tone.NEUTRAL.style();
+        });
+        commands.set("#DetailWhen.Text", detail.when() == null ? "" : detail.when());
+        commands.set("#DetailTitle.Text", UiText.oneLine(entry.displayName()));
+        StageView stage = entry.currentStage();
+        commands.set("#DetailContext.Text", ongoing && entry.grouped() && stage != null
+                ? stepLine(stage) : sentenceCase(QuestCategories.section(detail.category())));
+
+        // The current objective, with both a meter and the number (§4.2).
+        Optional<ObjectiveView> next = ongoing ? nextObjective(entry) : Optional.empty();
+        commands.set("#ObjectiveBlock.Visible", next.isPresent());
+        next.ifPresent(objective -> {
+            boolean counted = !objective.progressLabel().isEmpty();
+            commands.set("#ObjectiveText.Text", UiText.oneLine(objective.displayName()));
+            commands.set("#ObjectiveMeterRow.Visible", counted);
+            commands.set("#ObjectiveMeter.Value", counted ? (float) objective.current() / objective.target() : 0f);
+            commands.set("#ObjectiveProgress.Text", objective.progressLabel());
+        });
+
+        commands.set("#RecapBlock.Visible", !entry.description().isBlank());
+        commands.set("#RecapText.Text", entry.description());
+
+        commands.set("#ObjectivesBlock.Visible", true);
+        commands.set("#ObjectivesCaption.Text", "Objectives");
+        commands.set("#ObjectivesSummary.Text", entry.progressLabel());
+        renderObjectives(commands, entry);
+
+        commands.set("#RewardsBlock.Visible", !detail.rewardText().isBlank());
+        commands.set("#RewardsText.Text", detail.rewardText());
+        renderTimeline(commands, detail.timeline());
+
+        commands.set("#Actions.Visible", ongoing || actionNote != null);
+        commands.set("#TrackButton.Visible", ongoing);
+        commands.set("#AbandonButton.Visible", ongoing);
+        if (ongoing) {
+            boolean tracked = detail.state() == JournalModel.State.TRACKED;
+            commands.set("#TrackButton.Text", tracked ? "Stop tracking" : "Track quest");
+            commands.set("#TrackButton.Style", tracked ? UiStyles.BUTTON_SECONDARY : UiStyles.BUTTON_PRIMARY);
+            events.addEventBinding(CustomUIEventBindingType.Activating, "#TrackButton",
+                    EventData.of("Action", tracked ? "untrack" : "track"));
+            commands.set("#AbandonButton.Text", entry.questId().equals(abandonPendingQuestId) ? "Confirm abandon" : "Abandon");
+            events.addEventBinding(CustomUIEventBindingType.Activating, "#AbandonButton", EventData.of("Action", "abandon"));
+        }
+        commands.set("#ActionNote.TextSpans", actionNote == null ? UiText.muted("") : actionNote);
+    }
+
+    /** A 2.0 story: whose it is, since when, and the milestones reached in it; never what comes next. */
+    private void renderStory(UICommandBuilder commands, JournalSources.Story story) {
+        commands.set("#DetailCategory.Text", "Story");
+        commands.set("#DetailCategory.Style", UiStyles.Tone.PURPLE.style());
+        commands.set("#DetailState.Text", "In progress");
+        commands.set("#DetailState.Style", UiStyles.Tone.GOLD_OUTLINE.style());
+        commands.set("#DetailWhen.Text", "Since " + JournalModel.date(story.since(), "").strip());
+        commands.set("#DetailTitle.Text", UiText.oneLine(story.name()));
+        commands.set("#DetailContext.Text", story.party() ? "Shared with your party" : "Your own story");
+        commands.set("#ObjectiveBlock.Visible", false);
+        commands.set("#RecapBlock.Visible", true);
+        commands.set("#RecapText.Text", story.milestones().isEmpty()
+                ? "A story you are part of. The milestones you reach in it are recorded here."
+                : "A story you are part of. The milestones you have reached so far are below.");
+
+        commands.set("#ObjectivesBlock.Visible", !story.milestones().isEmpty());
+        commands.set("#ObjectivesCaption.Text", "Milestones");
+        commands.set("#ObjectivesSummary.Text", story.milestones().size() + " reached");
+        commands.clear("#ObjectiveList");
+        int index = 0;
+        for (JournalSources.Milestone milestone : story.milestones()) {
+            String row = "#ObjectiveList[" + index++ + "]";
+            commands.append("#ObjectiveList", TIMELINE_ROW);
+            commands.set(row + " #When.Text", JournalModel.date(milestone.reached(), "").strip());
+            commands.set(row + " #Text.Text", UiText.oneLine(milestone.text()));
+        }
+        commands.set("#RewardsBlock.Visible", false);
+        renderTimeline(commands, List.of(new JournalModel.Moment(JournalModel.date(story.since(), "").strip(), "Began")));
+        commands.set("#Actions.Visible", false);
+    }
+
+    private void renderObjectives(UICommandBuilder commands, JournalEntry entry) {
+        commands.clear("#ObjectiveList");
+        Optional<ObjectiveView> next = nextObjective(entry);
+        int index = 0;
+        for (StageView stage : entry.stages()) {
+            if (entry.grouped()) {
+                String row = "#ObjectiveList[" + index++ + "]";
+                commands.append("#ObjectiveList", STEP_ROW);
+                String colour = stage.complete() ? UiText.GREEN : UiText.GOLD;
+                commands.set(row + " #Step.TextSpans", UiText.of(stage.stepLabel(), colour));
+                commands.set(row + " #Name.Text", UiText.oneLine(stage.displayName()));
+                commands.set(row + " #Progress.TextSpans", UiText.of(stage.progressLabel(), colour));
+            }
+            for (ObjectiveView objective : stage.objectives()) {
+                String row = "#ObjectiveList[" + index++ + "]";
+                commands.append("#ObjectiveList", OBJECTIVE_ROW);
+                boolean current = next.map(found -> found == objective).orElse(false);
+                Message mark = objective.complete() ? UiText.of("Done", UiText.GREEN)
+                        : current ? UiText.of("Now", UiText.GOLD) : UiText.of("To do", UiText.DIM);
+                commands.set(row + " #Mark.TextSpans", mark);
+                commands.set(row + " #Name.TextSpans", UiText.of(UiText.oneLine(objective.displayName()),
+                        objective.complete() ? UiText.MUTED : UiText.TEXT));
+                commands.set(row + " #Progress.TextSpans", UiText.of(objective.progressLabel(),
+                        objective.complete() ? UiText.GREEN : current ? UiText.GOLD : UiText.MUTED));
             }
         }
     }
 
-    private void appendSettingsEntry(UICommandBuilder builder, UIEventBuilder eventBuilder) {
-        boolean active = selectedKind == JournalModel.Kind.SETTINGS;
-        builder.appendInline("#RailFooter", """
-                Button #SettingsEntry {
-                  Anchor: (Height: 34);
-                  LayoutMode: Left;
-                  Padding: (Horizontal: 14);
-                  Style: %s;
-
-                  Label #SettingsEntryName {
-                    Text: "QUEST SETTINGS";
-                    Style: (FontSize: 13, RenderBold: true, TextColor: %s, VerticalAlignment: Center);
-                  }
-                }
-                """.formatted(MysticQuestsTheme.rowButtonStyle(active), active ? MysticQuestsTheme.ACCENT_GOLD : MysticQuestsTheme.TEXT_SECONDARY));
-        eventBuilder.addEventBinding(CustomUIEventBindingType.Activating, "#SettingsEntry",
-                EventData.of("Kind", JournalModel.Kind.SETTINGS.name()).append("Id", "settings"));
-    }
-
-    private void renderQuest(UICommandBuilder builder, UIEventBuilder eventBuilder, JournalModel.QuestDetail detail) {
-        JournalEntry entry = detail.entry();
-        builder.set("#DetailCategory.Text", QuestCategories.badge(detail.category()));
-        builder.set("#DetailState.Text", switch (detail.state()) {
-            case TRACKED -> "TRACKED";
-            case COMPLETE -> "COMPLETE";
-            case ABANDONED -> "ABANDONED";
-            default -> "ACTIVE";
-        });
-        builder.set("#DetailWhen.Text", detail.when() == null ? "" : detail.when());
-        builder.set("#SelectedQuestName.Text", entry.displayName());
-        StageView stage = entry.currentStage();
-        boolean ongoing = detail.state() == JournalModel.State.ACTIVE || detail.state() == JournalModel.State.TRACKED;
-        builder.set("#SelectedStep.Text", ongoing && entry.grouped() && stage != null
-                ? stage.stepLabel() + "  |  " + stage.displayName() : "");
-
-        Optional<ObjectiveView> next = ongoing ? nextObjective(entry) : Optional.empty();
-        builder.set("#CurrentObjectiveCard.Visible", next.isPresent());
-        next.ifPresent(objective -> {
-            builder.set("#CurrentObjectiveText.Text", objective.displayName());
-            builder.set("#CurrentObjectiveProgress.Text", objective.progressLabel());
-        });
-        builder.set("#SelectedQuestDescription.Text", entry.description());
-        builder.set("#ObjectiveHeading.Text", "OBJECTIVES");
-        builder.set("#ObjectiveSummary.Text", entry.progressLabel());
-        appendObjectiveRows(builder, entry);
-
-        builder.set("#RewardsRow.Visible", !detail.rewardText().isBlank());
-        builder.set("#RewardsText.Text", detail.rewardText());
-        appendTimeline(builder, detail.timeline());
-
-        builder.set("#QuestActions.Visible", ongoing);
-        if (ongoing) {
-            boolean tracked = detail.state() == JournalModel.State.TRACKED;
-            builder.set("#TrackButton.Text", tracked ? "STOP TRACKING" : "TRACK QUEST");
-            eventBuilder.addEventBinding(CustomUIEventBindingType.Activating, "#TrackButton",
-                    EventData.of("Action", tracked ? "untrack" : "track"));
-            builder.set("#AbandonButton.Text", entry.questId().equals(abandonPendingQuestId) ? "CONFIRM ABANDON" : "ABANDON");
-            eventBuilder.addEventBinding(CustomUIEventBindingType.Activating, "#AbandonButton", EventData.of("Action", "abandon"));
+    private void renderTimeline(UICommandBuilder commands, List<JournalModel.Moment> timeline) {
+        commands.clear("#TimelineList");
+        commands.set("#TimelineBlock.Visible", !timeline.isEmpty());
+        int index = 0;
+        for (JournalModel.Moment moment : timeline) {
+            String row = "#TimelineList[" + index++ + "]";
+            commands.append("#TimelineList", TIMELINE_ROW);
+            commands.set(row + " #When.Text", moment.when());
+            commands.set(row + " #Text.Text", moment.what());
         }
     }
 
-    /** A 2.0 story: whose it is, since when, and the milestones reached in it; never what comes next. */
-    private void renderStory(UICommandBuilder builder, JournalSources.Story story) {
-        builder.set("#DetailCategory.Text", "STORY");
-        builder.set("#DetailState.Text", "IN PROGRESS");
-        builder.set("#DetailWhen.Text", "Since " + JournalModel.date(story.since(), "").strip());
-        builder.set("#SelectedQuestName.Text", story.name());
-        builder.set("#SelectedStep.Text", story.party() ? "Shared with your party" : "Your own story");
-        builder.set("#CurrentObjectiveCard.Visible", false);
-        builder.set("#SelectedQuestDescription.Text", story.milestones().isEmpty()
-                ? "A story you are part of. Milestones you reach in it are recorded here."
-                : "A story you are part of. The milestones you have reached so far:");
-        builder.set("#ObjectiveHeading.Text", "MILESTONES");
-        builder.set("#ObjectiveSummary.Text", story.milestones().size() + " reached");
-        int row = 0;
-        for (JournalSources.Milestone milestone : story.milestones()) {
-            builder.appendInline("#ObjectiveList", milestoneRow("MilestoneRow" + row++, milestone));
+    // --- Settings (Redesign Bible §7.4) ---
+
+    private void renderSettings(UICommandBuilder commands, UIEventBuilder events) {
+        JournalSources.Settings settings = sources.settings(playerId);
+        option(commands, events, "#DensityAuto", settings.tracker() == QuestHudCoordinator.Preference.AUTOMATIC, "tracker", "AUTOMATIC");
+        option(commands, events, "#DensityExpanded", settings.tracker() == QuestHudCoordinator.Preference.EXPANDED, "tracker", "EXPANDED");
+        option(commands, events, "#DensityCompact", settings.tracker() == QuestHudCoordinator.Preference.COMPACT, "tracker", "COMPACT");
+        option(commands, events, "#DensityHidden", settings.tracker() == QuestHudCoordinator.Preference.HIDDEN, "tracker", "HIDDEN");
+        option(commands, events, "#SubtitlesOn", settings.subtitles(), "subtitles", "on");
+        option(commands, events, "#SubtitlesOff", !settings.subtitles(), "subtitles", "off");
+        commands.set("#VoiceLabel.Text", settings.voiceLocale() == null
+                ? "Voice lines play in your game language."
+                : "Voice lines play in " + settings.voiceLocale() + " when recorded in it.");
+        option(commands, events, "#VoiceAuto", settings.voiceLocale() == null, "voice", "auto");
+
+        commands.set("#PopupRow.Visible", settings.popupsAvailable());
+        commands.set("#MotionHint.Text", settings.popupsAvailable()
+                ? "Quest pop-ups are the only motion quests add to your screen. Turn them off for reduced motion; the tracker still updates."
+                : "This server does not show quest pop-ups, so quests add no motion to your screen.");
+        if (settings.popupsAvailable()) {
+            option(commands, events, "#PopupsOn", settings.popups(), "popups", "on");
+            option(commands, events, "#PopupsOff", !settings.popups(), "popups", "off");
         }
-        builder.set("#RewardsRow.Visible", false);
-        appendTimeline(builder, List.of("Began on " + JournalModel.date(story.since(), "").strip()));
-        builder.set("#QuestActions.Visible", false);
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#RestoreDefaults", EventData.of("Action", "defaults"));
     }
+
+    private static void option(UICommandBuilder commands, UIEventBuilder events, String selector, boolean selected,
+                               String setting, String value) {
+        commands.set(selector + ".Style", selected ? UiStyles.BUTTON_SELECTED : UiStyles.BUTTON_SECONDARY);
+        events.addEventBinding(CustomUIEventBindingType.Activating, selector,
+                new EventData().append("Action", "setting").append("Setting", setting).append("Value", value));
+    }
+
+    // --- Helpers ---
 
     private static Optional<ObjectiveView> nextObjective(JournalEntry entry) {
         StageView stage = entry.currentStage();
@@ -285,306 +489,16 @@ public final class MysticQuestJournalPage extends InteractiveCustomUIPage<Mystic
         return objectives.stream().filter(objective -> !objective.complete()).findFirst();
     }
 
-    private void appendTimeline(UICommandBuilder builder, List<String> timeline) {
-        builder.set("#TimelineSection.Visible", !timeline.isEmpty());
-        int row = 0;
-        for (String event : timeline) {
-            builder.appendInline("#TimelineList", """
-                    Label #TimelineRow%d {
-                      Text: "%s";
-                      Style: (FontSize: 12, TextColor: %s);
-                      Anchor: (Bottom: 2);
-                    }
-                    """.formatted(row++, uiText(event), MysticQuestsTheme.TEXT_SECONDARY));
-        }
+    private static String stepLine(StageView stage) {
+        return sentenceCase(stage.stepLabel()) + "  -  " + stage.displayName();
     }
 
-    // --- Settings (Redesign Bible §7.4) ---
-
-    private void appendSettings(UICommandBuilder builder, UIEventBuilder eventBuilder) {
-        JournalSources.Settings settings = sources.settings(playerId);
-        int index = 0;
-        appendSetting(builder, eventBuilder, index++, "Quest tracker", "How much of your tracked quest stays on screen.",
-                "tracker", List.of(
-                        new Option("AUTOMATIC", "Auto", settings.tracker() == QuestHudCoordinator.Preference.AUTOMATIC),
-                        new Option("COMPACT", "Compact", settings.tracker() == QuestHudCoordinator.Preference.COMPACT),
-                        new Option("EXPANDED", "Expanded", settings.tracker() == QuestHudCoordinator.Preference.EXPANDED),
-                        new Option("HIDDEN", "Hidden", settings.tracker() == QuestHudCoordinator.Preference.HIDDEN)));
-        appendSetting(builder, eventBuilder, index++, "Story subtitles", "Subtitles for voiced story lines.",
-                "subtitles", List.of(
-                        new Option("on", "On", settings.subtitles()),
-                        new Option("off", "Off", !settings.subtitles())));
-        appendSetting(builder, eventBuilder, index++, "Voice language", settings.voiceLocale() == null
-                        ? "Voice lines play in your game language. Pick another with /mquest audio voice <language>."
-                        : "Voice lines play in " + settings.voiceLocale() + " when recorded in it.",
-                "voice", List.of(new Option("auto", "Game language", settings.voiceLocale() == null)));
-        if (settings.popupsAvailable()) {
-            appendSetting(builder, eventBuilder, index, "Quest pop-ups", "Short cards when a quest is accepted, moves on or is completed.",
-                    "popups", List.of(
-                            new Option("on", "On", settings.popups()),
-                            new Option("off", "Off", !settings.popups())));
-        }
-    }
-
-    private record Option(String value, String label, boolean selected) {
-    }
-
-    private void appendSetting(UICommandBuilder builder, UIEventBuilder eventBuilder, int index, String name, String description,
-                               String key, List<Option> options) {
-        StringBuilder buttons = new StringBuilder();
-        for (int option = 0; option < options.size(); option++) {
-            Option choice = options.get(option);
-            buttons.append("""
-                      Button #Setting%dOption%d {
-                        Anchor: (Width: 144, Height: 32, Right: 6);
-                        LayoutMode: Left;
-                        Padding: (Horizontal: 12);
-                        Style: %s;
-
-                        Label #Setting%dOption%dLabel {
-                          Text: "%s";
-                          Style: (FontSize: 13, RenderBold: true, TextColor: %s, VerticalAlignment: Center);
-                        }
-                      }
-                    """.formatted(index, option, MysticQuestsTheme.cardButtonStyle(choice.selected()), index, option,
-                    uiText(choice.label()), choice.selected() ? MysticQuestsTheme.ACCENT_GOLD : MysticQuestsTheme.TEXT_SECONDARY));
-        }
-        builder.appendInline("#SettingsList", """
-                Group #Setting%d {
-                  LayoutMode: Top;
-                  Anchor: (Bottom: 16);
-
-                  Label #Setting%dName {
-                    Text: "%s";
-                    Style: (FontSize: 15, RenderBold: true, TextColor: %s);
-                    Anchor: (Bottom: 2);
-                  }
-
-                  Label #Setting%dDescription {
-                    Text: "%s";
-                    Style: (FontSize: 12, TextColor: %s, Wrap: true);
-                    Anchor: (Bottom: 6);
-                  }
-
-                  Group #Setting%dOptions {
-                    LayoutMode: Left;
-                    Anchor: (Height: 32);
-                %s
-                  }
-                }
-                """.formatted(index, index, uiText(name), MysticQuestsTheme.TEXT_PRIMARY, index, uiText(description),
-                MysticQuestsTheme.TEXT_MUTED, index, buttons));
-        for (int option = 0; option < options.size(); option++) {
-            eventBuilder.addEventBinding(CustomUIEventBindingType.Activating, "#Setting" + index + "Option" + option,
-                    EventData.of("Setting", key).append("Value", options.get(option).value()));
-        }
-    }
-
-    // --- Rows ---
-
-    private String sectionHeader(String headerId, String title, int count) {
-        return """
-                Group #%s {
-                  Anchor: (Height: 24, Top: 6);
-                  LayoutMode: Left;
-                  Padding: (Horizontal: 8);
-
-                  Label #%sTitle {
-                    Text: "%s";
-                    Style: (FontSize: 10, RenderBold: true, LetterSpacing: 1, TextColor: %s);
-                    FlexWeight: 1;
-                  }
-
-                  Label #%sCount {
-                    Text: "%d";
-                    Style: (FontSize: 10, RenderBold: true, TextColor: %s);
-                  }
-                }
-                """.formatted(headerId, headerId, uiText(title), MysticQuestsTheme.TEXT_MUTED, headerId, count, MysticQuestsTheme.TEXT_MUTED);
-    }
-
-    private String railRow(String rowId, boolean selected, JournalModel.Item item) {
-        String accent = switch (item.state()) {
-            case TRACKED -> MysticQuestsTheme.ACCENT_GOLD;
-            case STORY -> MysticQuestsTheme.NARRATIVE_PURPLE;
-            case COMPLETE -> MysticQuestsTheme.ACCENT_GREEN;
-            case ABANDONED -> MysticQuestsTheme.TEXT_MUTED;
-            default -> selected ? MysticQuestsTheme.ACCENT_GOLD : MysticQuestsTheme.TRANSPARENT;
-        };
-        String titleColor = selected ? MysticQuestsTheme.ACCENT_GOLD
-                : item.state() == JournalModel.State.ABANDONED ? MysticQuestsTheme.TEXT_MUTED : MysticQuestsTheme.TEXT_PRIMARY;
-        return """
-                Button #%s {
-                  Anchor: (Height: 52, Bottom: 2);
-                  LayoutMode: Left;
-                  Style: %s;
-
-                  Group {
-                    Anchor: (Width: 4);
-                    Background: %s;
-                  }
-
-                  Group {
-                    FlexWeight: 1;
-                    LayoutMode: Top;
-                    Padding: (Left: 12, Right: 10, Top: 6);
-
-                    Label #%sTitle {
-                      Text: "%s";
-                      Style: (FontSize: 14, RenderBold: true, TextColor: %s, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 11);
-                      Anchor: (Bottom: 3);
-                    }
-
-                    Label #%sSubtitle {
-                      Text: "%s";
-                      Style: (FontSize: 11, TextColor: %s);
-                    }
-                  }
-                }
-                """.formatted(rowId, MysticQuestsTheme.rowButtonStyle(selected), accent, rowId, uiText(item.title()), titleColor,
-                rowId, uiText(item.subtitle()), MysticQuestsTheme.TEXT_MUTED);
-    }
-
-    /**
-     * Objectives under their step headings, or as one flat list when the quest declares no steps.
-     * Row ids stay unique across the whole list, not per step, because the page appends them all
-     * into one container.
-     */
-    private void appendObjectiveRows(UICommandBuilder builder, JournalEntry entry) {
-        int row = 0;
-        for (StageView stage : entry.stages()) {
-            if (entry.grouped()) {
-                builder.appendInline("#ObjectiveList", stageHeader("ObjectiveStage" + stage.index(), stage));
-            }
-            for (ObjectiveView objective : stage.objectives()) {
-                builder.appendInline("#ObjectiveList", objectiveRow("ObjectiveRow" + row, objective));
-                row++;
-            }
-        }
-    }
-
-    private String stageHeader(String headerId, StageView stage) {
-        boolean complete = stage.complete();
-        String accent = complete ? MysticQuestsTheme.ACCENT_GREEN : MysticQuestsTheme.ACCENT_GOLD;
-        return """
-                Group #%s {
-                  Anchor: (Height: 26, Top: 6, Bottom: 4);
-                  LayoutMode: Left;
-                  Padding: (Horizontal: 4);
-
-                  Group {
-                    Anchor: (Width: 3, Right: 8);
-                    Background: %s;
-                  }
-
-                  Label #%sStep {
-                    Text: "%s";
-                    Style: (FontSize: 9, RenderBold: true, LetterSpacing: 1, TextColor: %s);
-                    Anchor: (Width: 74, Right: 6);
-                  }
-
-                  Label #%sName {
-                    Text: "%s";
-                    Style: (FontSize: 13, RenderBold: true, TextColor: %s, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 10);
-                    FlexWeight: 1;
-                  }
-
-                  Label #%sProgress {
-                    Text: "%s";
-                    Style: (FontSize: 11, RenderBold: true, TextColor: %s);
-                    Anchor: (Width: 46, Left: 8);
-                  }
-                }
-                """.formatted(
-                headerId, accent, headerId, uiText(stage.stepLabel()), accent, headerId, uiText(stage.displayName()),
-                MysticQuestsTheme.TEXT_PRIMARY, headerId, uiText(stage.progressLabel()), accent);
-    }
-
-    private String objectiveRow(String rowId, ObjectiveView objective) {
-        boolean complete = objective.complete();
-        String textColor = complete ? MysticQuestsTheme.ACCENT_GREEN : MysticQuestsTheme.TEXT_SECONDARY;
-        String progressColor = complete ? MysticQuestsTheme.ACCENT_GREEN : MysticQuestsTheme.ACCENT_ORANGE;
-        String state = complete ? "DONE" : "ACTIVE";
-        return """
-                Group #%s {
-                  Anchor: (Height: 32, Bottom: 4);
-                  LayoutMode: Left;
-                  Background: %s;
-                  Padding: (Horizontal: 8);
-
-                  AssetImage #%sIcon {
-                    AssetPath: "%s";
-                    Anchor: (Width: 22, Height: 22, Right: 7);
-                  }
-
-                  Label #%sState {
-                    Text: "%s";
-                    Style: (FontSize: 9, RenderBold: true, TextColor: %s);
-                    Anchor: (Width: 42, Right: 6);
-                  }
-
-                  Label #%sName {
-                    Text: "%s";
-                    Style: (FontSize: 13, TextColor: %s, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 10);
-                    FlexWeight: 1;
-                  }
-
-                  Label #%sProgress {
-                    Text: "%s";
-                    Style: (FontSize: 11, RenderBold: true, TextColor: %s);
-                    Anchor: (Width: 46, Left: 8);
-                  }
-                }
-                """.formatted(
-                rowId,
-                complete ? MysticQuestsTheme.PANEL_RAISED : MysticQuestsTheme.PANEL_SOFT,
-                rowId,
-                complete
-                        ? "UI/Custom/mysticquests/Assets/Icons/status/quest_complete_32.png"
-                        : "UI/Custom/mysticquests/Assets/Icons/navigation/tracker_32.png",
-                rowId, state, textColor,
-                rowId, uiText(objective.displayName()), textColor,
-                rowId, uiText(objective.progressLabel()), progressColor);
-    }
-
-    private String milestoneRow(String rowId, JournalSources.Milestone milestone) {
-        return """
-                Group #%s {
-                  Anchor: (Height: 32, Bottom: 4);
-                  LayoutMode: Left;
-                  Background: %s;
-                  Padding: (Horizontal: 8);
-
-                  Group {
-                    Anchor: (Width: 3, Right: 10);
-                    Background: %s;
-                  }
-
-                  Label #%sText {
-                    Text: "%s";
-                    Style: (FontSize: 13, TextColor: %s, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 10);
-                    FlexWeight: 1;
-                  }
-
-                  Label #%sWhen {
-                    Text: "%s";
-                    Style: (FontSize: 11, TextColor: %s);
-                    Anchor: (Width: 92, Left: 8);
-                  }
-                }
-                """.formatted(rowId, MysticQuestsTheme.PANEL_SOFT, MysticQuestsTheme.NARRATIVE_PURPLE, rowId,
-                uiText(milestone.text()), MysticQuestsTheme.TEXT_PRIMARY, rowId,
-                uiText(JournalModel.date(milestone.reached(), "").strip()), MysticQuestsTheme.TEXT_MUTED);
-    }
-
-    private static String uiText(String text) {
-        if (text == null) {
+    private static String sentenceCase(String text) {
+        if (text == null || text.isEmpty()) {
             return "";
         }
-        return text.replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("\r", " ")
-                .replace("\n", " ");
+        String lower = text.toLowerCase(java.util.Locale.ROOT);
+        return Character.toUpperCase(lower.charAt(0)) + lower.substring(1);
     }
 
     private static JournalModel.Kind parseKind(String raw) {
@@ -596,11 +510,19 @@ public final class MysticQuestJournalPage extends InteractiveCustomUIPage<Mystic
     }
 
     public static final class PageEventData {
+        private String action;
         private String kind;
         private String id;
-        private String action;
         private String setting;
         private String value;
+
+        public String action() {
+            return action == null ? "" : action;
+        }
+
+        public void setAction(String action) {
+            this.action = action;
+        }
 
         public String kind() {
             return kind == null ? "" : kind;
@@ -616,14 +538,6 @@ public final class MysticQuestJournalPage extends InteractiveCustomUIPage<Mystic
 
         public void setId(String id) {
             this.id = id;
-        }
-
-        public String action() {
-            return action == null ? "" : action;
-        }
-
-        public void setAction(String action) {
-            this.action = action;
         }
 
         public String setting() {

@@ -1,0 +1,136 @@
+$MQ = "../Theme.ui";
+
+// Two quest board cards side by side (Redesign Bible §7.3). Each card is a frame Button that binds
+// nothing, drawn first, with the card's contents laid over it; the frame's Style carries the
+// category colour and is swapped by reference. A row with one card hides #RightCard.
+//
+// Appended to #CardRows, addressed #CardRows[i] #LeftTitle and so on. Labels written as TextSpans
+// carry no Text here.
+
+Group #CardRow {
+  LayoutMode: Left;
+  Anchor: (Height: 206, Bottom: 14);
+
+  Group #LeftCard {
+    FlexWeight: 1;
+    Anchor: (Right: 14);
+
+    Button #LeftFrame {
+      Anchor: (Full: 0);
+      Style: $MQ.@BoardFrameNeutral;
+    }
+
+    Group #LeftBody {
+      Anchor: (Full: 0);
+      LayoutMode: Top;
+      Padding: (Horizontal: 20, Top: 18, Bottom: 16);
+
+      TextButton #LeftBadge {
+        Anchor: (Width: 120, Height: 24, Bottom: 10);
+        Style: $MQ.@BadgePurple;
+      }
+
+      Label #LeftTitle {
+        Anchor: (Height: 28);
+        Style: (FontSize: 21, RenderBold: true, TextColor: #F2F4F8, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 14);
+      }
+
+      Label #LeftMeta {
+        Anchor: (Height: 20, Bottom: 6);
+        Style: (FontSize: 14, TextColor: #9AA4B7, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 11);
+      }
+
+      Label #LeftDescription {
+        Anchor: (Height: 20, Bottom: 10);
+        Style: (FontSize: 14, TextColor: #C9CFDA, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 11);
+      }
+
+      Group #LeftFooter {
+        LayoutMode: Left;
+        FlexWeight: 1;
+
+        Group #LeftFacts {
+          FlexWeight: 1;
+          LayoutMode: Top;
+
+          Label #LeftFactOne {
+            Anchor: (Height: 22);
+            Style: (FontSize: 14, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 11);
+          }
+
+          Label #LeftFactTwo {
+            Anchor: (Height: 22);
+            Style: (FontSize: 14, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 11);
+          }
+        }
+
+        TextButton #LeftAccept {
+          Text: "Accept";
+          Anchor: (Width: 150, Height: 40, Top: 6);
+          Style: $MQ.@PrimaryButtonStyle;
+        }
+      }
+    }
+  }
+
+  Group #RightCard {
+    FlexWeight: 1;
+
+    Button #RightFrame {
+      Anchor: (Full: 0);
+      Style: $MQ.@BoardFrameNeutral;
+    }
+
+    Group #RightBody {
+      Anchor: (Full: 0);
+      LayoutMode: Top;
+      Padding: (Horizontal: 20, Top: 18, Bottom: 16);
+
+      TextButton #RightBadge {
+        Anchor: (Width: 120, Height: 24, Bottom: 10);
+        Style: $MQ.@BadgePurple;
+      }
+
+      Label #RightTitle {
+        Anchor: (Height: 28);
+        Style: (FontSize: 21, RenderBold: true, TextColor: #F2F4F8, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 14);
+      }
+
+      Label #RightMeta {
+        Anchor: (Height: 20, Bottom: 6);
+        Style: (FontSize: 14, TextColor: #9AA4B7, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 11);
+      }
+
+      Label #RightDescription {
+        Anchor: (Height: 20, Bottom: 10);
+        Style: (FontSize: 14, TextColor: #C9CFDA, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 11);
+      }
+
+      Group #RightFooter {
+        LayoutMode: Left;
+        FlexWeight: 1;
+
+        Group #RightFacts {
+          FlexWeight: 1;
+          LayoutMode: Top;
+
+          Label #RightFactOne {
+            Anchor: (Height: 22);
+            Style: (FontSize: 14, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 11);
+          }
+
+          Label #RightFactTwo {
+            Anchor: (Height: 22);
+            Style: (FontSize: 14, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 11);
+          }
+        }
+
+        TextButton #RightAccept {
+          Text: "Accept";
+          Anchor: (Width: 150, Height: 40, Top: 6);
+          Style: $MQ.@PrimaryButtonStyle;
+        }
+      }
+    }
+  }
+}

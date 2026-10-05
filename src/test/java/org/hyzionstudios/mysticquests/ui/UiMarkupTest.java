@@ -61,23 +61,25 @@ final class UiMarkupTest {
     @Test
     void everyAppendedDocumentExists() throws IOException {
         Path customRoot = UI_ROOT.resolve("Custom");
-        Pattern append = Pattern.compile("\\.append\\(\"([^\"]+\\.ui)\"\\)");
+        // Pages name their documents in constants (DOCUMENT, RAIL_ROW, ...) and append those, so
+        // every document path written in the UI sources is checked, not only literal append calls.
+        Pattern document = Pattern.compile("\"((?:mysticquests|Hud)/[^\"]+\\.ui)\"");
         List<String> offenders = new ArrayList<>();
         int checked = 0;
         try (Stream<Path> java = Files.walk(JAVA_ROOT)) {
             for (Path file : java.filter(path -> path.toString().endsWith(".java")).toList()) {
-                Matcher matcher = append.matcher(Files.readString(file));
+                Matcher matcher = document.matcher(Files.readString(file));
                 while (matcher.find()) {
                     checked++;
                     String appended = matcher.group(1);
                     if (!Files.isRegularFile(customRoot.resolve(appended))) {
-                        offenders.add(file + " → append(\"" + appended + "\") has no file at "
+                        offenders.add(file + " → \"" + appended + "\" has no file at "
                                 + customRoot.resolve(appended));
                     }
                 }
             }
         }
-        assertTrue(checked > 0, "Expected to find append() calls to verify");
+        assertTrue(checked > 10, "Expected to find the pages' document paths to verify");
         assertTrue(offenders.isEmpty(), "Appended UI documents that do not exist:\n - "
                 + String.join("\n - ", offenders));
     }
@@ -241,7 +243,7 @@ final class UiMarkupTest {
         List<String> duplicates = new ArrayList<>();
         for (Path file : uiDocuments()) {
             Map<String, Integer> counts = new HashMap<>();
-            Matcher matcher = id.matcher(Files.readString(file));
+            Matcher matcher = id.matcher(withoutComments(Files.readString(file)));
             while (matcher.find()) {
                 String candidate = matcher.group(1);
                 if (candidate.matches("(?i)[0-9a-f]{3,8}")) {
@@ -260,7 +262,8 @@ final class UiMarkupTest {
 
     @Test
     void textureAndAssetPathsUseTheirSeparateConventions() throws IOException {
-        Pattern texture = Pattern.compile("(?:TexturePath|BarTexturePath):\\s*\\\"(Assets/[^\\\"]+\\.png)\\\"");
+        Pattern texture = Pattern.compile(
+                "(?:TexturePath|BarTexturePath|Background):\\s*\\\"((?:\\.\\./)*(?:mysticquests/)?Assets/[^\\\"]+\\.png)\\\"");
         Pattern asset = Pattern.compile("\\\"(UI/Custom/mysticquests/Assets/[^\\\"]+\\.png)\\\"");
         List<String> missing = new ArrayList<>();
         int textureCount = 0;
@@ -287,8 +290,8 @@ final class UiMarkupTest {
                 }
             }
         }
-        assertTrue(textureCount >= 8, "Expected painted document-relative textures");
-        assertTrue(assetCount >= 10, "Expected asset-root-relative icons");
+        assertTrue(textureCount >= 40, "Expected painted document-relative textures");
+        assertTrue(assetCount >= 5, "Expected asset-root-relative icons");
         assertTrue(missing.isEmpty(), "Missing referenced assets:\n - " + String.join("\n - ", missing));
     }
 
@@ -441,19 +444,22 @@ final class UiMarkupTest {
     }
 
     /**
-     * A quest can carry a dozen objectives; the journal's objective list has to scroll inside its
-     * panel instead of running underneath the Track and Abandon buttons.
+     * A quest can carry a dozen objectives and a long recap; the Journal's detail has to scroll
+     * inside its panel instead of running underneath the Track and Abandon buttons, which stay put.
      */
     @Test
-    void journalObjectiveListScrolls() throws IOException {
+    void journalDetailScrollsAboveFixedActions() throws IOException {
         String journal = Files.readString(UI_ROOT.resolve("Custom/mysticquests/Pages/JournalPage.ui"));
-        Matcher list = Pattern.compile("(?s)Group\\s+#ObjectiveList\\s*\\{(.*?)\\}").matcher(journal);
-        assertTrue(list.find(), "Missing #ObjectiveList container");
-        String body = list.group(1);
-        assertTrue(body.contains("LayoutMode: TopScrolling"), "#ObjectiveList must scroll");
-        assertTrue(body.contains("ScrollbarStyle:"), "#ObjectiveList must show a scrollbar");
+        Matcher scroll = Pattern.compile("(?s)Group\\s+#DetailScroll\\s*\\{(.*?)Group\\s+#ObjectiveBlock").matcher(journal);
+        assertTrue(scroll.find(), "Missing #DetailScroll container");
+        String body = scroll.group(1);
+        assertTrue(body.contains("LayoutMode: TopScrolling"), "#DetailScroll must scroll");
+        assertTrue(body.contains("ScrollbarStyle:"), "#DetailScroll must show a scrollbar");
         assertTrue(body.contains("FlexWeight: 1"),
-                "#ObjectiveList needs a bounded height to scroll within; it fills what the panel leaves");
+                "#DetailScroll needs a bounded height to scroll within; it fills what the panel leaves");
+        assertTrue(journal.indexOf("#ObjectiveList") > journal.indexOf("#DetailScroll")
+                        && journal.indexOf("#Actions") > journal.indexOf("#TimelineList"),
+                "Objectives scroll inside the detail; the action row sits below the scroll");
     }
 
     @Test
@@ -469,10 +475,9 @@ final class UiMarkupTest {
     void questBoardUsesOnePurposefulEmptyState() throws IOException {
         String ui = Files.readString(UI_ROOT.resolve("Custom/mysticquests/Pages/QuestMenuPage.ui"));
         String java = Files.readString(JAVA_ROOT.resolve("QuestMenuPage.java"));
-        assertTrue(ui.contains("#BoardEmptyState") && ui.contains("#QuestBoardContent")
-                        && ui.contains("#BoardEmptyBody"),
+        assertTrue(ui.contains("#BoardEmpty") && ui.contains("#CardRows") && ui.contains("#EmptyBody"),
                 "Quest board must declare separate empty and populated compositions");
-        assertTrue(java.contains("#BoardEmptyState.Visible") && java.contains("#QuestBoardContent.Visible"),
+        assertTrue(java.contains("#BoardEmpty.Visible") && java.contains("#CardRows.Visible"),
                 "Quest board runtime must swap the two compositions");
         assertFalse(java.contains("appendInline(\"#QuestCardList\", emptyState"),
                 "Empty state must not be duplicated as both a quest card and preview");
@@ -532,35 +537,206 @@ final class UiMarkupTest {
         }
     }
 
+    /**
+     * Theme.ui carries the Redesign Bible's palette (§4.1), and the server's copy in {@link UiText}
+     * — which colours TextSpans, since the server cannot read the client's stylesheet — matches it.
+     */
     @Test
-    void themePaletteMatchesPublishedPalette() throws IOException {
-        Map<String, String> names = Map.ofEntries(
-                Map.entry("background_deep", "BackgroundDeep"),
-                Map.entry("background_soft", "BackgroundSoft"),
-                Map.entry("panel", "Panel"),
-                Map.entry("panel_raised", "PanelRaised"),
-                Map.entry("brass", "BorderGold"),
-                Map.entry("ember_gold", "AccentGold"),
-                Map.entry("wayfinder", "AccentBlue"),
-                Map.entry("success", "AccentGreen"),
-                Map.entry("danger", "AccentRed"),
-                Map.entry("text_primary", "TextPrimary"),
-                Map.entry("text_secondary", "TextSecondary"),
-                Map.entry("text_muted", "TextMuted"),
-                Map.entry("focus_ring", "FocusRing"));
+    void themePaletteMatchesTheBibleAndTheServerCopy() throws IOException {
         String theme = Files.readString(UI_ROOT.resolve("Custom/mysticquests/Theme.ui"));
-        Map<String, String> csv = new HashMap<>();
-        for (String line : Files.readAllLines(PACK_ROOT.resolve("PALETTE.csv")).subList(1, PALETTE_ROWS())) {
-            String[] fields = line.split(",", 3);
-            csv.put(fields[0], fields[1]);
-        }
-        names.forEach((token, uiName) -> assertTrue(
-                theme.contains("@" + uiName + " = " + csv.get(token) + ";"),
-                "Theme.ui differs from PALETTE.csv for " + token));
+        Map<String, String> bible = Map.of(
+                "Void", "#0A0D13", "Raised", "#161B26", "Purple", "#7E5DD3", "Gold", "#CCAA58",
+                "Cyan", "#46C6C4", "Green", "#66D395", "Red", "#EF6969", "Muted", "#9AA4B7");
+        bible.forEach((token, colour) -> assertTrue(theme.contains("@" + token + " = " + colour + ";"),
+                "Theme.ui @" + token + " is not the Bible's " + colour));
+        Map<String, String> server = Map.of(
+                "Text", UiText.TEXT, "TextSoft", UiText.TEXT_SOFT, "Muted", UiText.MUTED, "Dim", UiText.DIM,
+                "Purple", UiText.PURPLE, "PurpleText", UiText.PURPLE_TEXT, "Gold", UiText.GOLD, "Cyan", UiText.CYAN,
+                "Green", UiText.GREEN, "Red", UiText.RED);
+        server.forEach((token, colour) -> assertTrue(theme.contains("@" + token + " = " + colour + ";"),
+                "UiText's copy of @" + token + " (" + colour + ") differs from Theme.ui"));
     }
 
-    private int PALETTE_ROWS() throws IOException {
-        return Files.readAllLines(PACK_ROOT.resolve("PALETTE.csv")).size();
+    /**
+     * A field's value reaches the server only when the binding's key starts with {@code @}: the
+     * client resolves {@code "@Name": "#Field.Value"} to the field's text and sends any other key's
+     * value as written. The in-game studio's forms sent the literal selector for every field — its
+     * player tools all answered "Unknown player" — until this rule was found.
+     */
+    @Test
+    void valueBindingsUseAtKeys() throws IOException {
+        Pattern literalValue = Pattern.compile("\\.append\\(\"([^\"]*)\",\\s*\"#[^\"]*\\.Value\"\\)");
+        List<String> offenders = new ArrayList<>();
+        for (Path source : javaSources()) {
+            Matcher matcher = literalValue.matcher(Files.readString(source));
+            while (matcher.find()) {
+                if (!matcher.group(1).startsWith("@")) {
+                    offenders.add(source + " -> \"" + matcher.group(1) + "\" reads a field without an @ key");
+                }
+            }
+        }
+        assertTrue(offenders.isEmpty(), "Field bindings that would send the selector, not the value:\n - "
+                + String.join("\n - ", offenders));
+    }
+
+    /**
+     * The client refuses most runtime property changes, and refuses them by disconnecting the player
+     * ("CustomUI is not allowed to change this property"). These are the properties the engine's own
+     * pages set, which MysticRPG confirmed in game; nothing else may be written after build.
+     */
+    @Test
+    void runtimeWritesUseOnlyPropertiesTheClientAllows() throws IOException {
+        Set<String> allowed = Set.of("Value", "Visible", "Text", "TextSpans", "Entries", "Disabled", "Style",
+                "TooltipText", "TooltipTextSpans", "Background", "ItemId", "AssetPath", "Color", "PlaceholderText");
+        Pattern write = Pattern.compile("\\.set(?:Object)?\\(([^;]*?)\"[^\"]*\\.([A-Za-z]+)\"\\s*,");
+        List<String> offenders = new ArrayList<>();
+        int writes = 0;
+        for (Path source : javaSources()) {
+            Matcher matcher = write.matcher(Files.readString(source));
+            while (matcher.find()) {
+                writes++;
+                if (!allowed.contains(matcher.group(2))) {
+                    offenders.add(source + " writes ." + matcher.group(2));
+                }
+            }
+        }
+        assertTrue(writes > 100, "Expected to find the pages' runtime writes, found " + writes);
+        assertTrue(offenders.isEmpty(), "Runtime writes the client refuses:\n - " + String.join("\n - ", offenders));
+    }
+
+    /** Every style a page swaps in by reference is defined in Theme.ui, under the name it asks for. */
+    @Test
+    void styleReferencesExistInTheTheme() throws IOException {
+        String theme = Files.readString(UI_ROOT.resolve("Custom/mysticquests/Theme.ui"));
+        String styles = withoutJavaComments(Files.readString(JAVA_ROOT.resolve("UiStyles.java")));
+        Matcher names = Pattern.compile("\"([A-Z][A-Za-z]+)\"").matcher(styles);
+        List<String> missing = new ArrayList<>();
+        int checked = 0;
+        while (names.find()) {
+            checked++;
+            if (!theme.matches("(?s).*\\n@" + names.group(1) + " = .*")) {
+                missing.add(names.group(1));
+            }
+        }
+        assertTrue(checked > 20, "Expected the style names in UiStyles");
+        assertTrue(missing.isEmpty(), "Styles referenced but not defined in Theme.ui: " + missing);
+    }
+
+    /**
+     * Every element id a page or HUD writes to or binds is declared in one of our documents. Setting
+     * a selector the client cannot find addresses nothing, and the page looks dead.
+     */
+    @Test
+    void everySelectorTheJavaUsesIsDeclared() throws IOException {
+        Set<String> declared = new HashSet<>();
+        Pattern declaration = Pattern.compile("#([A-Za-z][A-Za-z0-9]*)\\s*\\{");
+        for (Path document : uiDocuments()) {
+            Matcher matcher = declaration.matcher(withoutComments(Files.readString(document)));
+            while (matcher.find()) {
+                declared.add(matcher.group(1));
+            }
+        }
+        Pattern used = Pattern.compile("#([A-Za-z][A-Za-z0-9]*)");
+        Pattern literal = Pattern.compile("\"([^\"]*)\"");
+        List<String> missing = new ArrayList<>();
+        for (Path source : javaSources()) {
+            Matcher strings = literal.matcher(withoutJavaComments(Files.readString(source)));
+            while (strings.find()) {
+                Matcher ids = used.matcher(strings.group(1));
+                while (ids.find()) {
+                    String id = ids.group(1);
+                    if (id.matches("[0-9A-Fa-f]{6}|[0-9A-Fa-f]{3}|[0-9A-Fa-f]{8}")) {
+                        continue; // a colour, not an element
+                    }
+                    if (!declared.contains(id) && !missing.contains(source.getFileName() + " #" + id)) {
+                        missing.add(source.getFileName() + " #" + id);
+                    }
+                }
+            }
+        }
+        // Ids composed at runtime (#Objective1Id, #ExpandedRow0) are declared literally in the document.
+        missing.removeIf(entry -> entry.matches(".* #(Objective|ExpandedRow|Setting|Choice)[A-Za-z]*"));
+        assertTrue(missing.isEmpty(), "Selectors used by the Java but declared in no document:\n - "
+                + String.join("\n - ", missing));
+    }
+
+    /**
+     * A HUD is appended while a player joins, and a fault anywhere in its import graph disconnects
+     * them. The two HUD documents therefore import nothing of ours; they inline their colours.
+     */
+    @Test
+    void hudDocumentsImportNothingOfOurs() throws IOException {
+        for (String hud : List.of(HUD_DOCUMENT, PUZZLE_HUD_DOCUMENT)) {
+            String document = withoutComments(Files.readString(UI_ROOT.resolve(hud)));
+            assertFalse(document.contains("$"), hud + " must not import or reference another document");
+        }
+    }
+
+    /**
+     * Every {@code $MQ.@Name} a document uses is defined in Theme.ui. One unresolved reference in any
+     * shipped document — even one no page opens, since the client registers them all — can stop
+     * custom UI loading for every pack on the server.
+     */
+    @Test
+    void themeReferencesResolve() throws IOException {
+        String theme = Files.readString(UI_ROOT.resolve("Custom/mysticquests/Theme.ui"));
+        Set<String> defined = new HashSet<>();
+        Matcher definitions = Pattern.compile("(?m)^@([A-Za-z][A-Za-z0-9]*)\\s*=").matcher(theme);
+        while (definitions.find()) {
+            defined.add(definitions.group(1));
+        }
+        List<String> missing = new ArrayList<>();
+        for (Path document : uiDocuments()) {
+            Matcher references = Pattern.compile("\\$MQ\\.@([A-Za-z][A-Za-z0-9]*)").matcher(withoutComments(Files.readString(document)));
+            while (references.find()) {
+                if (!defined.contains(references.group(1))) {
+                    missing.add(document.getFileName() + " -> $MQ.@" + references.group(1));
+                }
+            }
+        }
+        assertTrue(missing.isEmpty(), "Theme references with no definition:\n - " + String.join("\n - ", missing));
+    }
+
+    /**
+     * A label the server colours through TextSpans declares no Text of its own: the two are one
+     * label's content in two forms, and setting both is undefined.
+     */
+    @Test
+    void spanLabelsDeclareNoText() throws IOException {
+        Set<String> spanIds = new HashSet<>();
+        Pattern spans = Pattern.compile("#([A-Za-z][A-Za-z0-9]*)\\.TextSpans\"");
+        for (Path source : javaSources()) {
+            Matcher matcher = spans.matcher(Files.readString(source));
+            while (matcher.find()) {
+                spanIds.add(matcher.group(1));
+            }
+        }
+        assertFalse(spanIds.isEmpty(), "Expected labels written as TextSpans");
+        List<String> offenders = new ArrayList<>();
+        for (Path document : uiDocuments()) {
+            String content = withoutComments(Files.readString(document));
+            for (String id : spanIds) {
+                Matcher label = Pattern.compile("Label\\s+#" + id + "\\s*\\{").matcher(content);
+                while (label.find()) {
+                    int end = matchingBrace(content, label.end());
+                    String own = stripNestedBlocks(content.substring(label.end(), end));
+                    if (own.matches("(?s).*\\bText\\s*:.*")) {
+                        offenders.add(document.getFileName() + " #" + id);
+                    }
+                }
+            }
+        }
+        assertTrue(offenders.isEmpty(), "Labels written as TextSpans that also declare Text:\n - "
+                + String.join("\n - ", offenders));
+    }
+
+    private static String withoutComments(String text) {
+        return text.replaceAll("//[^\\n]*", "");
+    }
+
+    /** Java source without its comments, so examples in Javadoc are not read as code. */
+    private static String withoutJavaComments(String source) {
+        return withoutComments(source.replaceAll("(?s)/\\*.*?\\*/", ""));
     }
 
     private boolean balanced(String text) {
@@ -606,6 +782,7 @@ final class UiMarkupTest {
             paths.filter(path -> path.toString().endsWith(".ui")).forEach(documents::add);
         }
         documents.add(UI_ROOT.resolve(HUD_DOCUMENT));
+        documents.add(UI_ROOT.resolve(PUZZLE_HUD_DOCUMENT));
         return documents;
     }
 

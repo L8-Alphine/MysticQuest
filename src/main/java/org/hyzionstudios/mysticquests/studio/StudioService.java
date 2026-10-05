@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.time.Duration;
 import java.time.Clock;
 import java.util.Map;
+import org.hyzionstudios.mysticquests.service.PlayerStateAdmin;
 import org.hyzionstudios.mysticquests.studio.StudioAuth.Session;
 import org.hyzionstudios.mysticquests.studio.StudioReleases.Release;
 import org.hyzionstudios.mysticquests.studio.StudioWorkspace.Change;
@@ -382,6 +383,90 @@ public final class StudioService {
     public Map<String, List<String>> livePlayer(Session session, UUID player) throws StudioException {
         observe(session);
         return live.player(player);
+    }
+
+    // --- Players (Redesign Bible §9.1) ---
+
+    /** A player's quest and story state. Reading needs live access, like the Live Sessions page. */
+    public PlayerStateAdmin.Snapshot playerState(Session session, UUID player) throws StudioException {
+        observe(session);
+        return live.playerState(player).orElseThrow(() ->
+                new StudioException(StudioException.Status.NOT_FOUND, "No game server is attached to this Studio."));
+    }
+
+    /** Finds an online player by name, or any player by UUID. */
+    public Map<String, String> findPlayer(Session session, String query) throws StudioException {
+        require(session, StudioCapability.LIVE);
+        String wanted = query == null ? "" : query.trim();
+        if (wanted.isEmpty()) {
+            throw new StudioException(StudioException.Status.BAD_REQUEST, "Type a player name or UUID.");
+        }
+        UUID found = live.findPlayer(wanted).orElseThrow(() -> new StudioException(StudioException.Status.NOT_FOUND,
+                "No online player called " + wanted + ". Offline players are found by UUID."));
+        return Map.of("player", found.toString());
+    }
+
+    /**
+     * Changes a player's state (§9.1: explicit permission, a reason, and an audit entry). The change
+     * itself is made by {@link PlayerStateAdmin}, which checks it the way the game would and writes
+     * the gameplay audit; the Studio's own log records who asked for it from the browser.
+     */
+    public PlayerStateAdmin.Outcome changePlayer(Session session, UUID player, JsonNode body) throws StudioException {
+        require(session, StudioCapability.PLAYERS);
+        String action = body.path("action").asText("");
+        String reason = body.path("reason").asText("");
+        String actor = session.player().toString();
+        java.util.function.Function<PlayerStateAdmin, PlayerStateAdmin.Outcome> change = playerChange(body, action, reason, actor, player);
+        PlayerStateAdmin.Outcome outcome = live.changePlayer(player, change);
+        audit.record(session.actor(), "player " + action, player.toString(),
+                (outcome.ok() ? "" : "refused: ") + outcome.message() + (reason.isBlank() ? "" : " (" + reason + ")"));
+        return outcome;
+    }
+
+    private static java.util.function.Function<PlayerStateAdmin, PlayerStateAdmin.Outcome> playerChange(
+            JsonNode body, String action, String reason, String actor, UUID player) throws StudioException {
+        String quest = body.path("quest").asText("");
+        String id = body.path("id").asText("");
+        String owner = body.path("owner").asText("");
+        String value = body.path("value").asText("");
+        return switch (action) {
+            case "clear" -> {
+                java.util.Set<PlayerStateAdmin.Part> parts = java.util.EnumSet.noneOf(PlayerStateAdmin.Part.class);
+                for (JsonNode part : body.path("parts")) {
+                    PlayerStateAdmin.Part parsed = PlayerStateAdmin.Part.parse(part.asText());
+                    if (parsed == null) {
+                        throw new StudioException(StudioException.Status.BAD_REQUEST, "Unknown part: " + part.asText());
+                    }
+                    parts.add(parsed);
+                }
+                yield admin -> admin.clear(actor, player, parts, reason);
+            }
+            case "quest.start" -> admin -> admin.startQuest(actor, player, quest, reason);
+            case "quest.complete" -> admin -> admin.completeQuest(actor, player, quest, reason);
+            case "quest.abandon" -> admin -> admin.abandonQuest(actor, player, quest, reason);
+            case "quest.reset" -> admin -> admin.resetQuest(actor, player, quest, reason);
+            case "quest.allow" -> admin -> admin.allowAgain(actor, player, quest, reason);
+            case "quest.track" -> admin -> admin.trackQuest(actor, player, quest, reason);
+            case "quest.objective" -> {
+                if (!body.path("amount").canConvertToInt()) {
+                    throw new StudioException(StudioException.Status.BAD_REQUEST, "'amount' must be a whole number.");
+                }
+                int amount = body.path("amount").asInt();
+                String objective = body.path("objective").asText("");
+                yield admin -> admin.setObjective(actor, player, quest, objective, amount, reason);
+            }
+            case "tag.add" -> admin -> admin.addTag(actor, player, id, reason);
+            case "tag.remove" -> admin -> admin.removeTag(actor, player, id, reason);
+            case "variable.set" -> admin -> admin.setVariable(actor, player, id, value, reason);
+            case "variable.remove" -> admin -> admin.removeVariable(actor, player, id, reason);
+            case "story.variable.set" -> admin -> admin.setStoryVariable(actor, player, id, value, reason);
+            case "story.variable.remove" -> admin -> admin.removeStoryVariable(actor, player, owner, id, reason);
+            case "story.tag.add" -> admin -> admin.addStoryTag(actor, player, id, reason);
+            case "story.tag.remove" -> admin -> admin.removeStoryTag(actor, player, owner, id, reason);
+            case "story.restart" -> admin -> admin.restartStory(actor, player, id, reason);
+            case "story.rewind" -> admin -> admin.rewind(actor, player, id, reason);
+            default -> throw new StudioException(StudioException.Status.BAD_REQUEST, "Unknown player action: " + action);
+        };
     }
 
     /** People who read live state within the last {@link #OBSERVER_WINDOW}. */

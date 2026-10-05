@@ -1,0 +1,49 @@
+$MQ = "../Theme.ui";
+
+// One of a player's quests in the admin inspector: name and progress, a status badge, and up to
+// three actions that depend on the status. Unused actions stay hidden. Appended to #QuestRows.
+
+Group #QuestRow {
+  LayoutMode: Left;
+  Anchor: (Height: 58, Bottom: 6);
+  Background: $MQ.@CardBackground;
+  Padding: (Horizontal: 14, Vertical: 8);
+
+  Group #TextColumn {
+    FlexWeight: 1;
+    LayoutMode: Top;
+
+    Label #Name {
+      Anchor: (Height: 22);
+      Style: (FontSize: 15, RenderBold: true, TextColor: #F2F4F8, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 11);
+    }
+
+    Label #Sub {
+      Anchor: (Height: 18);
+      Style: (FontSize: 12, TextColor: #9AA4B7, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 9);
+    }
+  }
+
+  TextButton #Status {
+    Anchor: (Width: 104, Height: 24, Top: 9, Right: 10);
+    Style: $MQ.@BadgeNeutral;
+  }
+
+  TextButton #ActionA {
+    Anchor: (Width: 92, Height: 32, Top: 5, Left: 6);
+    Style: $MQ.@SmallSecondaryButtonStyle;
+    Visible: false;
+  }
+
+  TextButton #ActionB {
+    Anchor: (Width: 92, Height: 32, Top: 5, Left: 6);
+    Style: $MQ.@SmallSecondaryButtonStyle;
+    Visible: false;
+  }
+
+  TextButton #ActionC {
+    Anchor: (Width: 92, Height: 32, Top: 5, Left: 6);
+    Style: $MQ.@SmallDangerButtonStyle;
+    Visible: false;
+  }
+}

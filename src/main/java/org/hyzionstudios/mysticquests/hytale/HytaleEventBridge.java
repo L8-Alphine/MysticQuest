@@ -3,6 +3,7 @@ package org.hyzionstudios.mysticquests.hytale;
 import org.hyzionstudios.mysticquests.MysticQuestsRuntime;
 import org.hyzionstudios.mysticquests.integration.MysticGenerationBridge;
 import org.hyzionstudios.mysticquests.integration.MysticGenerationBridge.GenerationNpc;
+import org.hyzionstudios.mysticquests.integration.triggervolumes.VolumeNames;
 import org.hyzionstudios.mysticquests.service.QuestSignal;
 import org.hyzionstudios.mysticquests.service.QuestSignalBus;
 import org.hyzionstudios.mysticquests.service.ConversationService;
@@ -132,17 +133,19 @@ public final class HytaleEventBridge {
         if (entityUuid == null) {
             return;
         }
+        // The event carries the engine's generated id; content names the volume by its Name.
+        String volume = VolumeNames.label(event.getEntityRef().getStore(), event.getVolumeId());
         // Logical activation decides first. A volume disabled for this player's session, the player
         // or their party feeds neither puzzles nor triggerEnter/triggerExit objectives, while it keeps
         // working for everyone else in the same place.
         if (runtime.narrative() != null && !runtime.narrative().onTrigger(
-                event.getWorldName(), event.getVolumeId(), event.getTriggerEventType().name(), entityUuid)) {
+                event.getWorldName(), volume, event.getTriggerEventType().name(), entityUuid)) {
             return;
         }
         if (event.getTriggerEventType() == TriggerEventType.ENTER) {
-            signalBus.publish(QuestSignal.targeted(entityUuid, "triggerEnter", event.getVolumeId(), 1, triggerContext(event)));
+            signalBus.publish(QuestSignal.targeted(entityUuid, "triggerEnter", volume, 1, triggerContext(event, volume)));
         } else if (event.getTriggerEventType() == TriggerEventType.EXIT) {
-            signalBus.publish(QuestSignal.targeted(entityUuid, "triggerExit", event.getVolumeId(), 1, triggerContext(event)));
+            signalBus.publish(QuestSignal.targeted(entityUuid, "triggerExit", volume, 1, triggerContext(event, volume)));
         }
     }
 
@@ -213,9 +216,8 @@ public final class HytaleEventBridge {
         return playerRef == null || playerRef.getWorldUuid() == null ? "" : playerRef.getWorldUuid().toString();
     }
 
-    private QuestTargetContext triggerContext(TriggerVolumeEvent event) {
+    private QuestTargetContext triggerContext(TriggerVolumeEvent event, String volumeId) {
         String world = event.getWorldName() == null ? "" : event.getWorldName();
-        String volumeId = event.getVolumeId();
         String volumeKey = world.isBlank() ? volumeId : world + ":" + volumeId;
         String entityId = event.getEntityUuid() == null ? null : event.getEntityUuid().toString();
         return new QuestTargetContext(

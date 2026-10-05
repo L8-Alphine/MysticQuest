@@ -1,0 +1,27 @@
+$MQ = "../Theme.ui";
+
+// One quest in the Journal's list (Redesign Bible §7.1): title, context, and a status line that says
+// where the quest stands without revealing hidden branches. The selected card carries the purple
+// outline; the server swaps the Style by reference. Appended to #QuestList, addressed #QuestList[i].
+
+Button #QuestCard {
+  Anchor: (Height: 90, Bottom: 10);
+  LayoutMode: Top;
+  Padding: (Horizontal: 16, Top: 12, Bottom: 10);
+  Style: $MQ.@CardStyle;
+
+  Label #Title {
+    Anchor: (Height: 24, Bottom: 2);
+    Style: (FontSize: 17, RenderBold: true, TextColor: #F2F4F8, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 12);
+  }
+
+  Label #Context {
+    Anchor: (Height: 18, Bottom: 6);
+    Style: (FontSize: 13, TextColor: #9AA4B7, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 10);
+  }
+
+  Label #Status {
+    Anchor: (Height: 18);
+    Style: (FontSize: 13, RenderBold: true, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 10);
+  }
+}

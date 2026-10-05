@@ -6,6 +6,7 @@ import { dialogueView } from './dialogue.js';
 import { storyView } from './story.js';
 import { filesView } from './files.js';
 import { liveView } from './live.js';
+import { playersView } from './players.js';
 import { audioView } from './audio.js';
 import { worldView } from './world.js';
 import { collect } from './model.js';
@@ -23,6 +24,7 @@ const VIEWS = [
   { id: 'validate', label: 'Validate', render: validateView },
   { id: 'publish', label: 'Publish & history', render: publishView },
   { id: 'live', label: 'Live sessions', render: liveView },
+  { id: 'players', label: 'Players', render: playersView },
   { id: 'audit', label: 'Audit log', render: auditView },
 ];
 

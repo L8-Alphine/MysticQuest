@@ -14,7 +14,8 @@ import java.util.stream.Stream;
  * conversations without touching rewards, a builder with {@link #PUZZLES} and {@link #TRIGGERS}
  * manages puzzles and world presentation, and only {@link #PUBLISH} puts a release live.
  * {@link #EDIT} covers every content section; any capability that changes or publishes content
- * includes {@link #VIEW}; {@link #ADMIN} (or {@code mysticquests.admin}) covers everything.
+ * includes {@link #VIEW}; {@link #PLAYERS} includes {@link #LIVE}, since changing a player means
+ * seeing them first; {@link #ADMIN} (or {@code mysticquests.admin}) covers everything.
  */
 public enum StudioCapability {
     LOGIN,
@@ -25,6 +26,8 @@ public enum StudioCapability {
     PUZZLES,
     TRIGGERS,
     LIVE,
+    /** Change a player's quest and story state from the Players page; reading it needs {@link #LIVE}. */
+    PLAYERS,
     PUBLISH,
     ADMIN;
 
@@ -46,6 +49,7 @@ public enum StudioCapability {
         }
         return switch (this) {
             case DIALOGUE, AUDIO, PUZZLES, TRIGGERS -> permissions.has(player, EDIT.permission());
+            case LIVE -> permissions.has(player, PLAYERS.permission());
             // Anyone who may change or publish content may also read it.
             case VIEW -> Stream.of(EDIT, DIALOGUE, AUDIO, PUZZLES, TRIGGERS, LIVE, PUBLISH)
                     .anyMatch(capability -> permissions.has(player, capability.permission()));

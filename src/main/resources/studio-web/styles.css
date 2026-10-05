@@ -17,20 +17,21 @@
   color-scheme: light;
 }
 
+/* Dark mode uses the Redesign Bible's palette (§4.1), the same one the in-game pages use. */
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #14121c;
-    --panel: #1c1928;
-    --panel-2: #242034;
-    --line: #34304a;
-    --text: #ece9f6;
-    --muted: #9c97b3;
-    --accent: #9b7bff;
-    --accent-text: #14121c;
-    --good: #4fd19a;
-    --warn: #f0b04a;
-    --bad: #ff7088;
-    --code: #181524;
+    --bg: #0A0D13;
+    --panel: #161B26;
+    --panel-2: #1B2130;
+    --line: #2B3344;
+    --text: #F2F4F8;
+    --muted: #9AA4B7;
+    --accent: #7E5DD3;
+    --accent-text: #ffffff;
+    --good: #66D395;
+    --warn: #CCAA58;
+    --bad: #EF6969;
+    --code: #0E121B;
     color-scheme: dark;
   }
 }
@@ -145,3 +146,14 @@ tr.clickable:hover td { background: var(--panel-2); }
 .graph .g-grid { stroke: var(--line); }
 .graph .g-tick { fill: var(--muted); font: 10px var(--sans); }
 .graph .g-node rect[width="8"] { fill: var(--accent); stroke: none; }
+
+/* Players */
+td.actions { white-space: nowrap; text-align: right; }
+td.actions .btn + .btn { margin-left: 4px; }
+.danger-zone { border: 1px solid var(--bad); border-radius: var(--radius); padding: 12px; }
+.danger-zone h3 { color: var(--bad); }
+label.check { display: flex; gap: 8px; align-items: baseline; cursor: pointer; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); font-family: var(--mono); font-size: 12.5px; }
+.chip-x { background: none; border: 0; cursor: pointer; color: var(--muted); padding: 0 6px; font-size: 14px; line-height: 1; }
+.chip-x:hover { color: var(--bad); }

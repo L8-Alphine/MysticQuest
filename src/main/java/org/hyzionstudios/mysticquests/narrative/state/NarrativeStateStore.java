@@ -193,4 +193,31 @@ public final class NarrativeStateStore implements StateHost {
     public Set<ScopeOwner> loadedOwners() {
         return Set.copyOf(owners.keySet());
     }
+
+    /**
+     * Every owner whose state belongs to one player alone: their player scope, each of their
+     * per-quest scopes and their temporary scope, whether loaded or only stored. Party, session and
+     * wider scopes are shared with others and are not included. For admin tooling; it reads the
+     * store's index, so it is not for hot paths.
+     *
+     * @throws IOException when the stored index cannot be listed
+     */
+    public List<ScopeOwner> playerOwners(java.util.UUID player) throws IOException {
+        Set<ScopeOwner> found = new java.util.LinkedHashSet<>();
+        found.add(ScopeOwner.player(player));
+        String questPrefix = player + "|";
+        for (ScopeOwner owner : owners.keySet()) {
+            if (owner.scope() == VariableScope.QUEST && owner.ownerId().startsWith(questPrefix)
+                    || owner.scope() == VariableScope.TEMPORARY && owner.ownerId().equals(player.toString())) {
+                found.add(owner);
+            }
+        }
+        String storedQuestPrefix = VariableScope.QUEST.id() + "/" + questPrefix;
+        for (String key : documents.list(COLLECTION)) {
+            if (key.startsWith(storedQuestPrefix)) {
+                found.add(new ScopeOwner(VariableScope.QUEST, key.substring(VariableScope.QUEST.id().length() + 1)));
+            }
+        }
+        return List.copyOf(found);
+    }
 }

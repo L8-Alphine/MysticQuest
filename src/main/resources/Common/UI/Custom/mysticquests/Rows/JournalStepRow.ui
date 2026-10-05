@@ -1,0 +1,22 @@
+// A step heading above its objectives: STEP 2 OF 4, the step's name, and how many of its objectives
+// are done. Appended to #ObjectiveList before the step's rows.
+
+Group #StepRow {
+  LayoutMode: Left;
+  Anchor: (Height: 28, Top: 6, Bottom: 2);
+
+  Label #Step {
+    Anchor: (Width: 110);
+    Style: (FontSize: 11, RenderBold: true, RenderUppercase: true, LetterSpacing: 1, VerticalAlignment: Center);
+  }
+
+  Label #Name {
+    FlexWeight: 1;
+    Style: (FontSize: 15, RenderBold: true, TextColor: #F2F4F8, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 11);
+  }
+
+  Label #Progress {
+    Anchor: (Width: 90);
+    Style: (FontSize: 13, RenderBold: true, HorizontalAlignment: End, VerticalAlignment: Center);
+  }
+}

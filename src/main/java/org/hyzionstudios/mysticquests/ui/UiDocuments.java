@@ -12,7 +12,7 @@ public final class UiDocuments {
     public static final String JOURNAL = "mysticquests/Pages/JournalPage.ui";
     public static final String QUEST_MENU = "mysticquests/Pages/QuestMenuPage.ui";
     public static final String CONVERSATION = "mysticquests/Pages/ConversationPage.ui";
-    public static final String QUEST_STUDIO = "mysticquests/Pages/QuestStudioPage.ui";
+    public static final String QUEST_ADMIN = "mysticquests/Pages/QuestAdminPage.ui";
 
     private UiDocuments() {
     }

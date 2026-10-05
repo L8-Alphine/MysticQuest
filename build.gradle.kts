@@ -68,7 +68,7 @@ tasks.shadowJar {
 //   ./gradlew deployMod -PskipUiPack        // no UI at all — the known-good baseline
 //   ./gradlew deployMod -PskipUiMarkup      // textures only, no .ui documents
 //   ./gradlew deployMod -PskipUiAssets      // .ui documents only, no textures
-//   ./gradlew deployMod -PskipUiDocuments=QuestStudioPage.ui,JournalPage.ui
+//   ./gradlew deployMod -PskipUiDocuments=QuestAdminPage.ui,JournalPage.ui
 //
 // The HUD disables itself when its document is not in the JAR, so no probe can disconnect anyone.
 val skippedUiDocuments = providers.gradleProperty("skipUiDocuments")

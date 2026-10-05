@@ -1,0 +1,9 @@
+$MQ = "../Theme.ui";
+
+// One category filter above the quest board. Appended to #FilterBar, addressed #FilterBar[i]; the
+// chosen chip's Style is swapped to ChipSelectedStyle by reference.
+
+TextButton #FilterChip {
+  Anchor: (Width: 136, Height: 30, Right: 8);
+  Style: $MQ.@ChipStyle;
+}

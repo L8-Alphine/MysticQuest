@@ -1,127 +1,87 @@
-$Base = "../../Common.ui";
+$C = "../../Common.ui";
 $MQ = "../Theme.ui";
 
-// The quest board (Redesign Bible §7.3): cards grouped by category, each separating difficulty,
-// party size, availability and the rewards the author reveals. A locked card shows only the public
-// requirement its author wrote. Accept is revalidated on the server. Cards come from QuestMenuPage.
+// The quest board (Redesign Bible §7.3): cards in two columns, each separating category, difficulty,
+// party size and the rewards the author reveals. A locked card shows only the public requirement its
+// author wrote; hidden prerequisites never reach the client. Accept is revalidated on the server.
+//
+// Filter chips and card rows are appended from QuestMenuPage (mysticquests/Rows/BoardFilterChip.ui,
+// mysticquests/Rows/BoardCardRow.ui) and addressed positionally.
 
-$Base.@PageOverlay {}
+$C.@PageOverlay #BoardRoot {
+  LayoutMode: Middle;
 
-$Base.@Container {
-  Anchor: (Width: 1060, Height: 640);
+  Group #Frame {
+    Anchor: (Width: 1200, Height: 660);
+    LayoutMode: Top;
+    Background: $MQ.@FrameBackground;
+    Padding: (Full: 20);
 
-  #Title {
-    $MQ.@HeaderBar {
-      AssetImage { AssetPath: $MQ.@IconQuestBoard; Anchor: (Width: 40, Height: 40, Right: 10); }
+    Group #Header {
+      LayoutMode: Left;
+      Anchor: (Height: 40, Bottom: 12);
 
-      Group {
-        LayoutMode: Top;
-        Anchor: (Width: 280, Height: 44);
-        Label { Text: "MYSTICQUESTS"; Style: (...$MQ.@PageTitleStyle, FontSize: 21); }
-        Label { Text: "QUEST BOARD"; Style: (...$MQ.@SmallBoldStyle, FontSize: 10, TextColor: $MQ.@MutedText); }
+      AssetImage #HeaderIcon {
+        AssetPath: $MQ.@IconQuestBoard;
+        Anchor: (Width: 34, Height: 34, Right: 12);
       }
 
-      Group { FlexWeight: 1; }
+      Label #ScreenTitle {
+        Text: "Quest Board";
+        Style: $MQ.@ScreenTitleStyle;
+        FlexWeight: 1;
+      }
 
-      Group {
-        LayoutMode: Left;
-        Background: $MQ.@GoldBg;
-        Padding: (Horizontal: 12, Vertical: 5);
+      Label #HeaderSummary {
+        Anchor: (Width: 320, Right: 14);
+        Style: (FontSize: 13, RenderBold: true, RenderUppercase: true, LetterSpacing: 1, TextColor: #9AA4B7, HorizontalAlignment: End, VerticalAlignment: Center);
+      }
 
-        Label { Text: "AVAILABLE"; Style: (...$MQ.@SmallBoldStyle, TextColor: $MQ.@QuestGold); Anchor: (Right: 7); }
-        Label #AvailableCount { Text: "0"; Style: (...$MQ.@SmallBoldStyle, TextColor: $MQ.@QuestGold); }
+      TextButton #CloseButton {
+        Text: "Close";
+        Style: $MQ.@SecondaryButtonStyle;
+        Anchor: (Width: 110, Height: 36);
       }
     }
-  }
 
-  #Content {
-    LayoutMode: Top;
-    Background: $MQ.@DarkPanelBackground;
-    Padding: (Left: 14, Right: 14, Top: 12, Bottom: 14);
+    Group #FilterBar {
+      LayoutMode: Left;
+      Anchor: (Height: 30, Bottom: 10);
+    }
 
-    Group #BoardEmptyState {
+    Label #StatusText {
+      Anchor: (Height: 22, Bottom: 8);
+      Style: (FontSize: 14, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 11);
+    }
+
+    Group #CardRows {
       FlexWeight: 1;
-      LayoutMode: Center;
+      LayoutMode: TopScrolling;
+      ScrollbarStyle: $C.@TranslucentScrollbarStyle;
+    }
+
+    Group #BoardEmpty {
+      FlexWeight: 1;
+      LayoutMode: Middle;
       Visible: false;
 
-      Group {
-        Anchor: (Width: 500, Height: 320);
-        LayoutMode: Top;
-        Padding: (Horizontal: 36, Top: 20);
-
-        AssetImage { AssetPath: $MQ.@IconQuestBoard; Anchor: (Width: 128, Height: 128, Bottom: 12); }
-        Label { Text: "NO QUESTS AVAILABLE"; Style: (...$MQ.@QuestTitleStyle, FontSize: 23, TextColor: $MQ.@QuestGold, HorizontalAlignment: Center); Anchor: (Bottom: 8); }
-        Label #BoardEmptyBody { Text: "Explore the world or speak with a quest giver. Active quests remain available in your journal."; Style: (...$MQ.@BodyTextStyle, FontSize: 15, TextColor: $MQ.@TextSecondary, HorizontalAlignment: Center); }
-      }
-    }
-
-    Group #QuestBoardContent {
-      FlexWeight: 1;
-      LayoutMode: Left;
-
-      Group {
-        FlexWeight: 1;
-        LayoutMode: Top;
-        Background: #0A0D13(0.88);
-
-        Group #QuestCardList {
-          FlexWeight: 1;
-          LayoutMode: TopScrolling;
-          ScrollbarStyle: $Base.@DefaultScrollbarStyle;
-          Padding: (Horizontal: 10, Top: 6, Bottom: 10);
-        }
+      AssetImage #EmptyIcon {
+        AssetPath: $MQ.@IconQuestBoard;
+        Anchor: (Width: 110, Height: 110, Bottom: 14);
       }
 
-      Group {
-        Anchor: (Width: 340, Left: 12);
-        LayoutMode: Top;
-        Background: #161B26(0.92);
-        Padding: (Horizontal: 20, Top: 18, Bottom: 20);
+      Label #EmptyTitle {
+        Text: "No quests available";
+        Anchor: (Height: 30, Bottom: 6);
+        Style: (FontSize: 22, RenderBold: true, TextColor: #F2F4F8, HorizontalAlignment: Center);
+      }
 
-        Group {
-          Anchor: (Height: 22, Bottom: 10);
-          LayoutMode: Left;
-
-          Group {
-            Anchor: (Width: 96, Height: 22, Right: 6);
-            Background: $MQ.@NarrativePurple;
-            Padding: (Horizontal: 8);
-
-            Label #PreviewCategory {
-              Text: "QUEST";
-              Style: (...$MQ.@BadgeLabelStyle, TextColor: #FFFFFF);
-            }
-          }
-
-          Group {
-            Anchor: (Width: 96, Height: 22);
-            Background: #2A2416;
-            OutlineColor: $MQ.@QuestGold;
-            OutlineSize: 1;
-            Padding: (Horizontal: 8);
-
-            Label #PreviewAvailability {
-              Text: "AVAILABLE";
-              Style: (...$MQ.@BadgeLabelStyle, TextColor: $MQ.@QuestGold);
-            }
-          }
-        }
-
-        Label #PreviewQuestName { Text: "Select a quest"; Style: (...$MQ.@QuestTitleStyle, FontSize: 22, TextColor: $MQ.@TextPrimary); Anchor: (Bottom: 8); }
-        Label #PreviewQuestDescription { Text: ""; Style: (...$MQ.@BodyTextStyle, FontSize: 14); Anchor: (Bottom: 14); }
-
-        Group { Anchor: (Height: 1, Bottom: 10); Background: $MQ.@BorderSoft; }
-
-        // Facts about the quest, appended as label rows; only the ones the author provided.
-        Group #PreviewFacts { LayoutMode: Top; }
-
-        Group { FlexWeight: 1; }
-
-        Label #PreviewNotice { Text: ""; Style: (...$MQ.@BodyTextStyle, FontSize: 13, TextColor: $MQ.@GuidanceCyan); Anchor: (Bottom: 10); }
-        TextButton #AcceptButton { Text: "ACCEPT QUEST"; Style: $MQ.@PrimaryButtonStyle; Anchor: (Height: 40); }
+      Label #EmptyBody {
+        Anchor: (Width: 520);
+        Style: (FontSize: 15, TextColor: #9AA4B7, Wrap: true, HorizontalAlignment: Center);
       }
     }
   }
 }
 
-$Base.@BackButton {}
+$C.@BackButton {}

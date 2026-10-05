@@ -63,12 +63,12 @@ final class JournalModelTest {
         JournalModel.QuestDetail grove = model.quest("q:grove").orElseThrow();
         assertEquals(JournalModel.State.TRACKED, grove.state());
         assertEquals("A relic of the grove", grove.rewardText());
-        assertEquals(List.of("Accepted on 5 Oct 2026"), grove.timeline());
+        assertEquals(List.of(new JournalModel.Moment("5 Oct 2026", "Accepted")), grove.timeline());
         assertEquals("Since 5 Oct 2026", grove.when());
 
         JournalModel.QuestDetail won = model.quest("q:recent").orElseThrow();
         assertEquals(JournalModel.State.COMPLETE, won.state());
-        assertEquals(List.of("Completed on 5 Oct 2026"), won.timeline());
+        assertEquals(List.of(new JournalModel.Moment("5 Oct 2026", "Completed")), won.timeline());
         assertTrue(model.quest("q:wolves").orElseThrow().rewardText().isEmpty(), "unmentioned rewards stay a surprise");
     }
 }

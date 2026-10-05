@@ -1,0 +1,27 @@
+$MQ = "../Theme.ui";
+
+// A key and its value in the admin inspector — a tag, a variable, a story session — with one
+// optional action. Appended to the tag, variable and story lists.
+
+Group #ValueRow {
+  LayoutMode: Left;
+  Anchor: (Height: 40, Bottom: 4);
+  Background: $MQ.@CardBackground;
+  Padding: (Horizontal: 14, Vertical: 4);
+
+  Label #Key {
+    Anchor: (Width: 300, Right: 10);
+    Style: (FontSize: 14, RenderBold: true, TextColor: #F2F4F8, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 10);
+  }
+
+  Label #Value {
+    FlexWeight: 1;
+    Style: (FontSize: 13, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 9);
+  }
+
+  TextButton #Action {
+    Anchor: (Width: 92, Height: 30, Left: 8);
+    Style: $MQ.@SmallDangerButtonStyle;
+    Visible: false;
+  }
+}

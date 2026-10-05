@@ -1,0 +1,21 @@
+$MQ = "../Theme.ui";
+
+// One rail section: its name and how many entries it holds. The whole row is one control.
+// Appended to #RailList and addressed as #RailList[i]; colours arrive as TextSpans.
+
+Button #RailRow {
+  Anchor: (Height: 38, Bottom: 4);
+  LayoutMode: Left;
+  Padding: (Horizontal: 14);
+  Style: $MQ.@NavRowStyle;
+
+  Label #Name {
+    FlexWeight: 1;
+    Style: (FontSize: 15, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 11);
+  }
+
+  Label #Count {
+    Anchor: (Width: 40);
+    Style: (FontSize: 13, RenderBold: true, HorizontalAlignment: End, VerticalAlignment: Center);
+  }
+}

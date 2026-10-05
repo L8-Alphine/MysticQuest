@@ -57,6 +57,27 @@ final class StudioServiceTest {
     private boolean draftValid = true;
     private Path live;
     private StudioService studio;
+    /** Changes the Players page asked the server to make, by player. */
+    private final List<UUID> changed = new ArrayList<>();
+    private final StudioLive server = new StudioLive() {
+        @Override
+        public Overview overview() {
+            return new Overview(List.of(), null, List.of());
+        }
+
+        @Override
+        public Map<String, List<String>> player(UUID player) {
+            return Map.of();
+        }
+
+        @Override
+        public org.hyzionstudios.mysticquests.service.PlayerStateAdmin.Outcome changePlayer(UUID player,
+                java.util.function.Function<org.hyzionstudios.mysticquests.service.PlayerStateAdmin,
+                        org.hyzionstudios.mysticquests.service.PlayerStateAdmin.Outcome> change) {
+            changed.add(player);
+            return new org.hyzionstudios.mysticquests.service.PlayerStateAdmin.Outcome(true, "done");
+        }
+    };
 
     @BeforeEach
     void setUp() throws IOException {
@@ -78,7 +99,7 @@ final class StudioServiceTest {
         StudioAudit audit = new StudioAudit(studioRoot.resolve("audit.jsonl"), clock, json, log::add);
         studio = new StudioService(new StudioAuth(clock), workspace, releases, audit,
                 (player, permission) -> granted.getOrDefault(player, Set.of()).contains(permission), validator, "development",
-                StudioLive.NONE, clock);
+                server, clock);
         grant(WRITER, StudioCapability.LOGIN, StudioCapability.VIEW, StudioCapability.DIALOGUE);
         grant(LEAD, StudioCapability.LOGIN, StudioCapability.EDIT, StudioCapability.PUBLISH);
     }
@@ -209,6 +230,42 @@ final class StudioServiceTest {
         assertEquals(ORIGINAL, Files.readString(live.resolve("greenvale/quests.yml")), "the live files are restored");
         assertEquals(2, reloads.get(), "and reloaded");
         assertTrue(studio.history(lead).stream().noneMatch(release -> release.number() > 0), "a refused release is not recorded");
+    }
+
+    @Test
+    void changingAPlayerNeedsThePlayersPermissionAndIsRecorded() throws Exception {
+        UUID watcher = new UUID(0xCAFEL, 1);
+        UUID support = new UUID(0xCAFEL, 2);
+        UUID target = new UUID(0xCAFEL, 3);
+        grant(watcher, StudioCapability.LOGIN, StudioCapability.LIVE);
+        grant(support, StudioCapability.LOGIN, StudioCapability.PLAYERS);
+        ObjectMapper json = new ObjectMapper();
+        var clear = json.readTree("{ \"action\": \"clear\", \"parts\": [\"STORY_STATE\"], \"reason\": \"stuck intro\" }");
+
+        Session watching = signIn(watcher);
+        assertEquals(StudioException.Status.NOT_FOUND,
+                assertThrows(StudioException.class, () -> studio.playerState(watching, target)).status(),
+                "live rights read players (this server has none attached)");
+        assertEquals(StudioException.Status.FORBIDDEN,
+                assertThrows(StudioException.class, () -> studio.changePlayer(watching, target, clear)).status(),
+                "reading a player is not changing one");
+        assertEquals(StudioException.Status.FORBIDDEN,
+                assertThrows(StudioException.class, () -> studio.changePlayer(signIn(WRITER), target, clear)).status());
+        assertTrue(changed.isEmpty());
+
+        Session supporting = signIn(support);
+        assertTrue(StudioCapability.LIVE.grantedTo(support, (player, permission) ->
+                granted.getOrDefault(player, Set.of()).contains(permission)), "changing a player includes seeing them");
+        assertTrue(studio.changePlayer(supporting, target, clear).ok());
+        assertEquals(List.of(target), changed);
+        assertTrue(log.stream().anyMatch(line -> line.contains("player clear") && line.contains("stuck intro")),
+                "the Studio's own log records who asked, and why");
+
+        assertEquals(StudioException.Status.BAD_REQUEST, assertThrows(StudioException.class, () -> studio.changePlayer(supporting,
+                target, json.readTree("{ \"action\": \"teleport\", \"reason\": \"x\" }"))).status());
+        assertEquals(StudioException.Status.BAD_REQUEST, assertThrows(StudioException.class, () -> studio.changePlayer(supporting,
+                target, json.readTree("{ \"action\": \"clear\", \"parts\": [\"everything\"], \"reason\": \"x\" }"))).status());
+        assertEquals(1, changed.size(), "refused requests never reach the server");
     }
 
     @Test

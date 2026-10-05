@@ -83,6 +83,9 @@ export const api = {
   buildSoundPack: () => call('POST', '/api/audio/build', {}),
   live: () => call('GET', '/api/live'),
   livePlayer: player => call('GET', `/api/live/player?${query({ player })}`),
+  findPlayer: text => call('GET', `/api/players/find?${query({ query: text })}`),
+  playerState: player => call('GET', `/api/players/state?${query({ player })}`),
+  changePlayer: (player, change) => call('POST', '/api/players/change', { player, ...change }),
 };
 
 export function invalidate() {

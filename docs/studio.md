@@ -90,7 +90,8 @@ Studio then checks that player's permissions, exactly as with a code.
 | `mysticquests.studio.triggers` | Change world overlays (doors, seals and bridges per audience). |
 | `mysticquests.studio.edit` | Change everything above, and quests, rewards, events, conditions, schemas and package settings. Also: discard the draft, load an old release. |
 | `mysticquests.studio.publish` | Put the draft live. |
-| `mysticquests.studio.live` | Watch live sessions: who is online, their story state, the runtime's limits and slowest operations. Not granted by `edit`. |
+| `mysticquests.studio.live` | Watch live sessions: who is online, their story state, the runtime's limits and slowest operations; and look players up on the Players page. Not granted by `edit`. |
+| `mysticquests.studio.players` | Change a player's quest and story state on the Players page. Includes `live`. Every change needs a reason and is audited twice: in the Studio's log (who asked, from the browser) and in the game's audit trail (what changed). |
 | `mysticquests.studio.admin` | Everything, plus `/mquest studio status` and `revoke`. `mysticquests.admin` also grants everything. |
 
 Permissions are checked per section of content, not per file. A writer with only
@@ -117,7 +118,8 @@ Typical setups:
 | Files | Any draft file as text. Use it for anything the forms do not cover, and to keep YAML comments. |
 | Validate | The draft checked exactly as `/mquest reload` would check it, with each problem's location. |
 | Publish & history | What publishing would change, the publish button, and every release with its changes. **Load into draft** restores an old release into the draft; publishing it makes a new release. |
-| Live sessions | Who is online and how many stories each is in; the runtime's sizes against their limits, counters and slowest operations; which optional mods are active; and, for one player, everything `/mq debug` shows. Read-only and refreshed every 10 seconds. At most 10 people can watch at once. To fix something, use the in-game commands, which are audited. |
+| Live sessions | Who is online and how many stories each is in; the runtime's sizes against their limits, counters and slowest operations; which optional mods are active; and, for one player, everything `/mq debug` shows. Read-only and refreshed every 10 seconds. At most 10 people can watch at once. To fix something, use the Players page. |
+| Players | Find an online player, or anyone by UUID, and see their quests, v1 tags and variables, story variables and tags (their saved settings marked) and story sessions. With `players`: complete, track, abandon, reset or re-allow quests, start one, set an objective, add and remove tags and variables, set typed story variables, restart a story or rewind to a checkpoint, and **Clear state…** with a choice of parts. A reason is required for every change, and destructive ones ask first. The same service runs `/mquest player` and the in-game admin, so all three agree; an online player's change is made on their world thread. |
 | Audit log | Every sign-in, save, publish and refused action. |
 
 ### Things to know
@@ -188,8 +190,8 @@ the Studio makes a new one from the live content.
 
 ## Not built yet
 
-- Changing a player's story from the Studio. Live Sessions only shows it; the in-game
-  `/mquest narrative` commands make the changes.
+- Puzzle, trigger-volume and cutscene interventions from the Studio; those stay in game under
+  `/mquest narrative`.
 - Converting audio: uploads must already be Ogg Vorbis.
 - Music containers for the music system.
 - Loading a rebuilt sound pack without a restart.

@@ -47,7 +47,7 @@ public final class StudioDevServer {
         StudioReleases releases = new StudioReleases(root, workspace, validator, () -> { }, clock, json);
         StudioService studio = new StudioService(new StudioAuth(clock), workspace, releases,
                 new StudioAudit(root.resolve("audit.jsonl"), clock, json, System.out::println),
-                (player, permission) -> true, validator, "development");
+                (player, permission) -> true, validator, "development", new StudioDemoLive(), clock);
         studio.audio(new StudioAudio(root, json, clock), base.resolve(StudioAudio.PACK_FOLDER), "*");
         StudioHttpServer server = new StudioHttpServer(studio, "127.0.0.1", port, "", System.err::println);
         server.start();

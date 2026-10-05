@@ -32,20 +32,26 @@ which keys or switches are yours — that is the puzzle.
 
 ## Your Journal
 
-`/journal` opens on the quest you are tracking. On the left, your quests are grouped: the tracked
+`/journal` opens on the quest you are tracking. The rail on the left lists your sections: the tracked
 quest, story quests, side quests, contracts and so on, then the stories you are part of, then what
-you have completed or abandoned. Pick one to see:
+you have completed or abandoned. Pick a section to see its quests as cards in the middle, and a card
+to see, on the right:
 
 - what to do right now, and the step you are on;
 - the story so far and every objective, grouped by step;
 - the rewards the quest has told you about (some keep their rewards a surprise);
 - when you accepted it, and when you finished it.
 
-From there you can track a quest, stop tracking it, or abandon it (press Abandon twice to confirm).
-A story shows the milestones you have reached in it, never what comes next.
+From there you can track a quest, stop tracking it, or abandon it (press Abandon, then Confirm
+abandon). A story shows the milestones you have reached in it, never what comes next.
 
-**Quest settings**, at the bottom of the list, are saved for you: how much of the tracker shows,
-story subtitles, your voice-line language, and quest pop-ups when the server uses them.
+**Quest settings**, at the bottom of the rail, are saved for you: how much of the tracker shows
+(Automatic, Expanded, Compact or Hidden), story subtitles, your voice-line language, and quest
+pop-ups when the server uses them. **Restore defaults** puts them all back.
+
+On the **quest board** (`/quest`), the chips along the top filter by kind, and each card has its own
+**Accept**. In a **conversation**, choices are numbered along the bottom of the line; **Transcript**
+shows what was said so far, and **Leave** ends the conversation.
 
 ## Your story is your own
 

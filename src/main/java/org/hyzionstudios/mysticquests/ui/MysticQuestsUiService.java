@@ -33,7 +33,7 @@ public final class MysticQuestsUiService {
     }
 
     public boolean openAdminStudio(CommandContext context) {
-        if (!context.isPlayer() || !shipped(UiDocuments.QUEST_STUDIO)) {
+        if (!context.isPlayer() || !shipped(UiDocuments.QUEST_ADMIN)) {
             return false;
         }
         try {
@@ -47,10 +47,10 @@ public final class MysticQuestsUiService {
             player.getPageManager().openCustomPage(
                     playerEntity,
                     store,
-                    new QuestStudioPage(playerRef, runtime));
+                    new QuestAdminPage(playerRef, runtime));
             return true;
         } catch (RuntimeException exception) {
-            logger.at(Level.WARNING).withCause(exception).log("Failed to open MysticQuests quest studio UI.");
+            logger.at(Level.WARNING).withCause(exception).log("Failed to open the MysticQuests quest admin UI.");
             return false;
         }
     }

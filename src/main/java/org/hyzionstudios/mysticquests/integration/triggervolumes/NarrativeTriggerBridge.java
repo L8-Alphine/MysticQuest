@@ -171,7 +171,7 @@ public final class NarrativeTriggerBridge {
 
     static String volumeKey(TriggerContext context) {
         VolumeEntry volume = context.getVolume();
-        return TriggerEvent.volumeKey(volume.getWorldName(), volume.getId());
+        return TriggerEvent.volumeKey(volume.getWorldName(), VolumeNames.label(volume));
     }
 
     @Nullable
