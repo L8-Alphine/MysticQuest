@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "org.hyzionstudios"
-version = "2.0.0"
+version = "2.0.1"
 
 repositories {
     mavenCentral()
@@ -21,7 +21,7 @@ val resolvedServerJar = hytaleServerJarPath.ifBlank { "$hytaleInstallPath/Server
 
 dependencies {
     // Hytale Server API from official Maven repository
-    compileOnly("com.hypixel.hytale:Server:0.6.8")
+    compileOnly("com.hypixel.hytale:Server:0.7.0")
 
     // VaultUnlocked
     compileOnly("net.cfh.vault:VaultUnlocked:2.18.3")
@@ -32,8 +32,8 @@ dependencies {
     // MysticIdentity: the player-portal provider (integration/mysticidentity) compiles against its
     // public API. The mod is optional at runtime and never bundled; MysticIdentityPortal probes for
     // it by name before any class naming the API is allowed to load. Same setup as MysticEconomy.
-    compileOnly(files("../MysticIdentity/mysticidentity-api/build/libs/mysticidentity-api-0.1.0.jar"))
-    testImplementation(files("../MysticIdentity/mysticidentity-api/build/libs/mysticidentity-api-0.1.0.jar"))
+    compileOnly(files("../MysticIdentity/mysticidentity-api/build/libs/mysticidentity-api-0.1.1.jar"))
+    testImplementation(files("../MysticIdentity/mysticidentity-api/build/libs/mysticidentity-api-0.1.1.jar"))
 
     implementation("com.fasterxml.jackson.core:jackson-databind:2.20.1")
     implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.20.1")
@@ -46,7 +46,7 @@ dependencies {
 
     // compileOnly deps are not inherited by the test source set, so tests covering anything whose
     // signature mentions a Hytale type (loggers, refs, packets) cannot compile without this.
-    testImplementation("com.hypixel.hytale:Server:0.6.8")
+    testImplementation("com.hypixel.hytale:Server:0.7.0")
 }
 
 java {

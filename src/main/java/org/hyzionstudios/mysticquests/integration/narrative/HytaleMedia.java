@@ -14,6 +14,7 @@ import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.protocol.Position;
 import com.hypixel.hytale.protocol.SoundCategory;
+import com.hypixel.hytale.protocol.packets.interface_.EventTitleStyle;
 import com.hypixel.hytale.protocol.packets.world.PlaySoundEvent3D;
 import com.hypixel.hytale.protocol.packets.world.PlaySoundEventEntity;
 import com.hypixel.hytale.server.core.Message;
@@ -193,7 +194,7 @@ public final class HytaleMedia implements MediaSink, MediaCatalog, AutoCloseable
         Message name = speakerName(subtitle.speaker());
         if (subtitles == SubtitleMode.TITLE) {
             float seconds = Math.max(2f, subtitle.durationMillis() / 1000f);
-            EventTitleUtil.showEventTitleToPlayer(ref, line, name == null ? Message.raw("") : name, false, null, seconds, 0.2f, 0.4f);
+            EventTitleUtil.showEventTitleToPlayer(ref, line, name == null ? Message.raw("") : name, EventTitleStyle.Default, null, seconds, 0.2f, 0.4f);
         } else {
             ref.sendMessage(name == null ? line : Message.join(name.color("#F5C842"), Message.raw(": "), line));
         }

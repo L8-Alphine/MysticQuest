@@ -7,6 +7,7 @@ import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.protocol.ClientCameraView;
 import com.hypixel.hytale.protocol.FormattedMessage;
 import com.hypixel.hytale.protocol.packets.camera.SetServerCamera;
+import com.hypixel.hytale.protocol.packets.interface_.EventTitleStyle;
 import com.hypixel.hytale.protocol.packets.interface_.Notification;
 import com.hypixel.hytale.protocol.packets.interface_.NotificationStyle;
 import com.hypixel.hytale.protocol.packets.interface_.ShowEventTitle;
@@ -62,7 +63,7 @@ public final class QuestPacketService {
             FormattedMessage secondary =
                     subtitle == null || subtitle.isBlank() ? null : formatted(subtitle, color);
             playerRef.getPacketHandler().write(new ShowEventTitle(
-                    fadeInSeconds, fadeOutSeconds, durationSeconds, "", false, primary, secondary));
+                    fadeInSeconds, fadeOutSeconds, durationSeconds, "", EventTitleStyle.Default, primary, secondary));
             return true;
         } catch (RuntimeException exception) {
             logger.at(Level.WARNING).withCause(exception).log("Failed to send quest title to " + playerId + ".");
