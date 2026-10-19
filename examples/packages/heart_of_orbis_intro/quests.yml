@@ -1,0 +1,67 @@
+# One-time first-login journey for the Simple Survival server.
+
+items:
+  crude_hatchet:
+    item: Tool_Hatchet_Crude
+    name: Crude Hatchet
+  crude_pickaxe:
+    item: Tool_Pickaxe_Crude
+    name: Crude Pickaxe
+  crude_shovel:
+    item: Tool_Shovel_Crude
+    name: Crude Shovel
+  crude_hoe:
+    item: Tool_Hoe_Crude
+    name: Crude Hoe
+
+notifications:
+  journey_started:
+    style: Default
+    title: A Calling from Orbis
+  journey_complete:
+    style: Success
+    title: Journey Complete
+
+quests:
+  heart_of_orbis:
+    displayName: The Heart of Orbis
+    description: Find the temple, enter its portal, and interact with the Heart of Orbis.
+    category: story
+    difficulty: Easy
+    rewardText: "$100 and a set of basic crude tools"
+    startOnJoin: true
+    abandonCooldownSeconds: 0
+    startConditions:
+      - type: notTag
+        tag: heart_of_orbis_completed
+    startEvents:
+      - type: notification
+        category: journey_started
+        body: "Find the temple, pass through its portal, and seek the Heart of Orbis."
+    objectives:
+      - id: reach_the_heart
+        displayName: Interact with the Heart of Orbis
+        type: interactObject
+        target: Bench_Memories
+        amount: 1
+    completeEvents:
+      - type: addTag
+        tag: heart_of_orbis_completed
+    rewards:
+      - type: modifyMoney
+        amount: 100
+      - type: giveItem
+        item: crude_hatchet
+        amount: 1
+      - type: giveItem
+        item: crude_pickaxe
+        amount: 1
+      - type: giveItem
+        item: crude_shovel
+        amount: 1
+      - type: giveItem
+        item: crude_hoe
+        amount: 1
+      - type: notification
+        category: journey_complete
+        body: "The Heart of Orbis welcomes you: $100 and basic crude tools received."

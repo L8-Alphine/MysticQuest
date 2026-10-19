@@ -1,0 +1,97 @@
+# Hard daily Void Dungeon hunt for the Simple Survival server.
+
+items:
+  cobalt_bar:
+    item: Ingredient_Bar_Cobalt
+    name: Cobalt Bar
+  iron_repair_kit:
+    item: Tool_Repair_Kit_Iron
+    name: Iron Repair Kit
+  ingredient_scraps:
+    item: Ingredient_Scraps
+    name: Ingredient Scraps
+  rune_shard:
+    item: Ingredient_Rune_Shard
+    name: Rune Shard
+
+notifications:
+  hard_daily_complete:
+    style: Success
+    title: Hard Daily Complete
+
+events:
+  open_void_bear_window:
+    type: folder
+    events:
+      - type: cancelQuest
+        canceler: daily_reset
+      - type: removeTag
+        tag: window_closed
+        packageScoped: true
+  close_void_bear_window:
+    type: folder
+    events:
+      - type: cancelQuest
+        canceler: daily_reset
+      - type: addTag
+        tag: window_closed
+        packageScoped: true
+
+cancelers:
+  daily_reset:
+    name: Reset Void Bear Hunt
+    quests:
+      - void_bear_hunt
+
+schedules:
+  open_daily_window:
+    type: realtime-daily
+    time: "04:00"
+    timezone: America/New_York
+    catchup: one
+    events:
+      - open_void_bear_window
+  close_daily_window:
+    type: realtime-daily
+    time: "16:00"
+    timezone: America/New_York
+    catchup: one
+    events:
+      - close_void_bear_window
+
+quests:
+  void_bear_hunt:
+    displayName: Void Bear Hunt
+    description: Defeat 2 elite Voidtaken Bears in the Void Dungeon before the 12-hour hunt window closes.
+    category: daily
+    difficulty: Hard
+    lockedText: "Available daily from 04:00 to 16:00 America/New_York."
+    rewardText: "$500, 2 cobalt bars, 8 iron repair kits, 16 ingredient scraps, and 1 rune shard"
+    startConditions:
+      - type: notTag
+        tag: window_closed
+        packageScoped: true
+    objectives:
+      - id: hunt_void_bears
+        displayName: Hunt Voidtaken Bears
+        type: kill
+        target: Bear_Voidtaken
+        amount: 2
+    rewards:
+      - type: modifyMoney
+        amount: 500
+      - type: giveItem
+        item: cobalt_bar
+        amount: 2
+      - type: giveItem
+        item: iron_repair_kit
+        amount: 8
+      - type: giveItem
+        item: ingredient_scraps
+        amount: 16
+      - type: giveItem
+        item: rune_shard
+        amount: 1
+      - type: notification
+        category: hard_daily_complete
+        body: "Void Bear Hunt complete. Your elite hunting supplies have been delivered."

@@ -1,0 +1,97 @@
+# Simple Survival daily quests.
+# See README.md before importing if your Goblin role or ear item uses a different ID.
+
+items:
+  apple:
+    item: Plant_Fruit_Apple
+    name: Apple
+  bread:
+    item: Food_Bread
+    name: Bread
+  crude_hatchet:
+    item: Tool_Hatchet_Crude
+    name: Crude Hatchet
+  crude_pickaxe:
+    item: Tool_Pickaxe_Crude
+    name: Crude Pickaxe
+
+notifications:
+  daily_complete:
+    style: Success
+    title: Daily Quest Complete
+
+events:
+  reset_daily_quests:
+    type: cancelQuest
+    canceler: daily_reset
+
+cancelers:
+  daily_reset:
+    name: Reset Simple Survival Goblin Dailies
+    quests:
+      - goblin_patrol
+      - goblin_ears
+
+schedules:
+  daily_reset:
+    type: realtime-daily
+    time: "04:00"
+    timezone: America/New_York
+    catchup: one
+    events:
+      - reset_daily_quests
+
+quests:
+  goblin_patrol:
+    displayName: Goblin Patrol
+    description: Hunt 10 Goblin Scrappers threatening the camp.
+    category: daily
+    difficulty: Easy
+    rewardText: "$50, 6 apples, and a crude hatchet"
+    objectives:
+      - id: hunt_goblins
+        displayName: Hunt Goblins around camp
+        type: kill
+        target: Goblin_Scrapper
+        amount: 10
+    rewards:
+      - type: modifyMoney
+        amount: 50
+      - type: giveItem
+        item: apple
+        amount: 6
+      - type: giveItem
+        item: crude_hatchet
+        amount: 1
+      - type: notification
+        category: daily_complete
+        body: "Goblin Patrol complete: $50, 6 apples, and a crude hatchet."
+
+  goblin_ears:
+    displayName: A Hundred Ears
+    description: Gather 100 Goblin Ears and turn them in for camp supplies.
+    category: daily
+    difficulty: Easy
+    rewardText: "$200, 10 bread, and a crude pickaxe"
+    objectives:
+      - id: gather_ears
+        displayName: Gather Goblin Ears
+        type: gather
+        target: Goblin_Ear
+        amount: 100
+    completeEvents:
+      - type: removeItem
+        item: Goblin_Ear
+        amount: 100
+    rewards:
+      - type: modifyMoney
+        amount: 200
+      - type: giveItem
+        item: bread
+        amount: 10
+      - type: giveItem
+        item: crude_pickaxe
+        amount: 1
+      - type: notification
+        category: daily_complete
+        body: "A Hundred Ears complete: $200, 10 bread, and a crude pickaxe."
