@@ -86,6 +86,15 @@ Default config is generated at `mods/MysticQuests/config.json`:
     "maxStorySessions": 5000,
     "maxStoryEntities": 1000,
     "maxPuzzleInputs": 64
+  },
+  "externalQuests": {
+    "endgame": true,
+    "ziggfreed": true,
+    "unifiedTracker": true,
+    "hideModTrackers": true,
+    "hiddenHuds": [],
+    "forwardSignals": true,
+    "syncIntervalMillis": 1000
   }
 }
 ```
@@ -96,6 +105,9 @@ state; see [the narrative configuration](docs/2.0/narrative-runtime.md#1-configu
 lines; a v1 conversation node can play one with `"voice": "<media id>"`.
 The three `max…` keys are capacity limits; see the [server guide](docs/server-guide.md#configuration).
 The web Creator Studio is configured under `studio` and is off by default; see [docs/studio.md](docs/studio.md).
+`externalQuests` mirrors Endgame & QoL's and MMO Skill Tree's quests into the Journal and the quest
+tracker, hides those mods' own trackers, and adds content types such as `endgame:questCompleted`,
+`mmo:skillLevel` and `mmo:addXp`; see [Quests from other mods](docs/integrations/external-quests.md).
 
 `ui.hudJoinDelayMillis` is how long after a player is ready the quest HUD is pushed. The client is
 still registering asset-pack UI documents on the ready tick, and a HUD append that lands in that

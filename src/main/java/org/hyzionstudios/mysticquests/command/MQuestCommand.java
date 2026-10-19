@@ -15,6 +15,7 @@ import org.hyzionstudios.mysticquests.service.QuestResult;
 import org.hyzionstudios.mysticquests.service.StageView;
 import org.hyzionstudios.mysticquests.narrative.cutscene.QuestCutsceneService;
 import org.hyzionstudios.mysticquests.service.VisibilityService;
+import org.hyzionstudios.mysticquests.ui.HiddenHudKeys;
 import org.hyzionstudios.mysticquests.ui.QuestHudCoordinator;
 
 import com.fasterxml.jackson.databind.node.TextNode;
@@ -54,6 +55,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -203,7 +205,9 @@ public final class MQuestCommand extends AbstractCommand {
         addSubCommand(track);
         addSubCommand(route("untrack"));
         RouteCommand hud = route("hud");
-        hud.withOptionalArg("mode", "Tracker mode", suggested("mode", () -> List.of("auto", "compact", "expanded")));
+        hud.withOptionalArg("mode", "Tracker mode, or keys to list a player's HUD layers",
+                suggested("mode", () -> List.of("auto", "compact", "expanded", "keys")));
+        hud.withOptionalArg("player", "Player for hud keys: UUID, name, or self", suggested("player", this::playerTargets));
         addSubCommand(hud);
         RouteCommand abandon = route("abandon");
         abandon.withRequiredArg("quest", "Quest ID", suggested("quest", this::questIds));
@@ -720,6 +724,9 @@ public final class MQuestCommand extends AbstractCommand {
     }
 
     private Void hud(CommandContext context, String[] args) {
+        if (args.length >= 2 && args[1].equalsIgnoreCase("keys")) {
+            return hudKeys(context, args);
+        }
         if (!requirePermission(context, "mysticquests.command.journal")) {
             return null;
         }
@@ -747,6 +754,40 @@ public final class MQuestCommand extends AbstractCommand {
         }
         runtime.hudService().setPreference(context.sender().getUuid(), preference);
         success(context, "Quest HUD mode set to " + preference.name().toLowerCase() + ".");
+        return null;
+    }
+
+    /**
+     * {@code /mq hud keys [player]}: every custom HUD layer the player has, marked when MysticQuests
+     * hides it, so staff can find the key of another mod's layer for {@code externalQuests.hiddenHuds}.
+     */
+    private Void hudKeys(CommandContext context, String[] args) {
+        if (!requireAdmin(context, "mysticquests.command.admin.debug")) {
+            return null;
+        }
+        String token = args.length >= 3 ? args[2] : "self";
+        Optional<UUID> target = token.equalsIgnoreCase("self")
+                ? (context.isPlayer() ? Optional.of(context.sender().getUuid()) : Optional.<UUID>empty())
+                : runtime.resolveOnlinePlayer(token);
+        if (target.isEmpty()) {
+            usage(context, "Usage: /mq hud keys [player]  (the player must be online)");
+            return null;
+        }
+        HiddenHudKeys hidden = runtime.externalQuests() == null ? HiddenHudKeys.NONE : runtime.externalQuests().hiddenHuds();
+        runtime.sessionService().runOnWorld(target.get(), (entity, store) -> {
+            Player player = store.getComponent(entity, Player.getComponentType());
+            if (player == null) {
+                warn(context, "That player is not in a world right now.");
+                return;
+            }
+            Set<String> keys = player.getHudManager().getCustomHuds().keySet();
+            if (keys.isEmpty()) {
+                info(context, "No custom HUD layers.");
+            }
+            for (String key : keys) {
+                send(context, key + (hidden.hides(key) ? "  (hidden by MysticQuests)" : ""), hidden.hides(key) ? MUTED : GREEN);
+            }
+        });
         return null;
     }
 
@@ -889,7 +930,7 @@ public final class MQuestCommand extends AbstractCommand {
         if (context.sender().hasPermission("mysticquests.admin")) {
             context.sendMessage(Message.join(
                     Message.raw("Admin: ").color(ORANGE),
-                    Message.raw("admin/editor, studio login, reload, player, start, complete, reaccept, entity, state, block, volume, hycitizens, debug, narrative, integrations").color(MUTED)));
+                    Message.raw("admin/editor, studio login, reload, player, start, complete, reaccept, entity, state, block, volume, hycitizens, debug, narrative, integrations, hud keys").color(MUTED)));
         }
         if (context.sender().hasPermission(VisibilityService.BYPASS_PERMISSION)
                 || context.sender().hasPermission(VisibilityService.BYPASS_ALWAYS_PERMISSION)) {

@@ -1,5 +1,7 @@
 package org.hyzionstudios.mysticquests.ui;
 
+import org.hyzionstudios.mysticquests.external.ExternalJournal;
+import org.hyzionstudios.mysticquests.external.ExternalQuest;
 import org.hyzionstudios.mysticquests.model.QuestDefinition;
 import org.hyzionstudios.mysticquests.service.JournalEntry;
 import org.hyzionstudios.mysticquests.service.PlayerQuestService;
@@ -26,6 +28,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiFunction;
 import java.util.logging.Level;
 
 /**
@@ -161,12 +164,20 @@ public final class QuestHudService {
     private void reconcileNow(UUID playerId, PlayerRef playerRef, Player player) {
         try {
             JournalEntry entry = questService.trackedJournalEntry(playerId);
-            QuestHudViewModel model = entry == null ? null : QuestHudViewModel.from(entry);
-            if (model != null) {
-                model = model.withCategory(QuestCategories.badge(
-                        questService.definition(entry.questId()).map(QuestDefinition::category).orElse("")));
+            // A quest another mod runs can hold the tracker instead (see ExternalQuestBook): it reads
+            // as any other entry, and has no MysticQuests map marker.
+            ExternalQuest mirrored = mirroredQuests == null ? null : mirroredQuests.apply(playerId, entry != null);
+            QuestHudViewModel model;
+            if (mirrored != null) {
+                model = QuestHudViewModel.from(ExternalJournal.entry(mirrored)).withCategory(QuestCategories.badge(mirrored.category()));
+            } else {
+                model = entry == null ? null : QuestHudViewModel.from(entry);
+                if (model != null) {
+                    model = model.withCategory(QuestCategories.badge(
+                            questService.definition(entry.questId()).map(QuestDefinition::category).orElse("")));
+                }
             }
-            QuestHudFocus focus = model == null ? null : focusFor(model);
+            QuestHudFocus focus = model == null || mirrored != null ? null : focusFor(model);
             publishFocus(playerId, playerRef, focus);
             if (focus != null) {
                 model = model.withGuidance(focus.guidanceLabel());
@@ -208,6 +219,16 @@ public final class QuestHudService {
 
     /** Where tracker preferences are saved; bound once the story-state store exists. */
     private volatile PlayerUiPreferences savedPreferences;
+
+    /**
+     * The mirrored quest the tracker shows instead of the player's own, given whether they track one
+     * of their own; null for none. Bound when other mods' quests are mirrored.
+     */
+    private volatile BiFunction<UUID, Boolean, ExternalQuest> mirroredQuests;
+
+    public void bindMirroredQuests(BiFunction<UUID, Boolean, ExternalQuest> mirroredQuests) {
+        this.mirroredQuests = mirroredQuests;
+    }
 
     public void bindPreferences(PlayerUiPreferences preferences) {
         this.savedPreferences = preferences;

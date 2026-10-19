@@ -1,0 +1,106 @@
+# Crossroads of Orbis: MysticQuests side quests that build on Endgame & QoL and MMO Skill Tree.
+#
+# Endgame and MMO Skill Tree keep running their own quests; MysticQuests mirrors them
+# (docs/integrations/external-quests.md). These quests use what the mirror adds:
+#   conditions  endgame:questCompleted, mmo:skillLevel
+#   events      mmo:addXp
+#   signals     endgame:boss_kill, endgame:dungeon_enter, mmo:level_up:<SKILL>, ziggfreed:quest_completed
+# On a server without those mods the package still loads; their conditions never pass, so the
+# quests simply stay off the board.
+
+quests:
+  echoes_beyond_the_temple:
+    displayName: Echoes Beyond the Temple
+    description: The Temple Keeper's echo has woken more than one guardian. Prove you can face what it stirred.
+    category: side
+    difficulty: Endgame
+    lockedText: "Finish the Temple Keeper's first task in Endgame & QoL."
+    rewardText: "250 Defense xp"
+    startConditions:
+      - type: endgame:questCompleted
+        quest: story_echo
+    objectives:
+      - id: enter_dungeon
+        displayName: Enter any Endgame dungeon
+        type: signal
+        signal: "endgame:dungeon_enter"
+      - id: slay_boss
+        displayName: Defeat any Endgame boss
+        type: signal
+        signal: "endgame:boss_kill"
+    rewards:
+      - type: mmo:addXp
+        skill: DEFENSE
+        amount: 250
+      - type: sendMessage
+        message: "&aThe temple's echo fades. &7(+250 Defense xp)"
+
+  frost_veteran:
+    displayName: Frost Veteran
+    description: Korvyn's wardens are down. The Frost Lich is not.
+    category: side
+    difficulty: Endgame
+    lockedText: "Defeat the frost wardens for Korvyn in Endgame & QoL first."
+    rewardText: "500 Swords xp, 500 Defense xp"
+    startConditions:
+      - type: endgame:questCompleted
+        quest: story_frost_wardens
+    objectives:
+      - id: any_bosses
+        displayName: Defeat three Endgame bosses
+        type: signal
+        signal: "endgame:boss_kill"
+        amount: 3
+      - id: frost_lich
+        displayName: Defeat the Frost Lich
+        type: signal
+        signal: "endgame:boss_kill:Endgame_Frost_Lich"
+    rewards:
+      - type: mmo:addXp
+        skill: SWORDS
+        amount: 500
+      - type: mmo:addXp
+        skill: DEFENSE
+        amount: 500
+
+  apprentice_miner:
+    displayName: Apprentice Miner
+    description: You know which end of the pick to hold. Now get good with it.
+    category: side
+    lockedText: "Reach Mining level 5 in MMO Skill Tree."
+    rewardText: "300 Smithing xp"
+    startConditions:
+      - type: mmo:skillLevel
+        skill: MINING
+        level: 5
+    objectives:
+      - id: mining_levels
+        displayName: Gain two Mining levels
+        type: signal
+        signal: "mmo:level_up:MINING"
+        amount: 2
+    rewards:
+      - type: mmo:addXp
+        skill: SMITHING
+        amount: 300
+
+  well_rounded:
+    displayName: Well Rounded
+    description: The skill tree rewards those who wander off the path.
+    category: side
+    lockedText: "Reach a total skill level of 50 in MMO Skill Tree."
+    rewardText: "200 Acrobatics xp"
+    startConditions:
+      - type: mmo:skillLevel
+        skill: total
+        level: 50
+    objectives:
+      - id: mmo_quests
+        displayName: Finish three MMO Skill Tree quests
+        type: signal
+        signal: "ziggfreed:quest_completed"
+        amount: 3
+    rewards:
+      - type: mmo:addXp
+        skill: ACROBATICS
+        amount: 200

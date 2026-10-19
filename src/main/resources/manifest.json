@@ -17,7 +17,10 @@
     "HelpChat:PlaceholderAPI": "*",
     "TheNewEconomy:VaultUnlocked": "*",
     "org.hyzionstudios:mysticgeneration": "*",
-    "org.hyzionstudios:mysticidentity": "*"
+    "org.hyzionstudios:mysticidentity": "*",
+    "Config:Endgame&QoL": "*",
+    "Ziggfreed:ZiggfreedCommon": "*",
+    "Ziggfreed:MMOSkillTree": "*"
   },
   "IncludesAssetPack": true
 }

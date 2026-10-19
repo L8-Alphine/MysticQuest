@@ -4,6 +4,7 @@ import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
 import org.hyzionstudios.mysticquests.hytale.EntityIndexSystem;
 import org.hyzionstudios.mysticquests.hytale.EntityVisibilitySystem;
+import org.hyzionstudios.mysticquests.hytale.ExternalQuestSyncSystem;
 import org.hyzionstudios.mysticquests.hytale.GatherObjectiveSystem;
 import org.hyzionstudios.mysticquests.hytale.KillObjectiveSystem;
 import org.hyzionstudios.mysticquests.hytale.StoryEntityDeathSystem;
@@ -74,6 +75,8 @@ public class MysticquestsPlugin extends JavaPlugin {
                 () -> runtime == null || runtime.narrative() == null ? null : runtime.narrative().runtime()));
         // Gather objectives count held items on every inventory change, as Hytale's own gather tasks do.
         getEntityStoreRegistry().registerSystem(new GatherObjectiveSystem(() -> runtime == null ? null : runtime.questService()));
+        // Reads quests other mods run (Endgame & QoL, ZiggfreedCommon) on each player's world thread.
+        getEntityStoreRegistry().registerSystem(new ExternalQuestSyncSystem(() -> runtime == null ? null : runtime.externalQuests()));
     }
 
     private StoryEntityRegistry storyEntities() {

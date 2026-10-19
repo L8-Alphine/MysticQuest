@@ -1,5 +1,6 @@
 package org.hyzionstudios.mysticquests.ui;
 
+import org.hyzionstudios.mysticquests.external.ExternalQuestId;
 import org.hyzionstudios.mysticquests.model.QuestDefinition;
 import org.hyzionstudios.mysticquests.service.JournalEntry;
 import org.hyzionstudios.mysticquests.service.ObjectiveView;
@@ -73,6 +74,8 @@ public final class MysticQuestJournalPage extends MysticQuestsPage<MysticQuestJo
     /** What the last action did, shown beside the action buttons until the next action. */
     @Nullable
     private Message actionNote;
+    /** Mirrored quests as of the last render: their category and the mod that runs them. */
+    private final Map<String, JournalSources.Mirrored> mirrored = new LinkedHashMap<>();
 
     public MysticQuestJournalPage(PlayerRef playerRef, UUID playerId, PlayerQuestService questService, JournalSources sources) {
         super(playerRef, EVENT_CODEC);
@@ -116,7 +119,7 @@ public final class MysticQuestJournalPage extends MysticQuestsPage<MysticQuestJo
                 sources.followGameLanguage(playerId);
                 sources.setPopups(playerId, true);
             }
-            case "track", "untrack", "abandon" -> questAction(action);
+            case "track", "untrack", "abandon" -> questAction(action, ref, store);
             default -> {
                 // An action from an older page; the refresh shows the current state.
             }
@@ -128,13 +131,23 @@ public final class MysticQuestJournalPage extends MysticQuestsPage<MysticQuestJo
         actionNote = UiText.of("That did not work. Try again, or tell staff if it keeps happening.", UiText.RED);
     }
 
-    private void questAction(String action) {
+    private void questAction(String action, Ref<EntityStore> ref, Store<EntityStore> store) {
         if (selectedKind != JournalModel.Kind.QUEST || selectedId == null) {
             return;
         }
+        // A quest another mod runs is tracked or abandoned by that mod; MysticQuests follows it.
+        boolean isMirrored = ExternalQuestId.isExternal(selectedId);
         QuestResult result = switch (action) {
-            case "track" -> questService.trackQuest(playerId, selectedId);
-            case "untrack" -> questService.untrackQuest(playerId);
+            case "track" -> {
+                if (isMirrored) {
+                    yield sources.mirroredAction(ref, store, selectedId, action);
+                }
+                sources.trackOwnQuest(playerId);
+                yield questService.trackQuest(playerId, selectedId);
+            }
+            case "untrack" -> isMirrored
+                    ? sources.mirroredAction(ref, store, selectedId, action)
+                    : questService.untrackQuest(playerId);
             default -> {
                 if (!selectedId.equals(abandonPendingQuestId)) {
                     abandonPendingQuestId = selectedId;
@@ -142,7 +155,9 @@ public final class MysticQuestJournalPage extends MysticQuestsPage<MysticQuestJo
                     yield null;
                 }
                 abandonPendingQuestId = null;
-                QuestResult abandoned = questService.abandonQuest(playerId, selectedId);
+                QuestResult abandoned = isMirrored
+                        ? sources.mirroredAction(ref, store, selectedId, "abandon")
+                        : questService.abandonQuest(playerId, selectedId);
                 if (abandoned.success()) {
                     selectedId = null;
                     selectedKind = null;
@@ -189,17 +204,32 @@ public final class MysticQuestJournalPage extends MysticQuestsPage<MysticQuestJo
         for (JournalEntry entry : questService.abandonedJournal(playerId)) {
             abandoned.add(new JournalModel.Finished(entry, data.abandonedQuests().get(entry.questId())));
         }
-        return new JournalModel(questService.journal(playerId), data.trackedQuestId(), startedAt, completed, abandoned,
+        // Quests other mods run sit beside the player's own, filed under their mod's category.
+        mirrored.clear();
+        List<JournalEntry> active = new ArrayList<>(questService.journal(playerId));
+        for (JournalSources.Mirrored quest : sources.mirrored(playerId)) {
+            mirrored.put(quest.entry().questId(), quest);
+            active.add(quest.entry());
+        }
+        String trackedMirrored = sources.trackedMirrored(playerId, data.trackedQuestId() != null);
+        return new JournalModel(active, trackedMirrored != null ? trackedMirrored : data.trackedQuestId(),
+                startedAt, completed, abandoned,
                 sources.stories(playerId),
-                id -> questService.definition(id).map(QuestDefinition::category).orElse(""),
-                id -> questService.definition(id).map(QuestDefinition::rewardText).orElse(""));
+                this::categoryOf,
+                id -> mirrored.containsKey(id) ? mirrored.get(id).rewardText()
+                        : questService.definition(id).map(QuestDefinition::rewardText).orElse(""));
+    }
+
+    private String categoryOf(String questId) {
+        JournalSources.Mirrored quest = mirrored.get(questId);
+        return quest != null ? quest.category() : questService.definition(questId).map(QuestDefinition::category).orElse("");
     }
 
     @Override
     protected void render(UICommandBuilder commands, UIEventBuilder events) {
         JournalModel model = model();
         PlayerQuestData data = questService.data(playerId);
-        commands.set("#HeaderSummary.Text", data.activeQuests().size() + " active   "
+        commands.set("#HeaderSummary.Text", (data.activeQuests().size() + mirrored.size()) + " active   "
                 + model.storyCount() + " stories   " + data.completedQuests().size() + " completed");
         events.addEventBinding(CustomUIEventBindingType.Activating, "#CloseButton", EventData.of("Action", "close"));
 
@@ -302,7 +332,11 @@ public final class MysticQuestJournalPage extends MysticQuestsPage<MysticQuestJo
         if (item.kind() == JournalModel.Kind.STORY) {
             return item.subtitle();
         }
-        String category = questService.definition(item.id()).map(QuestDefinition::category).orElse("");
+        JournalSources.Mirrored quest = mirrored.get(item.id());
+        if (quest != null) {
+            return quest.source();
+        }
+        String category = categoryOf(item.id());
         String label = QuestCategories.section(category);
         return label.charAt(0) + label.substring(1).toLowerCase(java.util.Locale.ROOT);
     }

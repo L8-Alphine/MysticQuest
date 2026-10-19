@@ -576,6 +576,39 @@ final class QuestContentLoaderTest {
     }
 
     @Test
+    void acceptsNamespacedTypesFromOtherModsButNotForObjectives() throws IOException {
+        Path packageDir = Files.createDirectories(tempDir.resolve("crossroads"));
+        Files.writeString(packageDir.resolve("quests.json"), """
+                [
+                  {
+                    "id": "frost_veteran",
+                    "startConditions": [
+                      { "type": "endgame:questCompleted", "quest": "story_frost_wardens" },
+                      { "type": "not", "conditions": [ { "type": "mmo:skillLevel", "skill": "MINING", "level": 5 } ] }
+                    ],
+                    "objectives": [ { "id": "bosses", "type": "signal", "signal": "endgame:boss_kill", "amount": 3 } ],
+                    "rewards": [ { "type": "mmo:addXp", "skill": "DEFENSE", "amount": 500 } ]
+                  }
+                ]
+                """);
+
+        LoadedContent content = new QuestContentLoader(Json.createMapper()).load(tempDir);
+        assertEquals(1, content.quests().get("crossroads:frost_veteran").rewards().size());
+
+        Files.writeString(packageDir.resolve("quests.json"), """
+                [ { "id": "bad", "objectives": [ { "id": "o", "type": "endgame:bossKill", "amount": 1 } ] } ]
+                """);
+        IOException exception = assertThrows(IOException.class, () -> new QuestContentLoader(Json.createMapper()).load(tempDir));
+        assertTrue(exception.getMessage().contains("unknown objective type endgame:bossKill"), exception.getMessage());
+
+        assertTrue(QuestContentLoader.isNamespaced("endgame:questCompleted"));
+        assertFalse(QuestContentLoader.isNamespaced(":questCompleted"));
+        assertFalse(QuestContentLoader.isNamespaced("endgame:"));
+        assertFalse(QuestContentLoader.isNamespaced("a:b:c"));
+        assertFalse(QuestContentLoader.isNamespaced("notReal"));
+    }
+
+    @Test
     void loadsAbandonCooldownAndReacceptConditions() throws IOException {
         Path packageDir = Files.createDirectories(tempDir.resolve("tutorial"));
         Files.writeString(packageDir.resolve("quests.json"), """

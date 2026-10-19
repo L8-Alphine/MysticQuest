@@ -22,6 +22,7 @@ Optional mods. MysticQuests runs without any of them, and `/mq integrations` sho
 | MysticIdentity | The `account` story-state scope (state kept for the person across every Hytale account they link; needs both MysticIdentity's controller and its game-server plugin to be versions that report identity ids). Quest pages on the player web portal: active quests with their current step, quest history, story milestones, a "Current quest" Home widget. Owners switch each on or off under *Identity settings → Portal features*. |
 | HyCitizens | Conversations on HyCitizens NPCs. |
 | PlaceholderAPI, VaultUnlocked | Placeholders in quest text; economy rewards and conditions. |
+| Endgame & QoL, MMO Skill Tree (with ZiggfreedCommon) | Their quests in the Journal and the quest tracker, one tracker on screen instead of three, and conditions, events and signals for your own content (`endgame:questCompleted`, `mmo:skillLevel`, `mmo:addXp`, `endgame:boss_kill`…). They keep running their quests themselves. See [Quests from other mods](integrations/external-quests.md). |
 
 ## Installing and upgrading
 
@@ -88,6 +89,7 @@ the 2.0 section is:
 | `maxPuzzleInputs` | Inputs per puzzle above which a reload warns. |
 
 The web Creator Studio has its own `studio` section, off by default; see [the Studio guide](studio.md#turning-it-on).
+Mirroring other mods' quests has its own `externalQuests` section; see [Quests from other mods](integrations/external-quests.md#turning-it-on).
 
 `/mquest reload` reloads content. A reload is all-or-nothing: if any quest or story content has an
 error, nothing changes and the errors are listed. Only the first load at startup tolerates story
@@ -130,7 +132,8 @@ Inspecting (read-only):
 | `/mquest narrative cutscene <player>` | The scene they are watching. |
 | `/mquest narrative checkpoint <player>` | Saved checkpoints in their stories. |
 | `/mq visibility status [player]` | Who is hidden from whom, and why. |
-| `/mq integrations` | Which optional mods are active, and what is missing. |
+| `/mq integrations` | Which optional mods are active, and what is missing; which other mods' quests are mirrored and which HUD layers are hidden. |
+| `/mq hud keys [player]` | Every custom HUD layer the player has, from any mod, marked when MysticQuests hides it. The keys go in `externalQuests.hiddenHuds`. |
 | `/mquest narrative stats [reset]` | Story sessions and story NPCs against their limits, failure and recovery counts, and the slowest operations since startup. `reset` starts counting again (needs the fixing permission). |
 
 Fixing (audited, with an optional reason at the end):

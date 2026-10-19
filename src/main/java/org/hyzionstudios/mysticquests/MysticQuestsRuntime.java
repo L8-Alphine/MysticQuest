@@ -2,6 +2,7 @@ package org.hyzionstudios.mysticquests;
 
 import org.hyzionstudios.mysticquests.ui.PlayerUiPreferences;
 import org.hyzionstudios.mysticquests.integration.IntegrationStatus;
+import org.hyzionstudios.mysticquests.integration.external.ExternalQuestService;
 import java.util.LinkedHashMap;
 import java.util.Comparator;
 import java.util.ArrayList;
@@ -120,6 +121,7 @@ public final class MysticQuestsRuntime implements AutoCloseable {
     private PlayerUiPreferences uiPreferences;
     private StudioIntegration studio;
     private MysticIdentityPortal identityPortal;
+    private ExternalQuestService externalQuests;
     private volatile PlayerStateAdmin playerAdmin;
     /**
      * False only during the first content load in {@link #start()}. That load tolerates narrative
@@ -204,6 +206,13 @@ public final class MysticQuestsRuntime implements AutoCloseable {
                     config.ui().hudJoinDelayMillis(),
                     plugin.getLogger());
             this.questService.addChangeListener(hudService::reconcile);
+            // Quests other mods run, mirrored into the HUD and Journal. Attached before the first
+            // content load, so packs can use the condition and event types it registers.
+            this.externalQuests = new ExternalQuestService(config.externalQuests(), config.ui().questHud(),
+                    sessionService, signalBus::publish, plugin.getLogger());
+            this.externalQuests.onPlayerChanged(hudService::reconcile);
+            this.hudService.bindMirroredQuests(externalQuests::trackerQuest);
+            this.externalQuests.attach(registry);
             this.transitionService = new QuestTransitionService(
                     questService, sessionService, config.ui().transitionCards(), plugin.getLogger());
             this.questService.addChangeListener(transitionService::onQuestStateChanged);
@@ -466,6 +475,11 @@ public final class MysticQuestsRuntime implements AutoCloseable {
         return hudService;
     }
 
+    /** Quests other mods run, mirrored into MysticQuests; null before start. */
+    public ExternalQuestService externalQuests() {
+        return externalQuests;
+    }
+
     public QuestTransitionService transitionService() {
         return transitionService;
     }
@@ -597,6 +611,9 @@ public final class MysticQuestsRuntime implements AutoCloseable {
         if (visibilityService != null) {
             visibilityService.forgetPlayer(playerId);
         }
+        if (externalQuests != null) {
+            externalQuests.forget(playerId);
+        }
     }
 
     /**
@@ -609,6 +626,12 @@ public final class MysticQuestsRuntime implements AutoCloseable {
                 .map(entry -> entry.questId() + "  " + entry.displayName()).toList());
         if (narrative != null) {
             snapshot.putAll(narrative.runtime().debug().snapshot(playerId));
+        }
+        if (externalQuests != null) {
+            List<String> mirrored = externalQuests.describe(playerId);
+            if (!mirrored.isEmpty()) {
+                snapshot.put("Mirrored quests", mirrored);
+            }
         }
         return snapshot;
     }
@@ -758,6 +781,11 @@ public final class MysticQuestsRuntime implements AutoCloseable {
         }
         if (targeting != null) {
             targeting.clear();
+        }
+        // Before the registry clears: it unregisters its own types and stops hiding HUDs.
+        if (externalQuests != null) {
+            externalQuests.close();
+            externalQuests = null;
         }
         if (registry != null) {
             registry.clear();

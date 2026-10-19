@@ -1,5 +1,12 @@
 package org.hyzionstudios.mysticquests.ui;
 
+import org.hyzionstudios.mysticquests.service.JournalEntry;
+import org.hyzionstudios.mysticquests.service.QuestResult;
+
+import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.component.Store;
+import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+
 import javax.annotation.Nullable;
 import java.time.Instant;
 import java.util.List;
@@ -31,7 +38,40 @@ public interface JournalSources {
                     boolean popups, boolean popupsAvailable) {
     }
 
+    /**
+     * A quest another mod runs, mirrored into the Journal (docs/integrations/external-quests.md).
+     *
+     * @param entry the quest under its {@code ext:} key
+     * @param source the mod's name, for the card's context line
+     */
+    record Mirrored(JournalEntry entry, String category, String rewardText, String source) {
+    }
+
     List<Story> stories(UUID player);
+
+    /** Mirrored quests in progress, mod by mod. */
+    default List<Mirrored> mirrored(UUID player) {
+        return List.of();
+    }
+
+    /**
+     * The mirrored quest the tracker follows, or null when it follows the player's own.
+     *
+     * @param ownTracked whether the player tracks one of their MysticQuests quests
+     */
+    @Nullable
+    default String trackedMirrored(UUID player, boolean ownTracked) {
+        return null;
+    }
+
+    /** Track, untrack or abandon a mirrored quest, in the mod that runs it. On the player's world thread. */
+    default QuestResult mirroredAction(Ref<EntityStore> ref, Store<EntityStore> store, String key, String action) {
+        return QuestResult.failure("That quest is not available right now.");
+    }
+
+    /** The player picked one of their own quests for the tracker, over any mirrored one. */
+    default void trackOwnQuest(UUID player) {
+    }
 
     Settings settings(UUID player);
 

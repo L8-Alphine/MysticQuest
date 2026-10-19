@@ -1,6 +1,14 @@
 package org.hyzionstudios.mysticquests.ui;
 
 import org.hyzionstudios.mysticquests.MysticQuestsRuntime;
+import org.hyzionstudios.mysticquests.external.ExternalJournal;
+import org.hyzionstudios.mysticquests.external.ExternalQuest;
+import org.hyzionstudios.mysticquests.integration.external.ExternalQuestService;
+import org.hyzionstudios.mysticquests.service.QuestResult;
+
+import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.component.Store;
+import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import org.hyzionstudios.mysticquests.narrative.NarrativeRuntime;
 import org.hyzionstudios.mysticquests.narrative.media.QuestMediaService;
 import org.hyzionstudios.mysticquests.narrative.session.QuestSession;
@@ -71,6 +79,39 @@ final class RuntimeJournalSources implements JournalSources {
             }
         }
         return name.isEmpty() ? storyKey : name.toString();
+    }
+
+    @Override
+    public List<Mirrored> mirrored(UUID player) {
+        ExternalQuestService external = runtime.externalQuests();
+        if (external == null) {
+            return List.of();
+        }
+        return external.active(player, quest -> new Mirrored(ExternalJournal.entry(quest), quest.category(),
+                quest.rewardText(), external.sourceName(quest.source())));
+    }
+
+    @Override
+    public String trackedMirrored(UUID player, boolean ownTracked) {
+        ExternalQuestService external = runtime.externalQuests();
+        ExternalQuest quest = external == null ? null : external.trackerQuest(player, ownTracked);
+        return quest == null ? null : quest.key();
+    }
+
+    @Override
+    public QuestResult mirroredAction(Ref<EntityStore> ref, Store<EntityStore> store, String key, String action) {
+        ExternalQuestService external = runtime.externalQuests();
+        return external == null
+                ? QuestResult.failure("That quest is not available right now.")
+                : external.act(ref, store, key, action);
+    }
+
+    @Override
+    public void trackOwnQuest(UUID player) {
+        ExternalQuestService external = runtime.externalQuests();
+        if (external != null) {
+            external.book().focusMysticQuests(player);
+        }
     }
 
     @Override

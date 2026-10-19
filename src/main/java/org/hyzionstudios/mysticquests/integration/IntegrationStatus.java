@@ -89,6 +89,10 @@ public final class IntegrationStatus {
                 "economy conditions fail and money rewards are skipped"));
         entries.add(present("PlaceholderAPI", "at.helpch.placeholderapi.PlaceholderAPI", flags.placeholderApi(),
                 "third-party placeholders are left unresolved"));
+        // Mods whose quests are mirrored into the Journal and HUD, and the HUD layers hidden for them.
+        if (runtime.externalQuests() != null) {
+            entries.addAll(runtime.externalQuests().status());
+        }
         return entries;
     }
 

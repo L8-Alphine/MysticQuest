@@ -74,7 +74,8 @@ public final class UiStyles {
         return switch (key) {
             case "side", "exploration" -> Tone.CYAN;
             case "contract", "community", "daily", "event" -> Tone.GOLD;
-            case "dungeon", "raid" -> Tone.RED;
+            case "dungeon", "raid", "endgame" -> Tone.RED;
+            case "mmo" -> Tone.CYAN;
             case "guild" -> Tone.GREEN;
             default -> Tone.PURPLE;
         };

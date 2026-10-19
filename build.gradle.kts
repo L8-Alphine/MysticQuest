@@ -19,7 +19,30 @@ val hytaleServerJarPath: String by project
 
 val resolvedServerJar = hytaleServerJarPath.ifBlank { "$hytaleInstallPath/Server/HytaleServer.jar" }
 
+// Endgame & QoL and the Ziggfreed mods (ZiggfreedCommon, MMOSkillTree): MysticQuests mirrors their
+// quests into its own HUD and Journal (integration/endgame, integration/ziggfreed). They are never
+// bundled and are optional at runtime; ExternalQuestIntegrations loads those bridges by name only once
+// the mod is running. The jars come from the local Mods folder. Without them, those packages are left
+// out of the build and /mq integrations reports them as not built in.
+val hytaleModsDir = file(providers.gradleProperty("hytaleModsPath").orNull?.takeIf { it.isNotBlank() }
+    ?: "${System.getenv("APPDATA") ?: ""}/Hytale/UserData/Mods")
+val endgameJars = fileTree(hytaleModsDir) { include("EndgameAndQoL*.jar") }
+val ziggfreedJars = fileTree(hytaleModsDir) { include("ZiggfreedCommon-*.jar", "MMOSkillTree-*.jar") }
+val hasEndgame = !endgameJars.isEmpty
+val hasZiggfreed = ziggfreedJars.files.any { it.name.startsWith("ZiggfreedCommon-") } &&
+    ziggfreedJars.files.any { it.name.startsWith("MMOSkillTree-") }
+
+sourceSets.main {
+    java {
+        if (!hasEndgame) exclude("org/hyzionstudios/mysticquests/integration/endgame/**")
+        if (!hasZiggfreed) exclude("org/hyzionstudios/mysticquests/integration/ziggfreed/**")
+    }
+}
+
 dependencies {
+    if (hasEndgame) compileOnly(endgameJars)
+    if (hasZiggfreed) compileOnly(ziggfreedJars)
+
     // Hytale Server API from official Maven repository
     compileOnly("com.hypixel.hytale:Server:0.7.0")
 

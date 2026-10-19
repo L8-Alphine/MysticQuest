@@ -16,7 +16,8 @@ public record MysticQuestsConfig(
         UiConfig ui,
         boolean debug,
         NarrativeConfig narrative,
-        StudioConfig studio) {
+        StudioConfig studio,
+        ExternalQuestsConfig externalQuests) {
     public static MysticQuestsConfig defaults() {
         return new MysticQuestsConfig(
                 new StorageConfig("sqlite", "data/players", "data/mysticquests.db"),
@@ -26,7 +27,8 @@ public record MysticQuestsConfig(
                 new UiConfig(true, UiConfig.DEFAULT_HUD_JOIN_DELAY_MILLIS, false),
                 false,
                 NarrativeConfig.DEFAULTS,
-                StudioConfig.DEFAULTS);
+                StudioConfig.DEFAULTS,
+                ExternalQuestsConfig.DEFAULTS);
     }
 
     public static MysticQuestsConfig load(Path dataDirectory, ObjectMapper mapper) throws IOException {
@@ -51,7 +53,52 @@ public record MysticQuestsConfig(
                 ui == null ? defaults.ui : ui.withDefaults(),
                 debug,
                 narrative == null ? defaults.narrative : narrative.withDefaults(),
-                studio == null ? defaults.studio : studio.withDefaults());
+                studio == null ? defaults.studio : studio.withDefaults(),
+                externalQuests == null ? defaults.externalQuests : externalQuests.withDefaults());
+    }
+
+    /**
+     * Quests that other mods run, shown and tracked through MysticQuests (docs/integrations/external-quests.md).
+     * The other mod stays in charge of its quests: it decides progress and pays rewards; MysticQuests
+     * mirrors them into its Journal and HUD and lets content react to them.
+     *
+     * @param endgame mirror Endgame &amp; QoL's story, side quests and contracts
+     * @param ziggfreed mirror ZiggfreedCommon quests — MMOSkillTree's and its packs' — and MMOSkillTree
+     *         skill levels for the {@code mmo:skillLevel} condition
+     * @param unifiedTracker let the MysticQuests tracker show a mirrored quest. When a player tracks a
+     *         quest in the other mod's own book, the tracker follows it
+     * @param hideModTrackers hide the other mods' own quest tracker HUDs for mirrored mods, so the
+     *         top-right corner has one tracker. Only applies while the MysticQuests HUD and the unified
+     *         tracker are on, so nobody is left without one
+     * @param hiddenHuds further custom HUD keys, from any mod, that players never see. A trailing
+     *         {@code *} matches a prefix ({@code EndgameQoL.*}). {@code /mq hud keys} lists the keys a
+     *         player has
+     * @param forwardSignals publish the other mods' moments (boss kills, dungeon entries, quest
+     *         completions, skill level-ups) as MysticQuests signals that {@code signal} objectives count
+     * @param syncIntervalMillis how often a player's mirrored quests are re-read on their world thread
+     */
+    public record ExternalQuestsConfig(
+            Boolean endgame,
+            Boolean ziggfreed,
+            Boolean unifiedTracker,
+            Boolean hideModTrackers,
+            List<String> hiddenHuds,
+            Boolean forwardSignals,
+            Integer syncIntervalMillis) {
+        static final int DEFAULT_SYNC_INTERVAL_MILLIS = 1000;
+        static final ExternalQuestsConfig DEFAULTS =
+                new ExternalQuestsConfig(true, true, true, true, List.of(), true, DEFAULT_SYNC_INTERVAL_MILLIS);
+
+        ExternalQuestsConfig withDefaults() {
+            return new ExternalQuestsConfig(
+                    endgame == null || endgame,
+                    ziggfreed == null || ziggfreed,
+                    unifiedTracker == null || unifiedTracker,
+                    hideModTrackers == null || hideModTrackers,
+                    hiddenHuds == null ? List.of() : hiddenHuds.stream().filter(key -> key != null && !key.isBlank()).map(String::strip).toList(),
+                    forwardSignals == null || forwardSignals,
+                    syncIntervalMillis == null || syncIntervalMillis < 250 ? DEFAULT_SYNC_INTERVAL_MILLIS : syncIntervalMillis);
+        }
     }
 
     /**

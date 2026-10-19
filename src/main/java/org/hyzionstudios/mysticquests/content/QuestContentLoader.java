@@ -852,6 +852,13 @@ public final class QuestContentLoader {
             return;
         }
         if (!allowedTypes.contains(type)) {
+            // A namespaced condition or event type ("endgame:questCompleted") belongs to another mod,
+            // registered through MysticQuestsRegistry when that mod starts. It is resolved at run time:
+            // with no mod behind it a condition denies and an event is logged and skipped, so a pack
+            // written for a mod the server lacks still loads instead of failing the whole reload.
+            if (kind(allowedTypes) != Kind.OBJECTIVE && isNamespaced(type)) {
+                return;
+            }
             errors.add(owner + " uses unknown " + label + " type " + type);
             return;
         }
@@ -860,6 +867,12 @@ public final class QuestContentLoader {
         } else if (value instanceof EventDefinition event) {
             validateNestedEvents(owner, label, event, errors);
         }
+    }
+
+    /** {@code mod:name}: a non-empty namespace and name around one colon, as MysticQuestsRegistry ids are written. */
+    static boolean isNamespaced(String type) {
+        int colon = type.indexOf(':');
+        return colon > 0 && colon < type.length() - 1 && type.indexOf(':', colon + 1) < 0 && type.strip().equals(type);
     }
 
     private Kind kind(Set<String> allowedTypes) {
