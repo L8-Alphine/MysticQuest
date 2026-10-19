@@ -8,8 +8,9 @@ import com.hypixel.hytale.server.core.universe.PlayerRef;
  * The tracked-quest HUD, in a compact or an expanded composition.
  *
  * <p>Both compositions live in one document, so a mode change from {@link QuestHudCoordinator} is a
- * small Visible patch rather than a HUD removal and re-add. The puzzle card is a separate layer,
- * {@link QuestPuzzleHud}. Full quest history remains in the Journal.
+ * small Visible patch rather than a HUD removal and re-add. The expanded one also lists the player's
+ * other tracked quests under the card, one slim row each; the compact one never does. The puzzle card
+ * is a separate layer, {@link QuestPuzzleHud}. Full quest history remains in the Journal.
  */
 public final class QuestHud extends CustomUIHud {
     public static final String KEY = "mysticquests:quest_tracker";
@@ -80,6 +81,20 @@ public final class QuestHud extends CustomUIHud {
             builder.set("#ExpandedRowText" + index + ".Text", row.objectiveText());
             builder.set("#ExpandedRowProgress" + index + ".Text", row.progressLabel());
             builder.set("#ExpandedRowMeter" + index + ".Value", row.progressRatio());
+        }
+
+        // Inside #ExpandedTracker, so they only ever show in the expanded composition.
+        for (int index = 0; index < QuestHudViewModel.OTHER_TRACKED_LIMIT; index++) {
+            boolean present = index < model.otherTracked().size();
+            builder.set("#OtherQuest" + index + ".Visible", present);
+            if (!present) {
+                continue;
+            }
+            QuestHudViewModel.TrackedRow row = model.otherTracked().get(index);
+            builder.set("#OtherQuestTitle" + index + ".Text", row.questTitle());
+            builder.set("#OtherQuestBadge" + index + ".Text", row.categoryLabel());
+            builder.set("#OtherQuestObjective" + index + ".Text", row.objectiveText());
+            builder.set("#OtherQuestProgress" + index + ".Text", row.progressLabel());
         }
     }
 }

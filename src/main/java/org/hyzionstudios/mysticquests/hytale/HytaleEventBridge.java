@@ -1,8 +1,6 @@
 package org.hyzionstudios.mysticquests.hytale;
 
 import org.hyzionstudios.mysticquests.MysticQuestsRuntime;
-import org.hyzionstudios.mysticquests.integration.MysticGenerationBridge;
-import org.hyzionstudios.mysticquests.integration.MysticGenerationBridge.GenerationNpc;
 import org.hyzionstudios.mysticquests.integration.triggervolumes.VolumeNames;
 import org.hyzionstudios.mysticquests.service.QuestSignal;
 import org.hyzionstudios.mysticquests.service.QuestSignalBus;
@@ -13,8 +11,6 @@ import org.hyzionstudios.mysticquests.service.QuestTargetContext;
 import org.hyzionstudios.mysticquests.ui.QuestHudService;
 
 import com.hypixel.hytale.builtin.triggervolumes.effect.TriggerEventType;
-import com.hypixel.hytale.component.Ref;
-import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.builtin.triggervolumes.event.TriggerVolumeEvent;
 import com.hypixel.hytale.server.core.event.events.player.PlayerCraftEvent;
 import com.hypixel.hytale.server.core.event.events.player.PlayerDisconnectEvent;
@@ -23,7 +19,6 @@ import com.hypixel.hytale.server.core.event.events.player.PlayerMouseButtonEvent
 import com.hypixel.hytale.server.core.event.events.player.PlayerMouseMotionEvent;
 import com.hypixel.hytale.server.core.event.events.player.PlayerReadyEvent;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
-import com.hypixel.hytale.server.core.universe.PlayerRef;
 
 import java.util.UUID;
 
@@ -35,7 +30,6 @@ public final class HytaleEventBridge {
     private final ConversationService conversationService;
     private final QuestHudService hudService;
     private final PlayerSessionService sessionService;
-    private final MysticGenerationBridge generationBridge;
 
     public HytaleEventBridge(
             MysticQuestsRuntime runtime,
@@ -44,8 +38,7 @@ public final class HytaleEventBridge {
             PlayerQuestService questService,
             ConversationService conversationService,
             QuestHudService hudService,
-            PlayerSessionService sessionService,
-            MysticGenerationBridge generationBridge) {
+            PlayerSessionService sessionService) {
         this.runtime = runtime;
         this.plugin = plugin;
         this.signalBus = signalBus;
@@ -53,7 +46,6 @@ public final class HytaleEventBridge {
         this.conversationService = conversationService;
         this.hudService = hudService;
         this.sessionService = sessionService;
-        this.generationBridge = generationBridge;
     }
 
     public void register() {
@@ -103,28 +95,14 @@ public final class HytaleEventBridge {
         conversationService.reconcileInteractablesThrottled(event.getPlayer().getUuid(), event.getPlayerRef());
     }
 
+    /**
+     * Only opens conversations. The engine no longer raises this deprecated event, so interaction
+     * objectives come from {@link InteractObjectiveSystems} instead; publishing them here as well
+     * would count every use twice should it ever fire again.
+     */
     private void onInteract(PlayerInteractEvent event) {
-        UUID playerId = event.getPlayer().getUuid();
         if (conversationService.tryStart(event)) {
             event.setCancelled(true);
-            return;
-        }
-        if (event.getTargetEntity() != null) {
-            String entityTarget = event.getTargetEntity().getLegacyDisplayName();
-            if (entityTarget == null || entityTarget.isBlank()) {
-                entityTarget = event.getTargetEntity().getUuid().toString();
-            }
-            GenerationNpc npc = identify(event);
-            QuestTargetContext context = entityContext(event, npc);
-            signalBus.publish(QuestSignal.targeted(playerId, "interactEntity", entityTarget, 1, context));
-            if (npc != null) {
-                // A second, separate signal rather than a different target on the first: existing
-                // interactEntity content keyed on display name must keep working unchanged.
-                signalBus.publish(QuestSignal.targeted(playerId, "interactNpc", npc.definitionId(), 1, context));
-            }
-        }
-        if (event.getTargetBlock() != null) {
-            signalBus.publish(QuestSignal.targeted(playerId, "interactObject", event.getTargetBlock().toString(), 1, blockContext(event)));
         }
     }
 
@@ -164,56 +142,6 @@ public final class HytaleEventBridge {
         // Persist inside the disconnect rather than waiting out the debounce window, so a player who
         // logs off immediately after a quest step does not lose it to a server stop seconds later.
         runtime.flushState();
-    }
-
-    /** The MysticGeneration identity of the interacted entity, or null when it has none. */
-    private GenerationNpc identify(PlayerInteractEvent event) {
-        if (generationBridge == null) {
-            return null;
-        }
-        Ref<EntityStore> targetRef = event.getTargetRef();
-        if (targetRef == null || !targetRef.isValid()) {
-            return null;
-        }
-        return generationBridge.identify(targetRef.getStore(), targetRef).orElse(null);
-    }
-
-    private QuestTargetContext entityContext(PlayerInteractEvent event, GenerationNpc npc) {
-        String id = event.getTargetEntity().getUuid() == null ? null : event.getTargetEntity().getUuid().toString();
-        QuestTargetContext context = new QuestTargetContext(
-                id,
-                event.getTargetEntity().getClass().getSimpleName(),
-                event.getTargetEntity().getLegacyDisplayName(),
-                null,
-                null,
-                playerWorldId(event),
-                null,
-                null,
-                null);
-        return npc == null
-                ? context
-                : context.withGeneration(npc.definitionId(), npc.uuid().toString());
-    }
-
-    private QuestTargetContext blockContext(PlayerInteractEvent event) {
-        PlayerRef playerRef = event.getPlayer().getPlayerRef();
-        String worldId = playerRef == null || playerRef.getWorldUuid() == null ? "" : playerRef.getWorldUuid().toString();
-        String blockId = worldId + ":" + event.getTargetBlock().x + ":" + event.getTargetBlock().y + ":" + event.getTargetBlock().z;
-        return new QuestTargetContext(
-                null,
-                null,
-                null,
-                blockId,
-                event.getTargetBlock().toString(),
-                worldId,
-                null,
-                null,
-                null);
-    }
-
-    private String playerWorldId(PlayerInteractEvent event) {
-        PlayerRef playerRef = event.getPlayer().getPlayerRef();
-        return playerRef == null || playerRef.getWorldUuid() == null ? "" : playerRef.getWorldUuid().toString();
     }
 
     private QuestTargetContext triggerContext(TriggerVolumeEvent event, String volumeId) {

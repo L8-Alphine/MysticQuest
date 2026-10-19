@@ -6,6 +6,7 @@ import org.hyzionstudios.mysticquests.hytale.EntityIndexSystem;
 import org.hyzionstudios.mysticquests.hytale.EntityVisibilitySystem;
 import org.hyzionstudios.mysticquests.hytale.ExternalQuestSyncSystem;
 import org.hyzionstudios.mysticquests.hytale.GatherObjectiveSystem;
+import org.hyzionstudios.mysticquests.hytale.InteractObjectiveSystems;
 import org.hyzionstudios.mysticquests.hytale.KillObjectiveSystem;
 import org.hyzionstudios.mysticquests.hytale.StoryEntityDeathSystem;
 import org.hyzionstudios.mysticquests.hytale.NameplateVisibilitySystem;
@@ -73,6 +74,12 @@ public class MysticquestsPlugin extends JavaPlugin {
         // A claimed story NPC's death runs its onDeath actions for the audience that owns it (§8).
         getEntityStoreRegistry().registerSystem(new StoryEntityDeathSystem(
                 () -> runtime == null || runtime.narrative() == null ? null : runtime.narrative().runtime()));
+        // Interaction objectives come from the engine's use events; PlayerInteractEvent is never raised.
+        getEntityStoreRegistry().registerSystem(new InteractObjectiveSystems.UseBlock(
+                () -> runtime == null ? null : runtime.signalBus()));
+        getEntityStoreRegistry().registerSystem(new InteractObjectiveSystems.UseEntity(
+                () -> runtime == null ? null : runtime.signalBus(),
+                () -> runtime == null ? null : runtime.generationBridge()));
         // Gather objectives count held items on every inventory change, as Hytale's own gather tasks do.
         getEntityStoreRegistry().registerSystem(new GatherObjectiveSystem(() -> runtime == null ? null : runtime.questService()));
         // Reads quests other mods run (Endgame & QoL, ZiggfreedCommon) on each player's world thread.

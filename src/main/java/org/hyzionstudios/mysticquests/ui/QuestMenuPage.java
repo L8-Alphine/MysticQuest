@@ -42,15 +42,17 @@ public final class QuestMenuPage extends MysticQuestsPage<QuestMenuPage.PageEven
 
     private final UUID playerId;
     private final PlayerQuestService questService;
+    private final JournalSources sources;
     private String filter = ALL;
     /** Feedback from the last accept attempt, shown until the next action. */
     @Nullable
     private Message status;
 
-    public QuestMenuPage(PlayerRef playerRef, UUID playerId, PlayerQuestService questService) {
+    public QuestMenuPage(PlayerRef playerRef, UUID playerId, PlayerQuestService questService, JournalSources sources) {
         super(playerRef, EVENT_CODEC);
         this.playerId = playerId;
         this.questService = questService;
+        this.sources = sources;
     }
 
     @Override
@@ -67,6 +69,14 @@ public final class QuestMenuPage extends MysticQuestsPage<QuestMenuPage.PageEven
             case "accept" -> {
                 QuestResult result = questService.startQuest(playerId, data.id());
                 status = UiText.status(result.message(), result.success());
+            }
+            case "tab" -> {
+                switch (QuestPageTabs.open(data.id(), QuestPageTabs.BOARD, ref, store, playerRef, questService, sources)) {
+                    case LEFT -> markClosed();
+                    case UNAVAILABLE -> status = UiText.of("That book is not available right now.", UiText.RED);
+                    case STAYED -> {
+                    }
+                }
             }
             default -> {
                 // An action from an older page; the refresh shows the current board.
@@ -85,6 +95,7 @@ public final class QuestMenuPage extends MysticQuestsPage<QuestMenuPage.PageEven
                 questService::definition);
         commands.set("#HeaderSummary.Text", board.availableCount() == 1 ? "1 available" : board.availableCount() + " available");
         events.addEventBinding(CustomUIEventBindingType.Activating, "#CloseButton", EventData.of("Action", "close"));
+        QuestPageTabs.render(commands, events, QuestPageTabs.BOARD, sources);
         commands.set("#StatusText.TextSpans", status == null
                 ? UiText.muted(board.isEmpty() ? "" : "Pick a quest to accept it. Your journal keeps the ones you have taken on.")
                 : status);

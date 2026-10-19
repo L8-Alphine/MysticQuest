@@ -15,7 +15,7 @@ public final class ChatColorUtil {
         }
         List<Message> parts = new ArrayList<>();
         StringBuilder current = new StringBuilder();
-        Style style = new Style(defaultColor == null || defaultColor.isBlank() ? "#EEF3FC" : defaultColor);
+        Style style = new Style(defaultColor(defaultColor));
         for (int index = 0; index < text.length(); index++) {
             char character = text.charAt(index);
             if (character == '&' && index + 1 < text.length()) {
@@ -30,8 +30,11 @@ public final class ChatColorUtil {
                     continue;
                 }
                 char code = Character.toLowerCase(text.charAt(index + 1));
-                if (applyCode(style, code)) {
+                if (isCode(code)) {
+                    // The text so far keeps the style it was written under; the code styles what follows.
+                    // Applying first painted every run in the next run's colour.
                     flush(parts, current, style);
+                    applyCode(style, code, defaultColor(defaultColor));
                     index++;
                     continue;
                 }
@@ -57,30 +60,32 @@ public final class ChatColorUtil {
         current.setLength(0);
     }
 
-    private static boolean applyCode(Style style, char code) {
+    private static String defaultColor(String color) {
+        return color == null || color.isBlank() ? "#EEF3FC" : color;
+    }
+
+    private static boolean isCode(char code) {
+        return legacyColor(code) != null || code == 'l' || code == 'o' || code == 'm' || code == 'r';
+    }
+
+    /** A colour starts a fresh run, as in the legacy format; l, o and m add to it; r returns to the message's colour. */
+    private static void applyCode(Style style, char code, String resetColor) {
         String color = legacyColor(code);
-        if (color != null) {
-            style.color = color;
+        if (color != null || code == 'r') {
+            style.color = color != null ? color : resetColor;
             style.bold = false;
             style.italic = false;
             style.monospace = false;
-            return true;
+            return;
         }
         switch (code) {
             case 'l' -> style.bold = true;
             case 'o' -> style.italic = true;
             case 'm' -> style.monospace = true;
-            case 'r' -> {
-                style.color = "#EEF3FC";
-                style.bold = false;
-                style.italic = false;
-                style.monospace = false;
-            }
             default -> {
-                return false;
+                // isCode admits nothing else.
             }
         }
-        return true;
     }
 
     private static String hexColor(String text, int index) {

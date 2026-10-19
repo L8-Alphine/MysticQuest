@@ -63,6 +63,8 @@ import org.hyzionstudios.mysticquests.ui.QuestNotificationService;
 import org.hyzionstudios.mysticquests.util.Json;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hypixel.hytale.server.core.command.system.AbstractCommand;
+import com.hypixel.hytale.server.core.command.system.CommandManager;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 
@@ -211,7 +213,7 @@ public final class MysticQuestsRuntime implements AutoCloseable {
             this.externalQuests = new ExternalQuestService(config.externalQuests(), config.ui().questHud(),
                     sessionService, signalBus::publish, plugin.getLogger());
             this.externalQuests.onPlayerChanged(hudService::reconcile);
-            this.hudService.bindMirroredQuests(externalQuests::trackerQuest);
+            this.hudService.bindMirroredQuests(externalQuests::trackerQuest, externalQuests::trackedQuests);
             this.externalQuests.attach(registry);
             this.transitionService = new QuestTransitionService(
                     questService, sessionService, config.ui().transitionCards(), plugin.getLogger());
@@ -257,14 +259,13 @@ public final class MysticQuestsRuntime implements AutoCloseable {
             reloadContent();
             this.scheduleService.start();
             new HytaleEventBridge(
-                    this, plugin, signalBus, questService, conversationService, hudService, sessionService,
-                    generationBridge).register();
+                    this, plugin, signalBus, questService, conversationService, hudService, sessionService).register();
             plugin.getCommandRegistry().registerCommand(new MQuestCommand(this));
             // The 2.0 specification's short form: /mq visibility bypass, /mq narrative ...
             plugin.getCommandRegistry().registerCommand(new MQuestCommand(this, "mq", ""));
-            plugin.getCommandRegistry().registerCommand(new MQuestCommand(this, "journal", "journal"));
-            plugin.getCommandRegistry().registerCommand(new MQuestCommand(this, "quest", "menu"));
-            plugin.getCommandRegistry().registerCommand(new MQuestCommand(this, "quests", "menu"));
+            registerShortCommand("journal", "journal");
+            registerShortCommand("quest", "menu");
+            registerShortCommand("quests", "menu");
             this.placeholderIntegration = new PlaceholderIntegration(config.integrations().placeholderApi(), questService);
             this.placeholderIntegration.register();
             this.questService.bindExternalTextResolver((playerId, text) ->
@@ -303,6 +304,23 @@ public final class MysticQuestsRuntime implements AutoCloseable {
             return fallback;
         }
         return modsDirectory.resolve(DATA_DIRECTORY_NAME);
+    }
+
+    /**
+     * Registers a short form of {@code /mq <route>} unless another mod already owns the name.
+     *
+     * <p>A second registration silently replaces the first ({@code CommandManager#register}), and the
+     * mods MysticQuests sits beside load before it. MMOSkillTree's {@code /quest} accepts and claims
+     * its quests, and its quest givers run it, so taking the name broke them without a word.
+     */
+    private void registerShortCommand(String name, String route) {
+        AbstractCommand existing = CommandManager.get().resolveCommand(name);
+        if (existing != null && existing.getOwner() != plugin) {
+            String owner = existing.getOwner() == null ? "another mod" : existing.getOwner().getName();
+            plugin.getLogger().at(Level.INFO).log("/" + name + " belongs to " + owner + "; use /mq " + route + " for MysticQuests.");
+            return;
+        }
+        plugin.getCommandRegistry().registerCommand(new MQuestCommand(this, name, route));
     }
 
     /**

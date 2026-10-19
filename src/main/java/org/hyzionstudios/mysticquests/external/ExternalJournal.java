@@ -44,6 +44,14 @@ public final class ExternalJournal {
         return new JournalEntry(quest.key(), quest.title(), quest.description(), List.copyOf(objectives), List.of(stage), complete);
     }
 
+    /**
+     * A finished mirrored quest as a Journal entry under its key, read the way MysticQuests' own
+     * finished quests are: title and a "Completed" line. The mods report nothing else about it.
+     */
+    public static JournalEntry finishedEntry(ExternalQuestBook.Finished quest) {
+        return JournalEntry.ungrouped(quest.key(), quest.title(), "", List.of(ObjectiveView.note("Completed")), true);
+    }
+
     private static String stageId(ExternalQuest quest) {
         return "step_" + quest.stepIndex();
     }

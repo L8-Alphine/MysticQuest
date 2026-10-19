@@ -238,12 +238,20 @@ Each objective has an `id`, a `type`, usually a `target`, and an `amount` (defau
 | `kill` | lands the killing blow on a matching creature or NPC | its NPC role (`Wolf_Black`), MysticGeneration definition (`hyzion:avalon_guard`) or model ID |
 | `gather` | is holding enough of an item | the item ID, e.g. `Plant_Crop_Wheat_Item` |
 | `craft` | crafts with a matching recipe | the **recipe** ID |
-| `interactEntity` | interacts with a matching entity | the entity ID |
-| `interactObject` | interacts with a matching block or object | the block or object ID |
+| `interactEntity` | uses (presses the use key on) a matching entity | its display name, NPC role (`Kweebec_Elder`) or model ID |
+| `interactObject` | uses a matching block | its block ID (`Furniture_Village_Chest_Small`); a block in an interaction state, such as an open chest, also answers to the state's own ID |
 | `interactNpc` | talks to a MysticGeneration NPC | its definition (`hyzion:avalon_guard`) or one NPC's stable ID |
 | `dialogue` | reaches a conversation, or a node in one | `package:conversation` or `package:conversation:node` |
 | `triggerEnter` / `triggerExit` | enters or leaves a trigger volume | the volume id, without the world (`bandit_camp`); see [trigger volumes](trigger-volumes.md) |
 | `signal` | a 2.0 story transition sends that signal | the signal ID (field `signal`) |
+
+### How interactions are counted
+
+`interactObject` and `interactEntity` count when the use actually happens, the moment the game runs
+the block's or entity's use interaction. A block or entity that does nothing when used (plain stone, a
+decorative statue with no interaction) cannot count: give it an interaction, or use a trigger volume
+(`triggerEnter`) around it instead. Each name the target answers to is matched separately, so one use
+counts once per objective.
 
 ### How kills are counted
 

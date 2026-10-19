@@ -74,8 +74,11 @@ public final class MysticQuestJournalPage extends MysticQuestsPage<MysticQuestJo
     /** What the last action did, shown beside the action buttons until the next action. */
     @Nullable
     private Message actionNote;
-    /** Mirrored quests as of the last render: their category and the mod that runs them. */
+    /** Mirrored quests as of the last render, active and finished: their category and the mod that runs them. */
     private final Map<String, JournalSources.Mirrored> mirrored = new LinkedHashMap<>();
+    /** How many of {@link #mirrored} are in progress and how many finished, for the header. */
+    private int mirroredActive;
+    private int mirroredCompleted;
 
     public MysticQuestJournalPage(PlayerRef playerRef, UUID playerId, PlayerQuestService questService, JournalSources sources) {
         super(playerRef, EVENT_CODEC);
@@ -120,6 +123,14 @@ public final class MysticQuestJournalPage extends MysticQuestsPage<MysticQuestJo
                 sources.setPopups(playerId, true);
             }
             case "track", "untrack", "abandon" -> questAction(action, ref, store);
+            case "tab" -> {
+                switch (QuestPageTabs.open(data.id(), QuestPageTabs.JOURNAL, ref, store, playerRef, questService, sources)) {
+                    case LEFT -> markClosed();
+                    case UNAVAILABLE -> actionNote = UiText.of("That book is not available right now.", UiText.RED);
+                    case STAYED -> {
+                    }
+                }
+            }
             default -> {
                 // An action from an older page; the refresh shows the current state.
             }
@@ -211,6 +222,16 @@ public final class MysticQuestJournalPage extends MysticQuestsPage<MysticQuestJo
             mirrored.put(quest.entry().questId(), quest);
             active.add(quest.entry());
         }
+        mirroredActive = mirrored.size();
+        // Finished ones join the player's own finished quests. Only some mods say when, and an
+        // undated one sorts after the dated ones.
+        mirroredCompleted = 0;
+        for (JournalSources.MirroredCompletion done : sources.mirroredCompleted(playerId)) {
+            if (mirrored.putIfAbsent(done.quest().entry().questId(), done.quest()) == null) {
+                completed.add(new JournalModel.Finished(done.quest().entry(), done.at()));
+                mirroredCompleted++;
+            }
+        }
         String trackedMirrored = sources.trackedMirrored(playerId, data.trackedQuestId() != null);
         return new JournalModel(active, trackedMirrored != null ? trackedMirrored : data.trackedQuestId(),
                 startedAt, completed, abandoned,
@@ -229,9 +250,10 @@ public final class MysticQuestJournalPage extends MysticQuestsPage<MysticQuestJo
     protected void render(UICommandBuilder commands, UIEventBuilder events) {
         JournalModel model = model();
         PlayerQuestData data = questService.data(playerId);
-        commands.set("#HeaderSummary.Text", (data.activeQuests().size() + mirrored.size()) + " active   "
-                + model.storyCount() + " stories   " + data.completedQuests().size() + " completed");
+        commands.set("#HeaderSummary.Text", (data.activeQuests().size() + mirroredActive) + " active   "
+                + model.storyCount() + " stories   " + (data.completedQuests().size() + mirroredCompleted) + " completed");
         events.addEventBinding(CustomUIEventBindingType.Activating, "#CloseButton", EventData.of("Action", "close"));
+        QuestPageTabs.render(commands, events, QuestPageTabs.JOURNAL, sources);
 
         // Resolve the selection: the chosen entry if it is still there, else the first entry of the
         // chosen section, else the model's default (the tracked quest).
@@ -265,7 +287,7 @@ public final class MysticQuestJournalPage extends MysticQuestsPage<MysticQuestJo
             commands.set("#EmptyState.Visible", true);
             commands.set("#QuestDetails.Visible", false);
             commands.set("#EmptyTitle.Text", "Your journal is empty");
-            commands.set("#EmptyBody.Text", "Find a quest board with /quest, or speak with a quest giver. Quests you take on appear here.");
+            commands.set("#EmptyBody.Text", "Open the Quest Board tab above, or speak with a quest giver. Quests you take on appear here.");
             return;
         }
         commands.set("#EmptyState.Visible", false);

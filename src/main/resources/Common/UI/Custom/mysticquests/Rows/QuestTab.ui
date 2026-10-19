@@ -1,0 +1,10 @@
+$MQ = "../Theme.ui";
+
+// One tab under a quest page's header: the quest board, the journal, or the quest book of a mod whose
+// quests MysticQuests mirrors (Endgame & QoL, MMO Skill Tree). Appended to #Tabs, addressed #Tabs[i];
+// the current page's tab is swapped to SelectedButtonStyle by reference.
+
+TextButton #QuestTab {
+  Anchor: (Width: 176, Height: 34, Right: 8);
+  Style: $MQ.@SecondaryButtonStyle;
+}

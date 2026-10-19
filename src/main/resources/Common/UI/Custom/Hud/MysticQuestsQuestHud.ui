@@ -133,220 +133,359 @@ Group {
 
     // ---------------------------------------------------------------- expanded
     //
-    // One primary objective plus at most three supporting rows (§6.2). Rows the step does not fill
-    // are hidden, and the spacer above the footer takes up the slack.
+    // The card: one primary objective plus at most three supporting rows (§6.2). Rows the step does
+    // not fill are hidden, and the spacer above the footer takes up the slack.
+    //
+    // Under the card, up to three slim cards for the player's other tracked quests: their own quest
+    // while another mod's quest holds the tracker, and the quests they track in the mods whose
+    // trackers MysticQuests hides. The card and these stack in a wrapper that draws nothing, because
+    // a sibling of the wrapper would sit beside it in the Right layout above, not under it.
     Group #ExpandedTracker {
-        Anchor: (Top: 70, Right: 24, Width: 420, Height: 416);
+        Anchor: (Top: 70, Right: 24, Width: 420, Height: 602);
         LayoutMode: Top;
-        Background: (TexturePath: "../mysticquests/Assets/v2/OutlineHudPurple.png", Border: 14);
-        Padding: (Left: 20, Right: 20, Top: 16, Bottom: 14);
         Visible: false;
 
-        Group #ExpandedBadges {
-            Anchor: (Height: 22, Bottom: 10);
-            LayoutMode: Left;
-
-            Group #ExpandedCategoryPill {
-                Anchor: (Width: 90, Height: 22, Right: 8);
-                Background: (TexturePath: "../mysticquests/Assets/v2/PillPurple.png", Border: 11);
-
-                Label #ExpandedCategory {
-                    Text: "";
-                    Style: (FontSize: 11, RenderBold: true, RenderUppercase: true, LetterSpacing: 1, TextColor: #FFFFFF, HorizontalAlignment: Center, VerticalAlignment: Center);
-                }
-            }
-
-            Group #ExpandedStatePill {
-                Anchor: (Width: 90, Height: 22);
-                Background: (TexturePath: "../mysticquests/Assets/v2/PillOutlineGold.png", Border: 11);
-
-                Label #ExpandedState {
-                    Text: "";
-                    Style: (FontSize: 11, RenderBold: true, RenderUppercase: true, LetterSpacing: 1, TextColor: #CCAA58, HorizontalAlignment: Center, VerticalAlignment: Center);
-                }
-            }
-        }
-
-        Label #ExpandedQuestName {
-            Text: "";
-            Style: (FontSize: 22, RenderBold: true, RenderUppercase: true, TextColor: #F2F4F8, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 15);
-            Anchor: (Height: 30);
-        }
-
-        Label #ExpandedContext {
-            Text: "";
-            Style: (FontSize: 13, TextColor: #9AA4B7, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 9);
-            Anchor: (Height: 18, Bottom: 9);
-        }
-
-        Group #ExpandedRule {
-            Anchor: (Height: 1, Bottom: 11);
-            Background: #2B3344;
-        }
-
-        Label #ExpandedCaption {
-            Text: "Primary objective";
-            Style: (FontSize: 11, RenderBold: true, RenderUppercase: true, LetterSpacing: 1, TextColor: #CCAA58);
-            Anchor: (Height: 16, Bottom: 4);
-        }
-
-        Label #ExpandedPrimaryText {
-            Text: "";
-            Style: (FontSize: 17, RenderBold: true, TextColor: #F2F4F8, Wrap: true, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 12);
-            Anchor: (Height: 26, Bottom: 5);
-        }
-
-        Group #ExpandedMeterRow {
-            Anchor: (Height: 16, Bottom: 6);
-            LayoutMode: Left;
-
-            ProgressBar #ExpandedPrimaryMeter {
-                FlexWeight: 1;
-                Anchor: (Height: 8, Top: 4);
-                Background: "../mysticquests/Assets/v2/MeterTrack.png";
-                BarTexturePath: "../mysticquests/Assets/v2/MeterGold.png";
-                Value: 0;
-            }
-
-            Label #ExpandedPrimaryProgress {
-                Text: "";
-                Style: (FontSize: 12, RenderBold: true, TextColor: #9AA4B7, HorizontalAlignment: End, VerticalAlignment: Center);
-                Anchor: (Width: 64, Left: 8);
-            }
-        }
-
-        Label #ExpandedGuidance {
-            Text: "";
-            Style: (FontSize: 11, TextColor: #46C6C4, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 8);
-            Anchor: (Height: 16, Bottom: 10);
-        }
-
-        Group #ExpandedRow0 {
-            Anchor: (Height: 44, Bottom: 4);
+        Group #ExpandedCard {
+            Anchor: (Height: 416, Bottom: 6);
             LayoutMode: Top;
+            Background: (TexturePath: "../mysticquests/Assets/v2/OutlineHudPurple.png", Border: 14);
+            Padding: (Left: 20, Right: 20, Top: 16, Bottom: 14);
 
-            Group #ExpandedRowLine0 {
-                Anchor: (Height: 26);
+            Group #ExpandedBadges {
+                Anchor: (Height: 22, Bottom: 10);
                 LayoutMode: Left;
 
-                Label #ExpandedRowRole0 {
-                    Text: "";
-                    Anchor: (Width: 84);
-                    Style: (FontSize: 10, RenderBold: true, RenderUppercase: true, TextColor: #46C6C4, VerticalAlignment: Center);
+                Group #ExpandedCategoryPill {
+                    Anchor: (Width: 90, Height: 22, Right: 8);
+                    Background: (TexturePath: "../mysticquests/Assets/v2/PillPurple.png", Border: 11);
+
+                    Label #ExpandedCategory {
+                        Text: "";
+                        Style: (FontSize: 11, RenderBold: true, RenderUppercase: true, LetterSpacing: 1, TextColor: #FFFFFF, HorizontalAlignment: Center, VerticalAlignment: Center);
+                    }
                 }
 
-                Label #ExpandedRowText0 {
+                Group #ExpandedStatePill {
+                    Anchor: (Width: 90, Height: 22);
+                    Background: (TexturePath: "../mysticquests/Assets/v2/PillOutlineGold.png", Border: 11);
+
+                    Label #ExpandedState {
+                        Text: "";
+                        Style: (FontSize: 11, RenderBold: true, RenderUppercase: true, LetterSpacing: 1, TextColor: #CCAA58, HorizontalAlignment: Center, VerticalAlignment: Center);
+                    }
+                }
+            }
+
+            Label #ExpandedQuestName {
+                Text: "";
+                Style: (FontSize: 22, RenderBold: true, RenderUppercase: true, TextColor: #F2F4F8, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 15);
+                Anchor: (Height: 30);
+            }
+
+            Label #ExpandedContext {
+                Text: "";
+                Style: (FontSize: 13, TextColor: #9AA4B7, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 9);
+                Anchor: (Height: 18, Bottom: 9);
+            }
+
+            Group #ExpandedRule {
+                Anchor: (Height: 1, Bottom: 11);
+                Background: #2B3344;
+            }
+
+            Label #ExpandedCaption {
+                Text: "Primary objective";
+                Style: (FontSize: 11, RenderBold: true, RenderUppercase: true, LetterSpacing: 1, TextColor: #CCAA58);
+                Anchor: (Height: 16, Bottom: 4);
+            }
+
+            Label #ExpandedPrimaryText {
+                Text: "";
+                Style: (FontSize: 17, RenderBold: true, TextColor: #F2F4F8, Wrap: true, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 12);
+                Anchor: (Height: 26, Bottom: 5);
+            }
+
+            Group #ExpandedMeterRow {
+                Anchor: (Height: 16, Bottom: 6);
+                LayoutMode: Left;
+
+                ProgressBar #ExpandedPrimaryMeter {
+                    FlexWeight: 1;
+                    Anchor: (Height: 8, Top: 4);
+                    Background: "../mysticquests/Assets/v2/MeterTrack.png";
+                    BarTexturePath: "../mysticquests/Assets/v2/MeterGold.png";
+                    Value: 0;
+                }
+
+                Label #ExpandedPrimaryProgress {
+                    Text: "";
+                    Style: (FontSize: 12, RenderBold: true, TextColor: #9AA4B7, HorizontalAlignment: End, VerticalAlignment: Center);
+                    Anchor: (Width: 64, Left: 8);
+                }
+            }
+
+            Label #ExpandedGuidance {
+                Text: "";
+                Style: (FontSize: 11, TextColor: #46C6C4, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 8);
+                Anchor: (Height: 16, Bottom: 10);
+            }
+
+            Group #ExpandedRow0 {
+                Anchor: (Height: 44, Bottom: 4);
+                LayoutMode: Top;
+
+                Group #ExpandedRowLine0 {
+                    Anchor: (Height: 26);
+                    LayoutMode: Left;
+
+                    Label #ExpandedRowRole0 {
+                        Text: "";
+                        Anchor: (Width: 84);
+                        Style: (FontSize: 10, RenderBold: true, RenderUppercase: true, TextColor: #46C6C4, VerticalAlignment: Center);
+                    }
+
+                    Label #ExpandedRowText0 {
+                        Text: "";
+                        FlexWeight: 1;
+                        Style: (FontSize: 13, TextColor: #C9CFDA, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 9);
+                    }
+
+                    Label #ExpandedRowProgress0 {
+                        Text: "";
+                        Anchor: (Width: 52);
+                        Style: (FontSize: 11, TextColor: #9AA4B7, HorizontalAlignment: End, VerticalAlignment: Center);
+                    }
+                }
+
+                ProgressBar #ExpandedRowMeter0 {
+                    Anchor: (Height: 5);
+                    Background: "../mysticquests/Assets/v2/MeterTrack.png";
+                    BarTexturePath: "../mysticquests/Assets/v2/MeterCyan.png";
+                    Value: 0;
+                }
+            }
+
+            Group #ExpandedRow1 {
+                Anchor: (Height: 44, Bottom: 4);
+                LayoutMode: Top;
+
+                Group #ExpandedRowLine1 {
+                    Anchor: (Height: 26);
+                    LayoutMode: Left;
+
+                    Label #ExpandedRowRole1 {
+                        Text: "";
+                        Anchor: (Width: 84);
+                        Style: (FontSize: 10, RenderBold: true, RenderUppercase: true, TextColor: #46C6C4, VerticalAlignment: Center);
+                    }
+
+                    Label #ExpandedRowText1 {
+                        Text: "";
+                        FlexWeight: 1;
+                        Style: (FontSize: 13, TextColor: #C9CFDA, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 9);
+                    }
+
+                    Label #ExpandedRowProgress1 {
+                        Text: "";
+                        Anchor: (Width: 52);
+                        Style: (FontSize: 11, TextColor: #9AA4B7, HorizontalAlignment: End, VerticalAlignment: Center);
+                    }
+                }
+
+                ProgressBar #ExpandedRowMeter1 {
+                    Anchor: (Height: 5);
+                    Background: "../mysticquests/Assets/v2/MeterTrack.png";
+                    BarTexturePath: "../mysticquests/Assets/v2/MeterCyan.png";
+                    Value: 0;
+                }
+            }
+
+            Group #ExpandedRow2 {
+                Anchor: (Height: 44, Bottom: 4);
+                LayoutMode: Top;
+
+                Group #ExpandedRowLine2 {
+                    Anchor: (Height: 26);
+                    LayoutMode: Left;
+
+                    Label #ExpandedRowRole2 {
+                        Text: "";
+                        Anchor: (Width: 84);
+                        Style: (FontSize: 10, RenderBold: true, RenderUppercase: true, TextColor: #46C6C4, VerticalAlignment: Center);
+                    }
+
+                    Label #ExpandedRowText2 {
+                        Text: "";
+                        FlexWeight: 1;
+                        Style: (FontSize: 13, TextColor: #C9CFDA, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 9);
+                    }
+
+                    Label #ExpandedRowProgress2 {
+                        Text: "";
+                        Anchor: (Width: 52);
+                        Style: (FontSize: 11, TextColor: #9AA4B7, HorizontalAlignment: End, VerticalAlignment: Center);
+                    }
+                }
+
+                ProgressBar #ExpandedRowMeter2 {
+                    Anchor: (Height: 5);
+                    Background: "../mysticquests/Assets/v2/MeterTrack.png";
+                    BarTexturePath: "../mysticquests/Assets/v2/MeterCyan.png";
+                    Value: 0;
+                }
+            }
+
+            Group #ExpandedSpacer { FlexWeight: 1; }
+
+            Group #ExpandedFooterRule {
+                Anchor: (Height: 1, Bottom: 9);
+                Background: #2B3344;
+            }
+
+            Group #ExpandedFooter {
+                Anchor: (Height: 22);
+                LayoutMode: Left;
+
+                Label #ExpandedActionHint {
+                    Text: "";
+                    Style: (FontSize: 11, RenderBold: true, RenderUppercase: true, LetterSpacing: 1, TextColor: #B9A2F2, VerticalAlignment: Center);
+                    FlexWeight: 1;
+                }
+
+                Label #ExpandedQuestProgress {
+                    Text: "";
+                    Style: (FontSize: 11, RenderBold: true, RenderUppercase: true, TextColor: #CCAA58, HorizontalAlignment: End, VerticalAlignment: Center);
+                    Anchor: (Width: 110);
+                }
+            }
+        }
+
+        // The player's other tracked quests, one slim card each (54 + 6 per card). Hidden cards
+        // are skipped by the layout and this wrapper draws nothing, so below the last card stays
+        // clear. Keep the wrapper's height = card + 6 + three of these.
+        Group #OtherQuest0 {
+            Anchor: (Height: 54, Bottom: 6);
+            LayoutMode: Top;
+            Background: (TexturePath: "../mysticquests/Assets/v2/OutlineHudNeutral.png", Border: 14);
+            Padding: (Left: 16, Right: 16, Top: 8, Bottom: 8);
+            Visible: false;
+
+            Group #OtherQuestLine0 {
+                Anchor: (Height: 20);
+                LayoutMode: Left;
+
+                Label #OtherQuestTitle0 {
                     Text: "";
                     FlexWeight: 1;
-                    Style: (FontSize: 13, TextColor: #C9CFDA, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 9);
+                    Style: (FontSize: 13, RenderBold: true, RenderUppercase: true, TextColor: #F2F4F8, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 9);
                 }
 
-                Label #ExpandedRowProgress0 {
+                Label #OtherQuestBadge0 {
                     Text: "";
-                    Anchor: (Width: 52);
+                    Anchor: (Width: 84, Left: 8);
+                    Style: (FontSize: 10, RenderBold: true, RenderUppercase: true, LetterSpacing: 1, TextColor: #B9A2F2, HorizontalAlignment: End, VerticalAlignment: Center);
+                }
+            }
+
+            Group #OtherQuestObjectiveLine0 {
+                Anchor: (Height: 18);
+                LayoutMode: Left;
+
+                Label #OtherQuestObjective0 {
+                    Text: "";
+                    FlexWeight: 1;
+                    Style: (FontSize: 12, TextColor: #C9CFDA, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 9);
+                }
+
+                Label #OtherQuestProgress0 {
+                    Text: "";
+                    Anchor: (Width: 52, Left: 8);
                     Style: (FontSize: 11, TextColor: #9AA4B7, HorizontalAlignment: End, VerticalAlignment: Center);
                 }
             }
-
-            ProgressBar #ExpandedRowMeter0 {
-                Anchor: (Height: 5);
-                Background: "../mysticquests/Assets/v2/MeterTrack.png";
-                BarTexturePath: "../mysticquests/Assets/v2/MeterCyan.png";
-                Value: 0;
-            }
         }
 
-        Group #ExpandedRow1 {
-            Anchor: (Height: 44, Bottom: 4);
+        Group #OtherQuest1 {
+            Anchor: (Height: 54, Bottom: 6);
             LayoutMode: Top;
+            Background: (TexturePath: "../mysticquests/Assets/v2/OutlineHudNeutral.png", Border: 14);
+            Padding: (Left: 16, Right: 16, Top: 8, Bottom: 8);
+            Visible: false;
 
-            Group #ExpandedRowLine1 {
-                Anchor: (Height: 26);
+            Group #OtherQuestLine1 {
+                Anchor: (Height: 20);
                 LayoutMode: Left;
 
-                Label #ExpandedRowRole1 {
-                    Text: "";
-                    Anchor: (Width: 84);
-                    Style: (FontSize: 10, RenderBold: true, RenderUppercase: true, TextColor: #46C6C4, VerticalAlignment: Center);
-                }
-
-                Label #ExpandedRowText1 {
+                Label #OtherQuestTitle1 {
                     Text: "";
                     FlexWeight: 1;
-                    Style: (FontSize: 13, TextColor: #C9CFDA, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 9);
+                    Style: (FontSize: 13, RenderBold: true, RenderUppercase: true, TextColor: #F2F4F8, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 9);
                 }
 
-                Label #ExpandedRowProgress1 {
+                Label #OtherQuestBadge1 {
                     Text: "";
-                    Anchor: (Width: 52);
+                    Anchor: (Width: 84, Left: 8);
+                    Style: (FontSize: 10, RenderBold: true, RenderUppercase: true, LetterSpacing: 1, TextColor: #B9A2F2, HorizontalAlignment: End, VerticalAlignment: Center);
+                }
+            }
+
+            Group #OtherQuestObjectiveLine1 {
+                Anchor: (Height: 18);
+                LayoutMode: Left;
+
+                Label #OtherQuestObjective1 {
+                    Text: "";
+                    FlexWeight: 1;
+                    Style: (FontSize: 12, TextColor: #C9CFDA, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 9);
+                }
+
+                Label #OtherQuestProgress1 {
+                    Text: "";
+                    Anchor: (Width: 52, Left: 8);
                     Style: (FontSize: 11, TextColor: #9AA4B7, HorizontalAlignment: End, VerticalAlignment: Center);
                 }
             }
-
-            ProgressBar #ExpandedRowMeter1 {
-                Anchor: (Height: 5);
-                Background: "../mysticquests/Assets/v2/MeterTrack.png";
-                BarTexturePath: "../mysticquests/Assets/v2/MeterCyan.png";
-                Value: 0;
-            }
         }
 
-        Group #ExpandedRow2 {
-            Anchor: (Height: 44, Bottom: 4);
+        Group #OtherQuest2 {
+            Anchor: (Height: 54, Bottom: 6);
             LayoutMode: Top;
+            Background: (TexturePath: "../mysticquests/Assets/v2/OutlineHudNeutral.png", Border: 14);
+            Padding: (Left: 16, Right: 16, Top: 8, Bottom: 8);
+            Visible: false;
 
-            Group #ExpandedRowLine2 {
-                Anchor: (Height: 26);
+            Group #OtherQuestLine2 {
+                Anchor: (Height: 20);
                 LayoutMode: Left;
 
-                Label #ExpandedRowRole2 {
-                    Text: "";
-                    Anchor: (Width: 84);
-                    Style: (FontSize: 10, RenderBold: true, RenderUppercase: true, TextColor: #46C6C4, VerticalAlignment: Center);
-                }
-
-                Label #ExpandedRowText2 {
+                Label #OtherQuestTitle2 {
                     Text: "";
                     FlexWeight: 1;
-                    Style: (FontSize: 13, TextColor: #C9CFDA, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 9);
+                    Style: (FontSize: 13, RenderBold: true, RenderUppercase: true, TextColor: #F2F4F8, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 9);
                 }
 
-                Label #ExpandedRowProgress2 {
+                Label #OtherQuestBadge2 {
                     Text: "";
-                    Anchor: (Width: 52);
+                    Anchor: (Width: 84, Left: 8);
+                    Style: (FontSize: 10, RenderBold: true, RenderUppercase: true, LetterSpacing: 1, TextColor: #B9A2F2, HorizontalAlignment: End, VerticalAlignment: Center);
+                }
+            }
+
+            Group #OtherQuestObjectiveLine2 {
+                Anchor: (Height: 18);
+                LayoutMode: Left;
+
+                Label #OtherQuestObjective2 {
+                    Text: "";
+                    FlexWeight: 1;
+                    Style: (FontSize: 12, TextColor: #C9CFDA, VerticalAlignment: Center, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 9);
+                }
+
+                Label #OtherQuestProgress2 {
+                    Text: "";
+                    Anchor: (Width: 52, Left: 8);
                     Style: (FontSize: 11, TextColor: #9AA4B7, HorizontalAlignment: End, VerticalAlignment: Center);
                 }
-            }
-
-            ProgressBar #ExpandedRowMeter2 {
-                Anchor: (Height: 5);
-                Background: "../mysticquests/Assets/v2/MeterTrack.png";
-                BarTexturePath: "../mysticquests/Assets/v2/MeterCyan.png";
-                Value: 0;
-            }
-        }
-
-        Group #ExpandedSpacer { FlexWeight: 1; }
-
-        Group #ExpandedFooterRule {
-            Anchor: (Height: 1, Bottom: 9);
-            Background: #2B3344;
-        }
-
-        Group #ExpandedFooter {
-            Anchor: (Height: 22);
-            LayoutMode: Left;
-
-            Label #ExpandedActionHint {
-                Text: "";
-                Style: (FontSize: 11, RenderBold: true, RenderUppercase: true, LetterSpacing: 1, TextColor: #B9A2F2, VerticalAlignment: Center);
-                FlexWeight: 1;
-            }
-
-            Label #ExpandedQuestProgress {
-                Text: "";
-                Style: (FontSize: 11, RenderBold: true, RenderUppercase: true, TextColor: #CCAA58, HorizontalAlignment: End, VerticalAlignment: Center);
-                Anchor: (Width: 110);
             }
         }
     }

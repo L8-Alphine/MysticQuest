@@ -5,10 +5,12 @@ import org.hyzionstudios.mysticquests.external.ExternalObjective;
 import org.hyzionstudios.mysticquests.external.ExternalQuest;
 import org.hyzionstudios.mysticquests.external.ExternalQuestBook;
 import org.hyzionstudios.mysticquests.external.ExternalQuestSnapshot;
+import org.hyzionstudios.mysticquests.external.TitleCache;
 import org.hyzionstudios.mysticquests.integration.external.ExternalQuestBridge;
 import org.hyzionstudios.mysticquests.integration.external.MessageText;
 
 import com.hypixel.hytale.logger.HytaleLogger;
+import com.ziggfreed.common.objectives.book.ObjectiveBookPages;
 import com.ziggfreed.common.objectives.hud.TrackedQuestHud;
 import com.ziggfreed.common.progress.ObjectiveDef;
 import com.ziggfreed.common.progress.ObjectiveProgressState;
@@ -49,10 +51,12 @@ public final class ZiggfreedQuestBridge implements ExternalQuestBridge {
     static final String ID = "ziggfreed";
     static final String CATEGORY = "mmo";
     private static final String MMO_API = "com.ziggfreed.mmoskilltree.api.MMOSkillTreeAPI";
+    private static final String MMO_QUEST_BOOK = "quests";
 
     private final HytaleLogger logger;
     @Nullable
     private final MmoSkills skills;
+    private final TitleCache titles = new TitleCache();
 
     public ZiggfreedQuestBridge(HytaleLogger logger) {
         this.logger = logger;
@@ -74,6 +78,11 @@ public final class ZiggfreedQuestBridge implements ExternalQuestBridge {
     @Override
     public String id() {
         return ID;
+    }
+
+    @Override
+    public String category() {
+        return CATEGORY;
     }
 
     @Override
@@ -111,13 +120,19 @@ public final class ZiggfreedQuestBridge implements ExternalQuestBridge {
             active.add(quest(engine, subject, quest, language));
         }
         Set<String> completed = new HashSet<>();
+        Map<String, ExternalQuestSnapshot.Completion> completions = new HashMap<>();
         for (Quest quest : engine.quests()) {
             QuestStatus status = engine.status(subject, quest);
             if (status == QuestStatus.COMPLETED || status == QuestStatus.ON_COOLDOWN) {
                 completed.add(quest.id());
+                // Worded once per language, since this runs every second for every player.
+                // ZiggfreedCommon does not say when a quest was finished, so the Journal shows no date.
+                String title = titles.title(engine, language, quest.id(),
+                        id -> MessageText.plain(ProgressionTexts.titleOrUntitled(id), language));
+                completions.put(quest.id(), new ExternalQuestSnapshot.Completion(title, null));
             }
         }
-        return new ExternalQuestSnapshot(ID, active, List.copyOf(engine.tracked(subject)), completed, stats);
+        return new ExternalQuestSnapshot(ID, active, List.copyOf(engine.tracked(subject)), completed, completions, stats);
     }
 
     private static ExternalQuest quest(QuestEngine engine, Subject subject, Quest quest, String language) {
@@ -184,6 +199,18 @@ public final class ZiggfreedQuestBridge implements ExternalQuestBridge {
         Subject subject = engine == null ? null : subject(player);
         Quest quest = engine == null ? null : engine.quest(questId);
         return subject != null && quest != null && engine.accept(subject, quest);
+    }
+
+    /** MMOSkillTree's quest log; ZiggfreedCommon on its own has no book players open. */
+    @Override
+    public String bookLabel() {
+        return skills != null ? "MMO Quests" : "";
+    }
+
+    /** What {@code /mmoquests} opens: the objective book MMOSkillTree registers as {@code quests}. */
+    @Override
+    public boolean openBook(PlayerHandle player) {
+        return skills != null && ObjectiveBookPages.open(MMO_QUEST_BOOK, player.store(), player.ref(), player.player());
     }
 
     @Override

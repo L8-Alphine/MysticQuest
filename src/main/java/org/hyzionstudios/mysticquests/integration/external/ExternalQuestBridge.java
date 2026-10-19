@@ -43,6 +43,14 @@ public interface ExternalQuestBridge {
     /** The mod's name for staff, such as "Endgame &amp; QoL". */
     String displayName();
 
+    /**
+     * The Journal category the mod's quests are filed under, as on its {@code ExternalQuest}s; also
+     * used for its finished quests, which the snapshot names by title only.
+     */
+    default String category() {
+        return id();
+    }
+
     /** The keys of the mod's own quest tracker HUD, hidden while MysticQuests' tracker replaces it. */
     Set<String> trackerHudKeys();
 
@@ -59,6 +67,20 @@ public interface ExternalQuestBridge {
 
     /** Starts the quest in the mod as if its giver had offered it; false when the mod refuses. */
     boolean accept(PlayerHandle player, String questId);
+
+    /**
+     * The name of the tab that opens the mod's own quest book from MysticQuests' quest pages, such as
+     * "Endgame Quests"; empty when the mod has no book to open. Its tracker is hidden, so this tab is
+     * how players still reach the book the tracker used to point them to.
+     */
+    default String bookLabel() {
+        return "";
+    }
+
+    /** Opens the mod's own quest book in place of whatever page the player has open; false when it could not. */
+    default boolean openBook(PlayerHandle player) {
+        return false;
+    }
 
     /**
      * Adds condition and event types of the mod's own beyond the ones every bridge gets

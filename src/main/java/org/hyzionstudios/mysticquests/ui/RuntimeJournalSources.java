@@ -92,6 +92,18 @@ final class RuntimeJournalSources implements JournalSources {
     }
 
     @Override
+    public List<MirroredCompletion> mirroredCompleted(UUID player) {
+        ExternalQuestService external = runtime.externalQuests();
+        if (external == null) {
+            return List.of();
+        }
+        return external.finished(player, quest -> new MirroredCompletion(
+                new Mirrored(ExternalJournal.finishedEntry(quest), external.category(quest.source()), "",
+                        external.sourceName(quest.source())),
+                quest.at()));
+    }
+
+    @Override
     public String trackedMirrored(UUID player, boolean ownTracked) {
         ExternalQuestService external = runtime.externalQuests();
         ExternalQuest quest = external == null ? null : external.trackerQuest(player, ownTracked);
@@ -104,6 +116,19 @@ final class RuntimeJournalSources implements JournalSources {
         return external == null
                 ? QuestResult.failure("That quest is not available right now.")
                 : external.act(ref, store, key, action);
+    }
+
+    @Override
+    public List<ModBook> modBooks() {
+        ExternalQuestService external = runtime.externalQuests();
+        return external == null ? List.of()
+                : external.books().stream().map(book -> new ModBook(book.source(), book.label())).toList();
+    }
+
+    @Override
+    public boolean openModBook(Ref<EntityStore> ref, Store<EntityStore> store, String id) {
+        ExternalQuestService external = runtime.externalQuests();
+        return external != null && external.openBook(ref, store, id);
     }
 
     @Override

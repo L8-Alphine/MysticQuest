@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Redesign Bible §7.1-7.2: what the Journal's rail holds, in what order, and what it opens on. */
@@ -70,5 +71,27 @@ final class JournalModelTest {
         assertEquals(JournalModel.State.COMPLETE, won.state());
         assertEquals(List.of(new JournalModel.Moment("5 Oct 2026", "Completed")), won.timeline());
         assertTrue(model.quest("q:wolves").orElseThrow().rewardText().isEmpty(), "unmentioned rewards stay a surprise");
+    }
+
+    /** A quest another mod ran: finished, maybe without a date, and listed with the player's own. */
+    @Test
+    void anUndatedFinishedQuestIsListedAfterTheDatedOnes() {
+        JournalEntry mirrored = JournalEntry.ungrouped("ext:ziggfreed:Into_The_Fray", "Into the Fray", "",
+                List.of(ObjectiveView.note("Completed")), true);
+        JournalModel model = new JournalModel(List.of(), null, Map.of(),
+                List.of(new JournalModel.Finished(mirrored, null),
+                        new JournalModel.Finished(quest("q:recent", "Fresh Win", true), MONDAY)),
+                List.of(), List.of(), id -> id.startsWith("ext:") ? "mmo" : "", id -> "");
+
+        JournalModel.Section completed = model.sections().getLast();
+        assertEquals("COMPLETED", completed.title());
+        assertEquals(List.of("Fresh Win", "Into the Fray"), completed.items().stream().map(JournalModel.Item::title).toList());
+        assertEquals("Completed", completed.items().getLast().subtitle(), "no date to show");
+
+        JournalModel.QuestDetail detail = model.quest("ext:ziggfreed:Into_The_Fray").orElseThrow();
+        assertEquals(JournalModel.State.COMPLETE, detail.state());
+        assertEquals("mmo", detail.category());
+        assertEquals(List.of(new JournalModel.Moment("", "Completed")), detail.timeline());
+        assertNull(detail.when());
     }
 }

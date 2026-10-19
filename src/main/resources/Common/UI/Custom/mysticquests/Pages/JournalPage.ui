@@ -48,6 +48,12 @@ $C.@PageOverlay #JournalRoot {
       }
     }
 
+    // Quest board, journal, and the mirrored mods' own quest books (QuestPageTabs, Rows/QuestTab.ui).
+    Group #Tabs {
+      LayoutMode: Left;
+      Anchor: (Height: 34, Bottom: 12);
+    }
+
     Group #Body {
       FlexWeight: 1;
       LayoutMode: Left;

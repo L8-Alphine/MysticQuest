@@ -77,12 +77,13 @@ public final class MysticQuestsUiService {
             if (player == null || playerRef == null) {
                 return false;
             }
+            JournalSources sources = new RuntimeJournalSources(runtime);
             player.getPageManager().openCustomPage(
                     playerEntity,
                     store,
                     journal
-                            ? new MysticQuestJournalPage(playerRef, playerRef.getUuid(), questService, new RuntimeJournalSources(runtime))
-                            : new QuestMenuPage(playerRef, playerRef.getUuid(), questService));
+                            ? new MysticQuestJournalPage(playerRef, playerRef.getUuid(), questService, sources)
+                            : new QuestMenuPage(playerRef, playerRef.getUuid(), questService, sources));
             return true;
         } catch (RuntimeException exception) {
             logger.at(Level.WARNING).withCause(exception).log("Failed to open MysticQuests " + (journal ? "journal" : "quest menu") + " UI.");

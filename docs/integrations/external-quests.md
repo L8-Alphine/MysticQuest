@@ -24,15 +24,42 @@ double rewards, and updating the other mod's quests needs nothing from you.
     tracks it in the other mod so its map markers agree;
   - untracking it, finishing it or abandoning it gives the tracker back to their own quest;
   - with no MysticQuests quest tracked, the mirrored quest they tracked most recently shows.
+- **Every other tracked quest, under it.** The other mods' trackers listed every quest a player
+  tracked, so MysticQuests' does too: below the quest it shows, up to three slim rows hold the
+  player's other tracked quests, each with its title, its category and its current objective
+  ("Mine iron ore 3 / 5"). That is their own MysticQuests quest while a mirrored one has the tracker,
+  then every quest they track in Endgame's journal or MMO Skill Tree's quest book, most recent first.
+  The rows are part of the expanded tracker. With tracker density on **Automatic** (Journal ›
+  settings), having another tracked quest is enough to expand it; **Compact** never shows them, and
+  neither does the tracker while a puzzle card is up.
 - **When it is time to hand in**, the tracker leads with what to do next: "Return to Vorthak",
   "Claim it at the contract board", "Claim your reward in the quest book".
 - **The Journal** lists mirrored quests in their own sections, **ENDGAME** and **MMO**, with their
   objectives, current step and announced rewards. *Track quest* and *Abandon* work on them and are
   carried out by the mod that runs the quest. Endgame does not allow abandoning story quests; the
   Journal says so.
+- **Finished mirrored quests** are listed under **COMPLETED** with the player's own, by title, and
+  count in the Journal's "completed" total. Endgame records when a quest was finished, so its quests
+  show the date and sort among the player's own; MMO Skill Tree does not, so its finished quests
+  have no date and come after the dated ones. A repeatable quest being done again shows as active,
+  not as finished.
+
+- **The mods' own books, one tab away.** The Quest Board (`/quests`) and the Journal share a row of
+  tabs: *Quest Board*, *Journal*, then **Endgame Quests** and **MMO Quests** for the mods that are
+  mirrored. A mod's tab opens that mod's own page, the same one its hotkey or command opens (Endgame's
+  journal on its Quests tab, MMO Skill Tree's `/mmoquests` log), for everything MysticQuests does not
+  show: Endgame's bestiary and contract board, MMO Skill Tree's milestone claims. Endgame's own
+  journal hotkey and `/eg journal`, and MMO Skill Tree's `/mmoquests`, keep working as before.
 
 Words come from the other mod's own translations, in the player's language, the same text its own
 journal shows.
+
+### Command names
+
+MysticQuests' short commands `/quest`, `/quests` and `/journal` are only registered when no other mod
+already has the name. MMO Skill Tree's `/quest accept|claim|abandon|status` is its own, and its quest
+givers use it, so on a server with MMO Skill Tree `/quest` stays MMO Skill Tree's and the quest board
+is `/quests` (or `/mq menu`). The server log says which names were left to which mod.
 
 ## Turning it on
 
@@ -145,13 +172,22 @@ The example package `examples/packages/crossroads_of_orbis` has more.
 | Mirrored quests do not appear | `/mq integrations`. *installed, but this MysticQuests build was made without it*: MysticQuests was built on a machine without the mod in its Mods folder (see below). *does not match*: the mod changed in a way MysticQuests does not know; update MysticQuests. |
 | Two trackers on screen | `hideModTrackers`, `unifiedTracker` and `ui.questHud` must all be on. `/mq hud keys` shows which layers are hidden. |
 | The tracker shows the wrong quest | Track the one you want in the Journal. Tracking a quest in the other mod's book also moves the tracker. |
+| Other tracked quests are not listed under the tracker | They show in the expanded tracker only: set tracker density to *Automatic* or *Expanded* in the Journal's settings. At most three are listed. With `unifiedTracker` off, mirrored quests are never listed. |
+| A finished MMO quest is missing from COMPLETED | COMPLETED shows the 25 most recently finished quests. MMO Skill Tree does not record when a quest was finished, so its quests come after every dated one and are the first left out. |
 | A condition never passes | `/mq debug <player>` shows the ids and states MysticQuests sees for that player. |
+| No Endgame or MMO tab on the Quest Board | The tab only shows while that mod is mirrored (`/mq integrations`). MMO Skill Tree's tab needs MMO Skill Tree itself, not ZiggfreedCommon alone. |
+| `/quest` opens MMO Skill Tree's command | Expected with MMO Skill Tree installed: the name is its. Use `/quests`. |
 
 ## For developers
 
-- Engine-free model and rules: `external/` (`ExternalQuestBook` holds snapshots and the tracker
-  choice, `ExternalJournal` turns a mirrored quest into a Journal entry, `ExternalSignals` the diff
-  into signals).
+- Engine-free model and rules: `external/` (`ExternalQuestBook` holds snapshots, the tracker choice,
+  every tracked quest and the finished ones; `ExternalJournal` turns a mirrored quest into a Journal
+  entry; `ExternalSignals` the diff into signals; `TitleCache` keeps finished quests' titles per
+  language, since a bridge is read every second). A snapshot's `completions` carry each finished
+  quest's title and, when the mod records it, its date.
+- The rows under the tracker: `ui/QuestHudViewModel.TrackedRow`, filled in
+  `ui/QuestHudService.reconcileNow` and drawn by `ui/QuestHud` as `#OtherQuest0`-`2` in
+  `Hud/MysticQuestsQuestHud.ui`.
 - Hytale side: `integration/external/ExternalQuestService` (loading bridges, content types, Journal
   actions), `hytale/ExternalQuestSyncSystem` (the per-player read on the world thread),
   `integration/hud/HudOverrideFilter` (hidden layers).
@@ -161,4 +197,5 @@ The example package `examples/packages/crossroads_of_orbis` has more.
   a jar, its bridge is left out of the build and `/mq integrations` says so. The bridges are loaded by
   name only once their mod is running, so the plugin never fails to start for want of them.
 - Another mod can be mirrored by implementing `ExternalQuestBridge` and adding it to
-  `ExternalQuestService.KNOWN`.
+  `ExternalQuestService.KNOWN`. Its `bookLabel` and `openBook` give it a tab on the quest pages
+  (`ui/QuestPageTabs`, `Rows/QuestTab.ui`).

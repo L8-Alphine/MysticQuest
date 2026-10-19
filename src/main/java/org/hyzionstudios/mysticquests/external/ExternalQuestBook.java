@@ -1,8 +1,12 @@
 package org.hyzionstudios.mysticquests.external;
 
 import javax.annotation.Nullable;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -26,8 +30,18 @@ import java.util.function.Consumer;
  * newly shows up as tracked there takes the focus. Untracking it there, finishing it, or abandoning it
  * hands the focus back. A player with no MysticQuests quest tracked sees their most recently tracked
  * mirrored quest.
+ *
+ * <p>The other quests a player tracks in a mirrored mod are listed under it ({@link #tracked}), as
+ * the mods' own trackers listed them.
  */
 public final class ExternalQuestBook {
+    /** A mirrored quest the player has finished, as the Journal's completed section lists it. */
+    public record Finished(String source, String questId, String title, @Nullable Instant at) {
+        public String key() {
+            return ExternalQuestId.of(source, questId);
+        }
+    }
+
     /** What changed between two snapshots of one mod for one player. */
     public record Change(UUID player, @Nullable ExternalQuestSnapshot before, ExternalQuestSnapshot after) {
         /** Whether there was a snapshot to compare with; the first one after a join is no news. */
@@ -103,7 +117,8 @@ public final class ExternalQuestBook {
             Map<String, ExternalQuestSnapshot> next = bySource == null ? new LinkedHashMap<>() : new LinkedHashMap<>(bySource);
             previous[0] = next.put(snapshot.source(), snapshot);
             changed[0] = !snapshot.equals(previous[0]);
-            return Map.copyOf(next);
+            // Never written after this; kept in insertion order so mods list in the order they were read.
+            return Collections.unmodifiableMap(next);
         });
         if (!changed[0]) {
             return Optional.empty();
@@ -121,7 +136,7 @@ public final class ExternalQuestBook {
         snapshots.replaceAll((player, bySource) -> {
             Map<String, ExternalQuestSnapshot> next = new LinkedHashMap<>(bySource);
             next.remove(source);
-            return Map.copyOf(next);
+            return Collections.unmodifiableMap(next);
         });
         focus.entrySet().removeIf(entry -> ExternalQuestId.parse(entry.getValue())
                 .map(parsed -> parsed.source().equals(source)).orElse(false));
@@ -191,6 +206,40 @@ public final class ExternalQuestBook {
         return trackerQuest(player, mysticQuestTracked).map(ExternalQuest::key).orElse(null);
     }
 
+    /**
+     * Every mirrored quest the player tracks in its own mod and still has: mod by mod, most recently
+     * tracked first. The focused quest is among them when it is tracked there.
+     */
+    public List<ExternalQuest> tracked(UUID player) {
+        Map<String, ExternalQuest> tracked = new LinkedHashMap<>();
+        for (ExternalQuestSnapshot snapshot : snapshots(player)) {
+            for (String id : new LinkedHashSet<>(snapshot.tracked()).reversed()) {
+                snapshot.quest(id).ifPresent(quest -> tracked.putIfAbsent(quest.key(), quest));
+            }
+        }
+        return List.copyOf(tracked.values());
+    }
+
+    /**
+     * Every mirrored quest the player has finished and is not doing again: mod by mod, by title.
+     * A repeatable quest that is active again shows as active instead.
+     */
+    public List<Finished> finished(UUID player) {
+        List<Finished> finished = new ArrayList<>();
+        for (ExternalQuestSnapshot snapshot : snapshots(player)) {
+            snapshot.completed().stream()
+                    .filter(id -> !snapshot.isActive(id))
+                    .map(id -> {
+                        ExternalQuestSnapshot.Completion completion = snapshot.completion(id);
+                        return new Finished(snapshot.source(), id, completion.title(), completion.at());
+                    })
+                    .sorted(Comparator.comparing(Finished::title, String.CASE_INSENSITIVE_ORDER).thenComparing(Finished::questId))
+                    .forEach(finished::add);
+        }
+        return finished;
+    }
+
+    /** The player's snapshots, in the order their mods were first read. */
     public List<ExternalQuestSnapshot> snapshots(UUID player) {
         Map<String, ExternalQuestSnapshot> bySource = snapshots.get(player);
         return bySource == null ? List.of() : List.copyOf(bySource.values());

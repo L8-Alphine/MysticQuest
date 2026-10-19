@@ -64,10 +64,12 @@ public final class QuestHudCoordinator {
             return new Placement(QuestHudViewModel.DisplayMode.COMPACT, tracker, puzzleActive);
         }
 
+        // Supporting objectives and the player's other tracked quests only show expanded, so either
+        // is reason enough to expand; with neither, the compact tracker says everything.
         QuestHudViewModel.DisplayMode mode = switch (preference) {
             case COMPACT, HIDDEN -> QuestHudViewModel.DisplayMode.COMPACT;
             case EXPANDED -> QuestHudViewModel.DisplayMode.EXPANDED;
-            case AUTOMATIC -> model == null || model.supportingObjectives().isEmpty()
+            case AUTOMATIC -> model == null || (model.supportingObjectives().isEmpty() && model.otherTracked().isEmpty())
                     ? QuestHudViewModel.DisplayMode.COMPACT
                     : QuestHudViewModel.DisplayMode.EXPANDED;
         };

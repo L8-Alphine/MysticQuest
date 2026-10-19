@@ -358,6 +358,41 @@ public final class ExternalQuestService {
         return bridges.stream().filter(bridge -> bridge.id().equals(id)).findFirst();
     }
 
+    /** A mod's own quest book, reachable from a tab on MysticQuests' quest pages. */
+    public record Book(String source, String label) {
+    }
+
+    /** The books of the mods mirrored right now, in load order. */
+    public List<Book> books() {
+        List<Book> books = new ArrayList<>();
+        for (ExternalQuestBridge bridge : bridges) {
+            try {
+                String label = bridge.bookLabel();
+                if (label != null && !label.isBlank()) {
+                    books.add(new Book(bridge.id(), label));
+                }
+            } catch (RuntimeException | LinkageError failure) {
+                logger.at(Level.FINE).withCause(failure).log("Could not name the " + bridge.displayName() + " quest book.");
+            }
+        }
+        return books;
+    }
+
+    /** Opens a mod's own quest book for the player, replacing the page they have open. On their world thread. */
+    public boolean openBook(Ref<EntityStore> ref, Store<EntityStore> store, String source) {
+        Optional<ExternalQuestBridge> bridge = bridge(source);
+        Optional<PlayerHandle> player = handle(ref, store);
+        if (bridge.isEmpty() || player.isEmpty()) {
+            return false;
+        }
+        try {
+            return bridge.get().openBook(player.get());
+        } catch (RuntimeException | LinkageError failure) {
+            logger.at(Level.WARNING).withCause(failure).log("Could not open the " + bridge.get().displayName() + " quest book.");
+            return false;
+        }
+    }
+
     /** Display name of the mod behind a source id, for the Journal's context line. */
     public String sourceName(String source) {
         return bridge(source).map(ExternalQuestBridge::displayName).orElse(source);
@@ -412,7 +447,8 @@ public final class ExternalQuestService {
         List<String> lines = new ArrayList<>();
         for (ExternalQuestSnapshot snapshot : book.snapshots(player)) {
             lines.add(sourceName(snapshot.source()) + ": " + snapshot.active().size() + " active, "
-                    + snapshot.completed().size() + " completed, tracked " + snapshot.tracked());
+                    + snapshot.completed().size() + " completed (" + snapshot.completions().size() + " titled), tracked "
+                    + snapshot.tracked());
             for (ExternalQuest quest : snapshot.active()) {
                 lines.add("  " + quest.key() + " — " + quest.title() + " [" + quest.status() + "] step "
                         + quest.stepIndex() + "/" + quest.stepCount());
@@ -426,12 +462,33 @@ public final class ExternalQuestService {
         return book.active(player).stream().map(mapper).toList();
     }
 
+    /** Mirrored quests the player has finished, as the Journal's completed section lists them. */
+    public <T> List<T> finished(UUID player, Function<ExternalQuestBook.Finished, T> mapper) {
+        return book.finished(player).stream().map(mapper).toList();
+    }
+
+    /** The Journal category a mod's quests are filed under. */
+    public String category(String source) {
+        return bridge(source).map(ExternalQuestBridge::category).orElse(source);
+    }
+
     @Nullable
     public ExternalQuest trackerQuest(UUID player, boolean mysticQuestTracked) {
         if (!Boolean.TRUE.equals(config.unifiedTracker())) {
             return null;
         }
         return book.trackerQuest(player, mysticQuestTracked).orElse(null);
+    }
+
+    /**
+     * Every mirrored quest the player tracks in its own mod, for the rows under MysticQuests' tracker;
+     * empty when that tracker shows MysticQuests quests only.
+     */
+    public List<ExternalQuest> trackedQuests(UUID player) {
+        if (!Boolean.TRUE.equals(config.unifiedTracker())) {
+            return List.of();
+        }
+        return book.tracked(player);
     }
 
     public void forget(UUID player) {

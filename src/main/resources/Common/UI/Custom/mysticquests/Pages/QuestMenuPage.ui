@@ -44,6 +44,12 @@ $C.@PageOverlay #BoardRoot {
       }
     }
 
+    // Quest board, journal, and the mirrored mods' own quest books (QuestPageTabs, Rows/QuestTab.ui).
+    Group #Tabs {
+      LayoutMode: Left;
+      Anchor: (Height: 34, Bottom: 12);
+    }
+
     Group #FilterBar {
       LayoutMode: Left;
       Anchor: (Height: 30, Bottom: 10);

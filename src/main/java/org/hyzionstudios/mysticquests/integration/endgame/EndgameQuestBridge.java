@@ -4,6 +4,7 @@ import org.hyzionstudios.mysticquests.external.ExternalObjective;
 import org.hyzionstudios.mysticquests.external.ExternalQuest;
 import org.hyzionstudios.mysticquests.external.ExternalQuestSnapshot;
 import org.hyzionstudios.mysticquests.external.ExternalSignals;
+import org.hyzionstudios.mysticquests.external.TitleCache;
 import org.hyzionstudios.mysticquests.integration.external.ExternalQuestBridge;
 
 import com.hypixel.hytale.logger.HytaleLogger;
@@ -17,10 +18,14 @@ import endgame.plugin.quest.PlayerQuestState;
 import endgame.plugin.quest.QuestCatalog;
 import endgame.plugin.quest.QuestDefinition;
 import endgame.plugin.quest.QuestService;
+import endgame.plugin.ui.NativeJournalPage;
 import endgame.plugin.ui.QuestTrackerHud;
+import endgame.plugin.utils.I18n;
 
 import javax.annotation.Nullable;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -56,6 +61,7 @@ public final class EndgameQuestBridge implements ExternalQuestBridge {
 
     private final HytaleLogger logger;
     private final List<Registration> subscriptions = new CopyOnWriteArrayList<>();
+    private final TitleCache titles = new TitleCache();
 
     public EndgameQuestBridge(HytaleLogger logger) {
         this.logger = logger;
@@ -64,6 +70,11 @@ public final class EndgameQuestBridge implements ExternalQuestBridge {
     @Override
     public String id() {
         return ID;
+    }
+
+    @Override
+    public String category() {
+        return CATEGORY;
     }
 
     @Override
@@ -100,7 +111,30 @@ public final class EndgameQuestBridge implements ExternalQuestBridge {
             }
         }
         active.addAll(contracts(quests, playerRef, catalog, id));
-        return new ExternalQuestSnapshot(ID, active, List.copyOf(state.tracked()), Set.copyOf(state.completed().keySet()), Map.of());
+        Map<String, Long> completed = Map.copyOf(state.completed());
+        return new ExternalQuestSnapshot(ID, active, List.copyOf(state.tracked()), completed.keySet(),
+                completions(playerRef, catalog, completed), Map.of());
+    }
+
+    /**
+     * Finished quests' titles in the player's language, and when Endgame says each was finished. A
+     * title is worded once per language: this runs every second for every player.
+     */
+    private Map<String, ExternalQuestSnapshot.Completion> completions(PlayerRef playerRef, QuestCatalog catalog,
+                                                                      Map<String, Long> completed) {
+        // Endgame words text in its own locale for the player, which a player can set apart from the game's.
+        String locale = I18n.resolveLocale(playerRef);
+        Map<String, ExternalQuestSnapshot.Completion> completions = new HashMap<>();
+        completed.forEach((questId, finishedAt) -> {
+            String title = titles.title(catalog, locale, questId, key -> {
+                QuestDefinition definition = catalog.get(key);
+                return definition == null ? "" : QuestService.text(playerRef, definition.title());
+            });
+            // Endgame stamps a completion with System.currentTimeMillis(); anything else is not a time.
+            Instant at = finishedAt != null && finishedAt > 0 ? Instant.ofEpochMilli(finishedAt) : null;
+            completions.put(questId, new ExternalQuestSnapshot.Completion(title, at));
+        });
+        return completions;
     }
 
     private static ExternalQuest quest(QuestService quests, PlayerRef playerRef, QuestDefinition definition,
@@ -239,6 +273,22 @@ public final class EndgameQuestBridge implements ExternalQuestBridge {
             return false;
         }
         return quests.accept(player.id(), questId, definition.giver()) == QuestService.AcceptResult.ACCEPTED;
+    }
+
+    @Override
+    public String bookLabel() {
+        return "Endgame Quests";
+    }
+
+    /** Endgame's journal on its Quests tab: the page its journal hotkey, journal book and {@code /eg journal} open. */
+    @Override
+    public boolean openBook(PlayerHandle player) {
+        EndgameQoL plugin = EndgameQoL.getInstance();
+        if (plugin == null) {
+            return false;
+        }
+        NativeJournalPage.open(plugin, player.playerRef(), player.store(), player.id(), "Quests");
+        return true;
     }
 
     @Override

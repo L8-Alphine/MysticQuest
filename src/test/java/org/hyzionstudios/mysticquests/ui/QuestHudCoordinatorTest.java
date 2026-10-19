@@ -29,6 +29,22 @@ final class QuestHudCoordinatorTest {
     }
 
     @Test
+    void automaticModeExpandsToListTheOtherTrackedQuests() {
+        QuestHudViewModel withOthers = model(1).withOtherTracked(List.of(
+                new QuestHudViewModel.TrackedRow("ext:endgame:side_ore", "ENDGAME", "Ore", "Mine ore", "1 / 5")));
+
+        assertEquals(QuestHudViewModel.DisplayMode.EXPANDED, coordinator.resolve(playerId, withOthers, false).mode(),
+                "the rows only exist in the expanded composition");
+
+        coordinator.setPreference(playerId, QuestHudCoordinator.Preference.COMPACT);
+        assertEquals(QuestHudViewModel.DisplayMode.COMPACT, coordinator.resolve(playerId, withOthers, false).mode(),
+                "a player who asked for the compact tracker keeps it, rows or not");
+        coordinator.setPreference(playerId, QuestHudCoordinator.Preference.AUTOMATIC);
+        assertEquals(QuestHudViewModel.DisplayMode.COMPACT, coordinator.resolve(playerId, withOthers, true).mode(),
+                "an active puzzle still steps the tracker down");
+    }
+
+    @Test
     void screenPressureWinsOverAnExpandedPlayerPreference() {
         coordinator.setPreference(playerId, QuestHudCoordinator.Preference.EXPANDED);
         coordinator.setContext(playerId, new QuestHudCoordinator.Context(false, true));

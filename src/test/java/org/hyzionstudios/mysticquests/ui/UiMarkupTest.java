@@ -351,6 +351,30 @@ final class UiMarkupTest {
     }
 
     /**
+     * The player's other tracked quests are slim cards under the expanded card, never in the compact
+     * tracker, and hidden until the server fills them.
+     */
+    @Test
+    void otherTrackedQuestsOnlyShowInTheExpandedComposition() throws IOException {
+        String hud = withoutComments(Files.readString(UI_ROOT.resolve(HUD_DOCUMENT)));
+        String java = Files.readString(JAVA_ROOT.resolve("QuestHud.java"));
+        int expanded = hud.indexOf("Group #ExpandedTracker");
+        assertTrue(expanded > hud.indexOf("Group #CompactTracker"), "Missing the expanded composition after the compact one");
+        for (int index = 0; index < 3; index++) {
+            Matcher card = Pattern.compile("(?s)Group\\s+#OtherQuest" + index + "\\s*\\{(.*?)Group\\s+#OtherQuestLine" + index)
+                    .matcher(hud);
+            assertTrue(card.find(), "Missing other tracked quest card " + index);
+            assertTrue(card.start() > expanded, "Other tracked quest " + index + " must sit inside #ExpandedTracker");
+            assertTrue(card.group(1).matches("(?s).*Visible:\\s*false;.*"), "Other tracked quest " + index + " must start hidden");
+        }
+        assertFalse(hud.contains("#OtherQuest3"), "The tracker lists at most three other tracked quests");
+        assertTrue(java.contains("\"#OtherQuest\" + index + \".Visible\""), "Other tracked quests must be shown and hidden from the model");
+        assertTrue(java.contains("QuestHudViewModel.OTHER_TRACKED_LIMIT"), "QuestHud must fill exactly the rows the model allows");
+        assertTrue(hud.matches("(?s).*Group\\s+#ExpandedTracker\\s*\\{\\s*Anchor:\\s*\\([^)]*Height:\\s*602\\);.*"),
+                "The expanded wrapper must hold its card (416 + 6) and three 60-unit rows");
+    }
+
+    /**
      * The puzzle card sits bottom-centre and the tracker top-right. One layout tree cannot place
      * blocks in two corners — Anchor offsets are relative to where the layout puts an element — so
      * the card is its own HUD layer with its own document, the way MysticRPG keeps its experience
@@ -654,8 +678,8 @@ final class UiMarkupTest {
                 }
             }
         }
-        // Ids composed at runtime (#Objective1Id, #ExpandedRow0) are declared literally in the document.
-        missing.removeIf(entry -> entry.matches(".* #(Objective|ExpandedRow|Setting|Choice)[A-Za-z]*"));
+        // Ids composed at runtime (#Objective1Id, #ExpandedRow0, #OtherQuest0) are declared literally in the document.
+        missing.removeIf(entry -> entry.matches(".* #(Objective|ExpandedRow|OtherQuest|Setting|Choice)[A-Za-z]*"));
         assertTrue(missing.isEmpty(), "Selectors used by the Java but declared in no document:\n - "
                 + String.join("\n - ", missing));
     }

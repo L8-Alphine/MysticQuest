@@ -19,7 +19,7 @@ MysticQuests now boots a package-driven V1 runtime:
 - Active/completed quest state, objective progress, and scoped tags/variables
 - Hytale event bridge for craft, interaction, and trigger-volume enter/exit objectives
 - Volume-scoped state for trigger-volume scripting
-- Split player surfaces: `/quest` quest board to accept, `/journal` quest log for current, completed, and abandoned history
+- Split player surfaces: `/quests` quest board to accept, `/journal` quest log for current, completed, and abandoned history, with tabs between them and to mirrored mods' own quest books
 - Abandoned quests are recorded and locked unless the author configures a cooldown or re-accept conditions
 - Always-on pinned quest HUD through native `CustomUIHud`
 - Entity-bound conversations with UUID-first matching and type/name fallback
@@ -172,8 +172,8 @@ instruction syntax, placeholders, named elements, schedules, cancelers, and part
 - `/mquest progress [player-uuid|self]`
 - `/mquest journal [player-uuid|self]`
 - `/journal`
-- `/quest`
 - `/quests`
+- `/quest` (only when no other mod owns it; MMO Skill Tree does)
 - `/mquest track <quest>`
 - `/mquest untrack`
 - `/mquest entity uuid`

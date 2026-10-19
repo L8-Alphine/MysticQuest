@@ -263,7 +263,7 @@ name a real node; a typo is a load error rather than an NPC that goes quiet mont
 
 Dialogue objectives receive signals for each node as `package:conversation:node`, and for completed conversations as `package:conversation`.
 
-Conversation-bound entities are automatically given Hytale's `Interactable` component for online players on join and after `/mquest reload`, so the normal interaction prompt appears and `PlayerInteractEvent` can open the conversation. The current generic entity API exposes interactability directly; custom per-player hint text is represented in package JSON for future/native NPC prompt integrations.
+Conversation-bound entities are automatically given Hytale's `Interactable` component for online players on join and after `/mquest reload`, so the normal interaction prompt appears and using the entity opens the conversation. The current generic entity API exposes interactability directly; custom per-player hint text is represented in package JSON for future/native NPC prompt integrations.
 
 ### HyCitizens NPC Bindings
 
@@ -508,12 +508,15 @@ shared.
 
 | Command | Surface |
 | --- | --- |
-| `/quest`, `/quests` | Quest board — quests you can accept right now, with an Accept action. |
+| `/quests`, `/quest` | Quest board — quests you can accept right now, with an Accept action. |
 | `/journal` | Quest log — Current, Completed, and Abandoned tabs. Track and Abandon act on Current. |
 | `/mquest …` | Full command tree, including the admin subcommands. |
 
-The two player commands are aliases of `/mquest` with a default subcommand, so `/quest` and
+The two player commands are aliases of `/mquest` with a default subcommand, so `/quests` and
 `/journal` also accept every `/mquest` subcommand. Each one still enforces its own permission.
+`/quest`, `/quests` and `/journal` are only registered when no other mod already uses the name; MMO
+Skill Tree's `/quest`, for one, stays its own. Both pages carry tabs to each other and to the quest
+books of mirrored mods ([external quests](integrations/external-quests.md)).
 
 ## Abandoning and Re-accepting
 

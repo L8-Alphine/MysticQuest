@@ -64,6 +64,47 @@ final class QuestHudViewModelTest {
     }
 
     @Test
+    void anotherTrackedQuestShowsItsCurrentObjective() {
+        ObjectiveView done = ObjectiveView.of("enter", "Enter the western ruins", 1, 1);
+        ObjectiveView keys = ObjectiveView.of("keys", "Recover the hidden keys", 2, 4);
+        JournalEntry entry = new JournalEntry(
+                "first_breach", "The First Breach", "", List.of(done, keys),
+                List.of(new StageView("arrival", "Arrival", 1, 2, List.of(done)),
+                        new StageView("keys", "Keys", 2, 2, List.of(keys))), false);
+
+        QuestHudViewModel.TrackedRow row = QuestHudViewModel.TrackedRow.of(entry, "STORY");
+
+        assertEquals(new QuestHudViewModel.TrackedRow("first_breach", "STORY", "The First Breach",
+                "Recover the hidden keys", "2 / 4"), row);
+        QuestHudViewModel.TrackedRow empty = QuestHudViewModel.TrackedRow.of(
+                new JournalEntry("epilogue", "Epilogue", "", List.of(), List.of(), false), "QUEST");
+        assertEquals("Awaiting objective", empty.objectiveText());
+        assertEquals("", empty.progressLabel(), "a note has no count");
+    }
+
+    @Test
+    void otherTrackedQuestsLeaveOutTheShownOneAndStopAtThree() {
+        QuestHudViewModel model = QuestHudViewModel.from(JournalEntry.ungrouped(
+                "ext:endgame:story_echo", "Echoes", "", List.of(ObjectiveView.of("a", "Dive", 0, 1)), false));
+        assertTrue(model.otherTracked().isEmpty());
+
+        QuestHudViewModel withRows = model.withOtherTracked(List.of(
+                row("own_quest"), row("ext:endgame:story_echo"), row("ext:endgame:side_ore"), row("own_quest"),
+                row("ext:ziggfreed:mining"), row("ext:ziggfreed:taming")));
+
+        assertEquals(List.of("own_quest", "ext:endgame:side_ore", "ext:ziggfreed:mining"),
+                withRows.otherTracked().stream().map(QuestHudViewModel.TrackedRow::questId).toList(),
+                "the shown quest and repeats are dropped, the order kept, three at most");
+        QuestHudViewModel restyled = withRows.withDisplayMode(QuestHudViewModel.DisplayMode.EXPANDED)
+                .withCategory("ENDGAME").withGuidance("Somewhere");
+        assertEquals(withRows.otherTracked(), restyled.otherTracked(), "the rows survive every other change");
+    }
+
+    private static QuestHudViewModel.TrackedRow row(String questId) {
+        return new QuestHudViewModel.TrackedRow(questId, "QUEST", questId, "Do it", "0 / 1");
+    }
+
+    @Test
     void guidanceCanBeReplacedWithoutTouchingTheRestOfTheSnapshot() {
         JournalEntry entry = JournalEntry.ungrouped(
                 "first_breach", "The First Breach", "",

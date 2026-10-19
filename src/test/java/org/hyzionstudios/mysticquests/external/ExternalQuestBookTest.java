@@ -2,11 +2,13 @@ package org.hyzionstudios.mysticquests.external;
 
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -99,6 +101,63 @@ class ExternalQuestBookTest {
 
         book.forget(PLAYER);
         assertTrue(book.snapshots(PLAYER).isEmpty());
+    }
+
+    @Test
+    void listsEveryTrackedQuestModByModMostRecentFirst() {
+        ExternalQuestBook book = new ExternalQuestBook();
+        book.put(PLAYER, snapshot("endgame", List.of("a", "b", "c"), List.of("a", "gone", "c", "a"), Set.of()));
+        book.put(PLAYER, snapshot("ziggfreed", List.of("z"), List.of("z"), Set.of()));
+
+        assertEquals(List.of("ext:endgame:c", "ext:endgame:a", "ext:ziggfreed:z"),
+                book.tracked(PLAYER).stream().map(ExternalQuest::key).toList(),
+                "an untracked quest is left out, one no longer active is skipped, a repeat is listed once");
+        assertTrue(book.tracked(UUID.randomUUID()).isEmpty());
+    }
+
+    @Test
+    void finishedQuestsCarryTheModsTitlesAndDates() {
+        Instant monday = Instant.parse("2026-10-05T10:00:00Z");
+        ExternalQuestBook book = new ExternalQuestBook();
+        book.put(PLAYER, new ExternalQuestSnapshot("endgame", List.of(quest("endgame", "again")), List.of(),
+                Set.of("story_echo", "side_ore", "again", "untitled"),
+                Map.of("story_echo", new ExternalQuestSnapshot.Completion("Echoes of the Deep", monday),
+                        "untitled", new ExternalQuestSnapshot.Completion("  ", monday),
+                        "never_finished", new ExternalQuestSnapshot.Completion("Not Done", null)),
+                Map.of()));
+
+        List<ExternalQuestBook.Finished> finished = book.finished(PLAYER);
+        assertEquals(List.of("Echoes of the Deep", "side_ore", "untitled"), finished.stream().map(ExternalQuestBook.Finished::title).toList(),
+                "by title; without a title a quest reads as its id; one being done again is active, not finished");
+        assertEquals(monday, finished.getFirst().at());
+        assertEquals("ext:endgame:story_echo", finished.getFirst().key());
+        assertNull(finished.get(1).at(), "the mod gave no date");
+        assertEquals(monday, finished.get(2).at(), "a blank title still keeps its date");
+
+        ExternalQuestSnapshot snapshot = book.snapshot(PLAYER, "endgame").orElseThrow();
+        assertFalse(snapshot.completions().containsKey("never_finished"), "only finished quests keep a completion");
+        assertEquals(snapshot, new ExternalQuestSnapshot("endgame", snapshot.active(), List.of(), snapshot.completed(),
+                snapshot.completions(), Map.of()), "unchanged titles are no news");
+    }
+
+    @Test
+    void titlesAreWordedOncePerLanguageAndContent() {
+        TitleCache cache = new TitleCache();
+        Object catalog = new Object();
+        AtomicInteger worded = new AtomicInteger();
+        java.util.function.Function<String, String> english = id -> {
+            worded.incrementAndGet();
+            return "Title of " + id;
+        };
+
+        assertEquals("Title of a", cache.title(catalog, "en-US", "a", english));
+        assertEquals("Title of a", cache.title(catalog, "en-US", "a", english));
+        assertEquals(1, worded.get());
+        assertEquals("Titre de a", cache.title(catalog, "fr-FR", "a", id -> "Titre de " + id), "each language has its own words");
+        assertEquals("", cache.title(catalog, "en-US", "b", id -> null));
+
+        cache.title(new Object(), "en-US", "a", english);
+        assertEquals(2, worded.get(), "reloaded content is worded again");
     }
 
     @Test

@@ -8,7 +8,7 @@ This page is for players. Server owners and staff want the
 
 | Command | What it does |
 |---|---|
-| `/quest` | Opens the quest board: quests you can take, grouped by kind, with their difficulty, party size and the rewards they tell you about. Some quests you cannot take yet show what you need to do first. |
+| `/quests` | Opens the quest board: quests you can take, grouped by kind, with their difficulty, party size and the rewards they tell you about. Some quests you cannot take yet show what you need to do first. |
 | `/journal` | Opens your Journal: the quest you track, your other quests by kind, the stories you are part of, and what you have finished. It also holds your quest settings. |
 | `/mquest progress` | Shows your progress on active quests in chat. |
 | `/mquest track <quest>` | Pins a quest to your on-screen tracker. `/mquest untrack` unpins it. |
@@ -49,7 +49,10 @@ abandon). A story shows the milestones you have reached in it, never what comes 
 (Automatic, Expanded, Compact or Hidden), story subtitles, your voice-line language, and quest
 pop-ups when the server uses them. **Restore defaults** puts them all back.
 
-On the **quest board** (`/quest`), the chips along the top filter by kind, and each card has its own
+The quest board and the Journal share a row of tabs at the top: switch between the two, or open the
+quest book of Endgame & QoL or MMO Skill Tree when the server runs them.
+
+On the **quest board** (`/quests`), the chips along the top filter by kind, and each card has its own
 **Accept**. In a **conversation**, choices are numbered along the bottom of the line; **Transcript**
 shows what was said so far, and **Leave** ends the conversation.
 

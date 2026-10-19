@@ -4,7 +4,9 @@ import org.hyzionstudios.mysticquests.service.JournalEntry;
 import org.hyzionstudios.mysticquests.service.ObjectiveView;
 import org.hyzionstudios.mysticquests.service.StageView;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Semantic snapshot consumed by the tracked-quest HUD.
@@ -17,6 +19,8 @@ import java.util.List;
  *
  * @param primaryObjectiveId the objective the HUD leads with, or empty for a synthetic note; the
  *         HUD service looks up its map marker by this id
+ * @param otherTracked the player's other tracked quests, shown under this one in the expanded
+ *         composition; at most {@link #OTHER_TRACKED_LIMIT}, never this quest
  */
 public record QuestHudViewModel(
         DisplayMode displayMode,
@@ -33,7 +37,11 @@ public record QuestHudViewModel(
         String questProgressLabel,
         String guidanceLabel,
         List<ObjectiveRow> supportingObjectives,
-        String actionHint) {
+        String actionHint,
+        List<TrackedRow> otherTracked) {
+
+    /** Other tracked quests the expanded composition declares rows for. */
+    public static final int OTHER_TRACKED_LIMIT = 3;
 
     public enum DisplayMode {
         COMPACT,
@@ -56,19 +64,37 @@ public record QuestHudViewModel(
             boolean complete) {
     }
 
+    /**
+     * Another quest the player tracks, as one compact row under the tracked quest: its title and its
+     * current objective. This is what the trackers of the mods MysticQuests mirrors listed before
+     * MysticQuests' tracker replaced them.
+     *
+     * @param progressLabel the current objective's count, such as {@code "2 / 5"}; empty when it has none
+     */
+    public record TrackedRow(
+            String questId,
+            String categoryLabel,
+            String questTitle,
+            String objectiveText,
+            String progressLabel) {
+
+        /** The quest with the objective the tracker would lead with if it showed this quest. */
+        public static TrackedRow of(JournalEntry entry, String categoryLabel) {
+            ObjectiveView current = primaryObjective(entry, currentObjectives(entry));
+            return new TrackedRow(entry.questId(), categoryLabel, entry.displayName(),
+                    current.displayName(), current.progressLabel());
+        }
+    }
+
     public QuestHudViewModel {
         supportingObjectives = List.copyOf(supportingObjectives);
+        otherTracked = List.copyOf(otherTracked);
     }
 
     public static QuestHudViewModel from(JournalEntry entry) {
         StageView stage = entry.currentStage();
-        List<ObjectiveView> objectives = stage == null ? entry.objectives() : stage.objectives();
-        ObjectiveView primary = objectives.stream()
-                .filter(objective -> !objective.complete())
-                .findFirst()
-                .orElseGet(() -> objectives.isEmpty()
-                        ? ObjectiveView.note(entry.complete() ? "Quest complete" : "Awaiting objective")
-                        : objectives.getLast());
+        List<ObjectiveView> objectives = currentObjectives(entry);
+        ObjectiveView primary = primaryObjective(entry, objectives);
 
         String context = entry.grouped() && stage != null
                 ? stage.stepLabel() + "  |  " + stage.displayName()
@@ -122,17 +148,33 @@ public record QuestHudViewModel(
                 "QUEST " + entry.progressLabel(),
                 guidance,
                 supportingRows,
-                "OPEN JOURNAL  /journal");
+                "OPEN JOURNAL  /journal",
+                List.of());
+    }
+
+    /** The current step's objectives, or every objective when the quest has no steps. */
+    private static List<ObjectiveView> currentObjectives(JournalEntry entry) {
+        StageView stage = entry.currentStage();
+        return stage == null ? entry.objectives() : stage.objectives();
+    }
+
+    /** The first open objective, else the last one, else a note saying where the quest stands. */
+    private static ObjectiveView primaryObjective(JournalEntry entry, List<ObjectiveView> objectives) {
+        return objectives.stream()
+                .filter(objective -> !objective.complete())
+                .findFirst()
+                .orElseGet(() -> objectives.isEmpty()
+                        ? ObjectiveView.note(entry.complete() ? "Quest complete" : "Awaiting objective")
+                        : objectives.getLast());
     }
 
     public QuestHudViewModel withDisplayMode(DisplayMode mode) {
         return new QuestHudViewModel(
                 mode, priorityClass, categoryLabel, stateLabel, questId, questTitle, contextLabel,
                 primaryObjectiveId, objectiveText, objectiveProgressLabel, objectiveProgressRatio,
-                questProgressLabel, guidanceLabel, supportingObjectives, actionHint);
+                questProgressLabel, guidanceLabel, supportingObjectives, actionHint, otherTracked);
     }
 
-    /** Replaces the guidance line, for instance once the primary objective has a map marker. */
     /** The same model with the quest's category on its badge; a finished quest keeps its COMPLETE badge. */
     public QuestHudViewModel withCategory(String category) {
         if (priorityClass == PriorityClass.ACTION_REQUIRED) {
@@ -141,13 +183,31 @@ public record QuestHudViewModel(
         return new QuestHudViewModel(
                 displayMode, priorityClass, category, stateLabel, questId, questTitle, contextLabel,
                 primaryObjectiveId, objectiveText, objectiveProgressLabel, objectiveProgressRatio,
-                questProgressLabel, guidanceLabel, supportingObjectives, actionHint);
+                questProgressLabel, guidanceLabel, supportingObjectives, actionHint, otherTracked);
     }
 
+    /** Replaces the guidance line, for instance once the primary objective has a map marker. */
     public QuestHudViewModel withGuidance(String guidance) {
         return new QuestHudViewModel(
                 displayMode, priorityClass, categoryLabel, stateLabel, questId, questTitle, contextLabel,
                 primaryObjectiveId, objectiveText, objectiveProgressLabel, objectiveProgressRatio,
-                questProgressLabel, guidance, supportingObjectives, actionHint);
+                questProgressLabel, guidance, supportingObjectives, actionHint, otherTracked);
+    }
+
+    /**
+     * The same model with the player's other tracked quests under it, in the order given. This quest
+     * and repeats are left out, and only the first {@link #OTHER_TRACKED_LIMIT} are kept.
+     */
+    public QuestHudViewModel withOtherTracked(List<TrackedRow> rows) {
+        Set<String> seen = new HashSet<>();
+        seen.add(questId);
+        List<TrackedRow> kept = rows.stream()
+                .filter(row -> seen.add(row.questId()))
+                .limit(OTHER_TRACKED_LIMIT)
+                .toList();
+        return new QuestHudViewModel(
+                displayMode, priorityClass, categoryLabel, stateLabel, questId, questTitle, contextLabel,
+                primaryObjectiveId, objectiveText, objectiveProgressLabel, objectiveProgressRatio,
+                questProgressLabel, guidanceLabel, supportingObjectives, actionHint, kept);
     }
 }

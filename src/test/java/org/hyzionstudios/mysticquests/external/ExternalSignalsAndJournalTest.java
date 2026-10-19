@@ -68,6 +68,18 @@ class ExternalSignalsAndJournalTest {
     }
 
     @Test
+    void finishedQuestReadsLikeAFinishedQuestOfOurOwn() {
+        JournalEntry entry = ExternalJournal.finishedEntry(
+                new ExternalQuestBook.Finished("endgame", "story_echo", "Echoes of the Deep", null));
+
+        assertEquals("ext:endgame:story_echo", entry.questId());
+        assertEquals("Echoes of the Deep", entry.displayName());
+        assertTrue(entry.complete());
+        assertFalse(entry.grouped());
+        assertEquals("Completed", entry.objectives().getFirst().displayName());
+    }
+
+    @Test
     void objectiveCountsAreClamped() {
         ExternalObjective objective = ExternalObjective.of("a", " Kill bosses ", 7, 2);
         assertEquals(2, objective.current());

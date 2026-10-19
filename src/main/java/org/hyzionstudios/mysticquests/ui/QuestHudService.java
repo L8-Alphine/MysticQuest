@@ -20,6 +20,8 @@ import com.hypixel.hytale.server.core.universe.world.worldmap.markers.MarkersCol
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 
 import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -29,6 +31,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.logging.Level;
 
 /**
@@ -164,6 +167,8 @@ public final class QuestHudService {
     private void reconcileNow(UUID playerId, PlayerRef playerRef, Player player) {
         try {
             JournalEntry entry = questService.trackedJournalEntry(playerId);
+            String ownBadge = entry == null ? "" : QuestCategories.badge(
+                    questService.definition(entry.questId()).map(QuestDefinition::category).orElse(""));
             // A quest another mod runs can hold the tracker instead (see ExternalQuestBook): it reads
             // as any other entry, and has no MysticQuests map marker.
             ExternalQuest mirrored = mirroredQuests == null ? null : mirroredQuests.apply(playerId, entry != null);
@@ -173,9 +178,11 @@ public final class QuestHudService {
             } else {
                 model = entry == null ? null : QuestHudViewModel.from(entry);
                 if (model != null) {
-                    model = model.withCategory(QuestCategories.badge(
-                            questService.definition(entry.questId()).map(QuestDefinition::category).orElse("")));
+                    model = model.withCategory(ownBadge);
                 }
+            }
+            if (model != null) {
+                model = model.withOtherTracked(otherTracked(playerId, entry, ownBadge));
             }
             QuestHudFocus focus = model == null || mirrored != null ? null : focusFor(model);
             publishFocus(playerId, playerRef, focus);
@@ -189,6 +196,25 @@ public final class QuestHudService {
         } catch (RuntimeException exception) {
             logger.at(Level.WARNING).withCause(exception).log("Failed to reconcile MysticQuests HUD for " + playerId + ".");
         }
+    }
+
+    /**
+     * Every quest the player tracks, for the rows under the tracker: their own MysticQuests quest
+     * first, then those tracked in mirrored mods, most recent first. The model leaves out the one it
+     * shows and keeps the first three.
+     */
+    private List<QuestHudViewModel.TrackedRow> otherTracked(UUID playerId, @Nullable JournalEntry own, String ownBadge) {
+        List<QuestHudViewModel.TrackedRow> rows = new ArrayList<>();
+        if (own != null) {
+            rows.add(QuestHudViewModel.TrackedRow.of(own, ownBadge));
+        }
+        Function<UUID, List<ExternalQuest>> tracked = trackedMirroredQuests;
+        if (tracked != null) {
+            for (ExternalQuest quest : tracked.apply(playerId)) {
+                rows.add(QuestHudViewModel.TrackedRow.of(ExternalJournal.entry(quest), QuestCategories.badge(quest.category())));
+            }
+        }
+        return rows;
     }
 
     private void applyTracker(PlayerRef playerRef, Player player, @Nullable QuestHudViewModel model) {
@@ -225,9 +251,16 @@ public final class QuestHudService {
      * of their own; null for none. Bound when other mods' quests are mirrored.
      */
     private volatile BiFunction<UUID, Boolean, ExternalQuest> mirroredQuests;
+    /** Every mirrored quest the player tracks in its own mod, listed under the tracker; bound with the above. */
+    private volatile Function<UUID, List<ExternalQuest>> trackedMirroredQuests;
 
-    public void bindMirroredQuests(BiFunction<UUID, Boolean, ExternalQuest> mirroredQuests) {
-        this.mirroredQuests = mirroredQuests;
+    /**
+     * @param focus the mirrored quest the tracker shows, given whether the player tracks one of their own
+     * @param tracked every mirrored quest the player tracks in its mod, most recent first
+     */
+    public void bindMirroredQuests(BiFunction<UUID, Boolean, ExternalQuest> focus, Function<UUID, List<ExternalQuest>> tracked) {
+        this.trackedMirroredQuests = tracked;
+        this.mirroredQuests = focus;
     }
 
     public void bindPreferences(PlayerUiPreferences preferences) {

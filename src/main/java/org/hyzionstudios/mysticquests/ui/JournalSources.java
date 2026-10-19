@@ -47,10 +47,24 @@ public interface JournalSources {
     record Mirrored(JournalEntry entry, String category, String rewardText, String source) {
     }
 
+    /**
+     * A mirrored quest the player has finished, for the Journal's completed section.
+     *
+     * @param quest the finished quest under its {@code ext:} key
+     * @param at when they finished it, or null when the mod does not record that
+     */
+    record MirroredCompletion(Mirrored quest, @Nullable Instant at) {
+    }
+
     List<Story> stories(UUID player);
 
     /** Mirrored quests in progress, mod by mod. */
     default List<Mirrored> mirrored(UUID player) {
+        return List.of();
+    }
+
+    /** Mirrored quests the player has finished and is not doing again, mod by mod. */
+    default List<MirroredCompletion> mirroredCompleted(UUID player) {
         return List.of();
     }
 
@@ -71,6 +85,24 @@ public interface JournalSources {
 
     /** The player picked one of their own quests for the tracker, over any mirrored one. */
     default void trackOwnQuest(UUID player) {
+    }
+
+    /**
+     * Another mod's own quest book, offered as a tab on the quest pages.
+     *
+     * @param id the mod's source id, as in {@code ext:<id>:...} quest keys
+     */
+    record ModBook(String id, String label) {
+    }
+
+    /** The quest books of the mods whose quests are mirrored, for the tabs. */
+    default List<ModBook> modBooks() {
+        return List.of();
+    }
+
+    /** Opens a mod's own quest book over the current page; false when it could not. On the player's world thread. */
+    default boolean openModBook(Ref<EntityStore> ref, Store<EntityStore> store, String id) {
+        return false;
     }
 
     Settings settings(UUID player);
