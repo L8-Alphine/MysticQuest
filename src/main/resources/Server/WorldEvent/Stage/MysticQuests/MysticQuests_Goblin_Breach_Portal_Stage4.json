@@ -1,0 +1,49 @@
+{
+  "$Comment": "Wait for someone to go through and for the Guttering Hollows to close again, or ten minutes without anyone entering (Goblin_Breach_First_Stage4).",
+  "Forks": [
+    {
+      "Conditions": [
+        {
+          "Type": "EnterInstanceTeleporterCondition",
+          "WorldKey": "GoblinWorld"
+        }
+      ],
+      "Next": {
+        "Forks": [
+          {
+            "Conditions": [
+              {
+                "Type": "WorldClosedCondition",
+                "WorldKey": "GoblinWorld"
+              }
+            ],
+            "Next": "MysticQuests_Goblin_Breach_Portal_Stage5"
+          },
+          {
+            "Conditions": [
+              {
+                "Type": "IntervalCondition",
+                "MinSeconds": 1800,
+                "MaxSeconds": 1800
+              }
+            ],
+            "Next": "MysticQuests_Goblin_Breach_Portal_Stage5"
+          }
+        ]
+      }
+    },
+    {
+      "Conditions": [
+        {
+          "Type": "IntervalCondition",
+          "IntervalKey": "EndInterval",
+          "MinSeconds": 600,
+          "MaxSeconds": 600,
+          "ShowOnMap": true,
+          "MapIntervalKey": "server.map.worldEvents.runsFor"
+        }
+      ],
+      "Next": "MysticQuests_Goblin_Breach_Portal_Stage5"
+    }
+  ]
+}

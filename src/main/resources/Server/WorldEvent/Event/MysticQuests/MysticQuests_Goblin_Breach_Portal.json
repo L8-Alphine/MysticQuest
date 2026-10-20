@@ -1,0 +1,9 @@
+{
+  "$Comment": "A goblin breach portal a quest summons with startGoblinBreach (kind: portal): vanilla's first breach (Goblin_Breach_First_Event), the portal into the Guttering Hollows, opened near the player whose quest started it. It leaves the universe's own breach schedule alone: the temple generator still starts vanilla's first breach and the recurring ones after it. Repeats until a player has been through, then completes. Not persisted.",
+  "Root": "MysticQuests_Goblin_Breach_Portal_Stage1",
+  "Persistent": false,
+  "InstanceCountMax": 4,
+  "PlayerCountMin": 1,
+  "Name": "server.worldEvents.goblinBreach.name",
+  "Icon": "UI/WorldMap/MapMarkers/GoblinBreach.png"
+}

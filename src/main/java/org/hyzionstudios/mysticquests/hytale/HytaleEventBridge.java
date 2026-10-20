@@ -10,8 +10,10 @@ import org.hyzionstudios.mysticquests.service.PlayerSessionService;
 import org.hyzionstudios.mysticquests.service.QuestTargetContext;
 import org.hyzionstudios.mysticquests.ui.QuestHudService;
 
+import com.hypixel.hytale.builtin.instances.config.InstanceWorldConfig;
 import com.hypixel.hytale.builtin.triggervolumes.effect.TriggerEventType;
 import com.hypixel.hytale.builtin.triggervolumes.event.TriggerVolumeEvent;
+import com.hypixel.hytale.server.core.event.events.player.AddPlayerToWorldEvent;
 import com.hypixel.hytale.server.core.event.events.player.PlayerCraftEvent;
 import com.hypixel.hytale.server.core.event.events.player.PlayerDisconnectEvent;
 import com.hypixel.hytale.server.core.event.events.player.PlayerInteractEvent;
@@ -19,6 +21,8 @@ import com.hypixel.hytale.server.core.event.events.player.PlayerMouseButtonEvent
 import com.hypixel.hytale.server.core.event.events.player.PlayerMouseMotionEvent;
 import com.hypixel.hytale.server.core.event.events.player.PlayerReadyEvent;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
+import com.hypixel.hytale.server.core.universe.PlayerRef;
+import com.hypixel.hytale.server.core.universe.world.World;
 
 import java.util.UUID;
 
@@ -56,6 +60,29 @@ public final class HytaleEventBridge {
         plugin.getEventRegistry().registerGlobal(PlayerInteractEvent.class, this::onInteract);
         plugin.getEventRegistry().registerGlobal(TriggerVolumeEvent.class, this::onTriggerVolume);
         plugin.getEventRegistry().registerGlobal(PlayerDisconnectEvent.class, this::onDisconnect);
+        plugin.getEventRegistry().registerGlobal(AddPlayerToWorldEvent.class, this::onAddToWorld);
+    }
+
+    /**
+     * Feeds {@code enterInstance} objectives: the player arrived in a world. An instance copy answers
+     * to the asset it was spawned from ({@code Forgotten_Temple_Goblins}, {@code Portals/Portals_Goblins}),
+     * which {@code InstancesPlugin#spawnInstance} records in the world's {@link InstanceWorldConfig};
+     * any other world to its name.
+     *
+     * <p>The event fires while the player is still being added, so the signal waits for the world's
+     * next task: a quest it completes may give items, which needs the player in the world.
+     */
+    private void onAddToWorld(AddPlayerToWorldEvent event) {
+        PlayerRef player = event.getHolder().getComponent(PlayerRef.getComponentType());
+        World world = event.getWorld();
+        if (player == null) {
+            return;
+        }
+        InstanceWorldConfig instance = InstanceWorldConfig.get(world.getWorldConfig());
+        String target = instance != null && instance.getInstanceName() != null ? instance.getInstanceName() : world.getName();
+        QuestTargetContext context = new QuestTargetContext(null, null, null, null, null, world.getName(), null, null, null);
+        UUID playerId = player.getUuid();
+        world.execute(() -> signalBus.publish(QuestSignal.targeted(playerId, "enterInstance", target, 1, context)));
     }
 
     private void onReady(PlayerReadyEvent event) {

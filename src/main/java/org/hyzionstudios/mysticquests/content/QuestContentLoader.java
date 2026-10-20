@@ -8,6 +8,7 @@ import org.hyzionstudios.mysticquests.model.ObjectiveMarker;
 import org.hyzionstudios.mysticquests.model.QuestDefinition;
 import org.hyzionstudios.mysticquests.model.StageDefinition;
 import org.hyzionstudios.mysticquests.model.TypedConfig;
+import org.hyzionstudios.mysticquests.service.StoryObjectives;
 import org.hyzionstudios.mysticquests.util.Json;
 
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -31,7 +32,14 @@ import java.util.function.BiConsumer;
 public final class QuestContentLoader {
     private static final Set<String> OBJECTIVE_TYPES = Set.of(
             "kill", "gather", "craft", "triggerEnter", "triggerExit", "interactEntity",
-            "interactObject", "interactNpc", "reachLocation", "dialogue", "timer", "custom", "signal");
+            "interactObject", "interactNpc", "reachLocation", "dialogue", "timer", "custom", "signal",
+            // Hytale's own story systems; see StoryObjectives.
+            "worldEvent", "worldEventSignal", "encounter", "bossDefeated", "enterInstance", "gameFlag");
+    /** Objective types a quest's startOn and unlockOn triggers may use: anything a signal or the flag poll reports. */
+    private static final Set<String> TRIGGER_TYPES = Set.of(
+            "kill", "craft", "triggerEnter", "triggerExit", "interactEntity", "interactObject", "interactNpc",
+            "dialogue", "signal", "worldEvent", "worldEventSignal", "encounter", "bossDefeated", "enterInstance",
+            "gameFlag");
     /**
      * Legacy aliases are rewritten onto the canonical {@code tag}/{@code variable} types by
      * {@link ContentSchema} before validation, so they are not listed here. They stay accepted at
@@ -42,6 +50,7 @@ public final class QuestContentLoader {
             "questCompleted", "questActive",
             "permission", "economy", "inConversation", "inParty", "partySize",
             "playerHidden", "entityHidden", "targetingPrevented", "nearEntity",
+            "gameFlag", "worldEventActive",
             "and", "or", "not", "ref",
             // 2.0 narrative condition trees; their contents are checked by the narrative compiler.
             "narrative");
@@ -52,6 +61,7 @@ public final class QuestContentLoader {
             "hidePlayer", "showPlayer", "hideEntity", "showEntity",
             "preventTargeting", "allowTargeting", "setCamera", "sendTitle", "actionBar",
             "notification", "folder", "party", "if", "cancelConversation", "cancelQuest", "ref",
+            "startWorldEvent", "stopWorldEvent", "signalWorldEvent", "startGoblinBreach", "setGameFlag", "startEncounter",
             // 2.0 narrative action lists; their contents are checked by the narrative compiler.
             "narrative");
 
@@ -652,8 +662,14 @@ public final class QuestContentLoader {
             validateTypedList(entry.getKey(), "complete event", quest.completeEvents(), EVENT_TYPES, errors);
             validateTypedList(entry.getKey(), "reward", quest.rewards(), EVENT_TYPES, errors);
             validateTypedList(entry.getKey(), "reaccept condition", quest.reacceptConditions(), CONDITION_TYPES, errors);
+            validateTypedList(entry.getKey(), "unlock event", quest.unlockEvents(), EVENT_TYPES, errors);
             validateStages(entry.getKey(), quest, errors);
             validateObjectives(entry.getKey(), quest.objectives(), errors);
+            validateTriggers(entry.getKey(), "startOn", quest.startOn(), errors);
+            validateTriggers(entry.getKey(), "unlockOn", quest.unlockOn(), errors);
+            if (!quest.unlockEvents().isEmpty() && quest.unlockOn().isEmpty()) {
+                errors.add(entry.getKey() + " has unlockEvents but no unlockOn trigger to run them");
+            }
             if (quest.objectives().isEmpty()) {
                 errors.add(entry.getKey() + " must declare at least one objective");
             }
@@ -815,11 +831,50 @@ public final class QuestContentLoader {
             if ("signal".equals(objective.type()) && objective.text("signal", objective.text("target", "")).isBlank()) {
                 errors.add(questId + "/" + objective.id() + " is a signal objective that names no \"signal\"");
             }
+            validateStoryDefinition(questId + "/" + objective.id(), objective, errors);
             try {
                 ObjectiveMarker.parse(objective.data().get("marker"));
             } catch (IllegalArgumentException malformed) {
                 errors.add(questId + "/" + objective.id() + " has an invalid marker: " + malformed.getMessage());
             }
+        }
+    }
+
+    /** A quest's startOn or unlockOn: objective-shaped, but only the kinds a signal or the flag poll reports. */
+    private void validateTriggers(String questId, String field, List<ObjectiveDefinition> triggers, List<String> errors) {
+        for (int i = 0; i < triggers.size(); i++) {
+            ObjectiveDefinition trigger = triggers.get(i);
+            String owner = questId + "/" + field + "[" + i + "]";
+            if (trigger.type() == null || trigger.type().isBlank()) {
+                errors.add(owner + " has no type");
+            } else if (!TRIGGER_TYPES.contains(trigger.type())) {
+                errors.add(owner + " uses " + trigger.type() + ", which cannot trigger a quest; use one of " + new java.util.TreeSet<>(TRIGGER_TYPES));
+            } else {
+                validateStoryDefinition(owner, trigger, errors);
+            }
+        }
+    }
+
+    /** The fields Hytale story objectives cannot do without: something to match, and a phase that exists. */
+    private void validateStoryDefinition(String owner, ObjectiveDefinition definition, List<String> errors) {
+        String type = definition.type();
+        if (!StoryObjectives.handles(type)) {
+            return;
+        }
+        String key = switch (type) {
+            case StoryObjectives.WORLD_EVENT -> "event";
+            case StoryObjectives.WORLD_EVENT_SIGNAL -> "signal";
+            case StoryObjectives.ENCOUNTER -> "encounter";
+            case StoryObjectives.BOSS_DEFEATED -> "boss";
+            case StoryObjectives.ENTER_INSTANCE -> "instance";
+            default -> "flag";
+        };
+        if (StoryObjectives.targets(definition, key, "role", "world").isEmpty()) {
+            errors.add(owner + " is a " + type + " objective that names no \"" + key + "\" (or \"target\")");
+        }
+        if (StoryObjectives.WORLD_EVENT.equals(type) && StoryObjectives.signalFor(definition).isEmpty()) {
+            errors.add(owner + " has an unknown phase '" + definition.text("phase", "")
+                    + "'; use detected or completed");
         }
     }
 

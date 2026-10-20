@@ -1,0 +1,22 @@
+{
+  "$Comment": "Tear the portal down and end the event. Vanilla's first breach also switches the universe over to the recurring breaches here; a quest's breach leaves that to the game.",
+  "Forks": [
+    {
+      "Actions": [
+        {
+          "Type": "PrefabRemoveAction",
+          "PrefabKey": "BreachPortal"
+        },
+        {
+          "Type": "TriggerVolumeRemoveAction",
+          "VolumeKey": "UnbrecablePortalTV"
+        },
+        {
+          "Type": "TriggerVolumeRemoveAction",
+          "VolumeKey": "BreachLaunchTV"
+        }
+      ],
+      "Mode": "Complete"
+    }
+  ]
+}

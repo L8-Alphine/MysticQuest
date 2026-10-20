@@ -12,6 +12,12 @@ public final class QuestDefinition {
     private boolean startOnJoin;
     private String autoStart;
     private List<String> startTriggers = new ArrayList<>();
+    /** Objective-shaped triggers: the first signal matching any of them starts the quest. */
+    private List<ObjectiveDefinition> startOn = new ArrayList<>();
+    /** Objective-shaped triggers that make the quest available; until one fires it cannot be started. */
+    private List<ObjectiveDefinition> unlockOn = new ArrayList<>();
+    /** Events run once, when an {@link #unlockOn} trigger makes the quest available. */
+    private List<EventDefinition> unlockEvents = new ArrayList<>();
     private List<ConditionDefinition> startConditions = new ArrayList<>();
     private List<StageDefinition> stages = new ArrayList<>();
     private List<ObjectiveDefinition> objectives = new ArrayList<>();
@@ -118,6 +124,39 @@ public final class QuestDefinition {
 
     public void setStartTriggers(List<String> startTriggers) {
         this.startTriggers = startTriggers == null ? new ArrayList<>() : startTriggers;
+    }
+
+    /**
+     * Starts the quest on its own when the player does something: each entry is written like an
+     * objective ({@code { type: worldEvent, event: Goblin_Breach_First_Event }}) and the first signal
+     * matching one starts the quest, subject to its start conditions. See {@code StoryObjectives}.
+     */
+    public List<ObjectiveDefinition> startOn() {
+        return startOn;
+    }
+
+    public void setStartOn(List<ObjectiveDefinition> startOn) {
+        this.startOn = startOn == null ? new ArrayList<>() : startOn;
+    }
+
+    /**
+     * Keeps the quest locked until the player does something, then makes it available to accept: the
+     * board shows it, and {@code startQuest} accepts it. Written like {@link #startOn}.
+     */
+    public List<ObjectiveDefinition> unlockOn() {
+        return unlockOn;
+    }
+
+    public void setUnlockOn(List<ObjectiveDefinition> unlockOn) {
+        this.unlockOn = unlockOn == null ? new ArrayList<>() : unlockOn;
+    }
+
+    public List<EventDefinition> unlockEvents() {
+        return unlockEvents;
+    }
+
+    public void setUnlockEvents(List<EventDefinition> unlockEvents) {
+        this.unlockEvents = unlockEvents == null ? new ArrayList<>() : unlockEvents;
     }
 
     public List<ConditionDefinition> startConditions() {

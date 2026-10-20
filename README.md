@@ -4,7 +4,7 @@ Questing system that is tag and variable driven.
 
 A Hytale server mod built with Java.
 
-Guides: [players](docs/players.md) · [server owners and staff](docs/server-guide.md) · [creating quests by hand](docs/creating-quests.md) · [trigger volumes](docs/trigger-volumes.md) · [writing 2.0 stories](docs/2.0/story-scripting.md) · [2.0 reference](docs/2.0/narrative-runtime.md) · [content format](docs/content-format.md)
+Guides: [players](docs/players.md) · [server owners and staff](docs/server-guide.md) · [creating quests by hand](docs/creating-quests.md) · [trigger volumes](docs/trigger-volumes.md) · [Hytale's breaches, bosses and game flags](docs/hytale-story.md) · [writing 2.0 stories](docs/2.0/story-scripting.md) · [2.0 reference](docs/2.0/narrative-runtime.md) · [content format](docs/content-format.md)
 
 ## V1 Engine
 
@@ -18,6 +18,9 @@ MysticQuests now boots a package-driven V1 runtime:
 - JSON or SQLite player progress storage
 - Active/completed quest state, objective progress, and scoped tags/variables
 - Hytale event bridge for craft, interaction, and trigger-volume enter/exit objectives
+- Hytale's own story: quests start goblin breaches and boss encounters, wait for them, read and
+  write game flags, and start or unlock when a breach is spotted ([guide](docs/hytale-story.md));
+  Hytale's Chapter 1 ships as an editable package, installed on first start
 - Volume-scoped state for trigger-volume scripting
 - Split player surfaces: `/quests` quest board to accept, `/journal` quest log for current, completed, and abandoned history, with tabs between them and to mirrored mods' own quest books
 - Abandoned quests are recorded and locked unless the author configures a cooldown or re-accept conditions

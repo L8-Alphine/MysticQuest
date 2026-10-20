@@ -1,0 +1,45 @@
+{
+  "$Comment": "The fight, as Goblin_Breach_Prelude_Stage3 runs it. The encounter the site carries sends goblin_initial_breach_cleared once its pack is dead; that closes the breach, points the player at the temple and ends the event. A wandering goblin of the same role can keep the encounter from reporting a clear, so after fifteen minutes the breach moves to a new site rather than wedging.",
+  "Forks": [
+    {
+      "Conditions": [
+        {
+          "Type": "SignalCondition",
+          "SignalId": "goblin_initial_breach_cleared"
+        }
+      ],
+      "Actions": [
+        {
+          "Type": "PrefabRemoveAction",
+          "PrefabKey": "BreachSite"
+        },
+        {
+          "Type": "ShowEventTitleAction",
+          "LocationKey": "BreachLocation",
+          "Radius": 200,
+          "PrimaryTitle": "server.customUI.goblinInitialBreach.stage3.title.primary",
+          "SecondaryTitle": "server.customUI.goblinInitialBreach.stage3.title.secondary",
+          "Duration": 10,
+          "FadeInDuration": 0.5
+        }
+      ]
+    },
+    {
+      "Conditions": [
+        {
+          "Type": "IntervalCondition",
+          "IntervalKey": "MysticQuestsBreachFightTimeout",
+          "MinSeconds": 900,
+          "MaxSeconds": 900
+        }
+      ],
+      "Actions": [
+        {
+          "Type": "PrefabRemoveAction",
+          "PrefabKey": "BreachSite"
+        }
+      ],
+      "Mode": "Restart"
+    }
+  ]
+}

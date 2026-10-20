@@ -1,0 +1,207 @@
+# Chapter 1: the goblin story Hytale 0.7 tells through its own world events.
+#
+#   1. The Air Hums            a pre-temple goblin breach opens; beat the pack that comes through
+#   2. The Forgotten Temple    enter the temple and wake the goblins' power generator
+#   3. Breach in Progress      a breach portal tears open; step through into the Guttering Hollows
+#   4. Gobliterator MkIIII     defeat the goblins' war machine
+#   +  Breach Hunter           unlocked by the breaches that keep opening once the temple is awake
+#
+# Each quest starts the next from its completeEvents, so any step can be reworded, rewarded or
+# replaced on its own. Vanilla ids used here, all from Hytale 0.7.x:
+#   world events   Goblin_Breach_Prelude_Event, Goblin_Breach_First_Event, Goblin_Breach_Perpetual_Event
+#                  (MysticQuests_Goblin_Breach and MysticQuests_Goblin_Breach_Portal ship with MysticQuests)
+#   signal         goblin_initial_breach_cleared   sent by the Goblin_Initial_Breach encounter when its pack dies
+#   instances      Forgotten_Temple_Goblins, Portals/Portals_Goblins (the Guttering Hollows)
+#   block          GoblinLab_Generator
+#   game flags     goblin_lab_generator_found, goblin_lab_power
+#   encounters     Goblin_Gobliterator_Encounter, Goblin_Gobliterator_Encounter_Hard
+#   boss roles     Goblin_Gobliterator_Phase3, Goblin_Gobliterator_Phase3_HM (the role it dies in)
+
+notifications:
+  chapter:
+    style: Default
+    title: "Chapter 1"
+  chapter_step:
+    style: Success
+    title: "Chapter 1"
+  chapter_complete:
+    style: Success
+    title: "Chapter 1 complete"
+
+quests:
+  the_air_hums:
+    displayName: The Air Hums
+    description: >-
+      Something hums beyond the treeline. A goblin breach is tearing through your Echo; find it and
+      drive back the goblins that pour out of it.
+    category: story
+    difficulty: Easy
+    # Spotting any goblin breach near you begins the chapter. From the world's third day Hytale opens
+    # these near players on its own, until someone wakes the temple's generator.
+    startOn:
+      - type: worldEvent
+        phase: detected
+        targets: [Goblin_Breach_Prelude_Event, MysticQuests_Goblin_Breach]
+    startEvents:
+      # Once anyone has woken the generator, Hytale stops opening pre-temple breaches for the whole
+      # universe, so a player who starts the chapter later gets one of their own.
+      - type: if
+        conditions:
+          - { type: gameFlag, flag: goblin_lab_generator_found, level: 1 }
+        then:
+          - { type: startGoblinBreach, kind: summoned }
+          - type: notification
+            category: chapter
+            body: "The air hums nearby. Follow it to the breach."
+        else:
+          - type: notification
+            category: chapter
+            body: "Goblin breaches tear open in the wilds. Keep exploring and listen for the hum."
+    stages:
+      - { id: breach, displayName: The Goblin Breach }
+    objectives:
+      - id: spot_breach
+        displayName: Find the source of the humming
+        type: worldEvent
+        phase: detected
+        targets: [Goblin_Breach_Prelude_Event, MysticQuests_Goblin_Breach]
+        stage: breach
+      - id: clear_breach
+        displayName: Drive the goblins back through the breach
+        type: worldEventSignal
+        signal: goblin_initial_breach_cleared
+    completeEvents:
+      - type: notification
+        category: chapter_step
+        body: "The breach is sealed. Its trail leads to the Forgotten Temple."
+      - { type: startQuest, quest: the_forgotten_temple }
+
+  the_forgotten_temple:
+    displayName: The Forgotten Temple
+    description: >-
+      The goblins came from somewhere. Their trail leads to the Forgotten Temple at the edge of your
+      Echo. Find its gateway, then the machine the goblins left humming inside.
+    category: story
+    difficulty: Normal
+    lockedText: "Drive back a goblin breach first."
+    startConditions:
+      - { type: questCompleted, quest: the_air_hums }
+    stages:
+      - { id: temple, displayName: Reach the Temple }
+      - { id: lab, displayName: The Goblin Lab }
+    objectives:
+      - id: enter_temple
+        displayName: Enter the Forgotten Temple through its gateway
+        type: enterInstance
+        targets: [Forgotten_Temple_Goblins, Forgotten_Temple]
+        stage: temple
+      - id: find_generator
+        displayName: Find the goblins' Power Generator
+        type: interactObject
+        target: GoblinLab_Generator
+        stage: lab
+      - id: power_lab
+        displayName: Restore power to the goblin lab
+        type: gameFlag
+        flag: goblin_lab_power
+        level: 1
+    completeEvents:
+      - type: notification
+        category: chapter_step
+        body: "The lab hums with power. Your Echo trembles beyond the temple."
+      - { type: startQuest, quest: breach_in_progress }
+
+  breach_in_progress:
+    displayName: Breach in Progress
+    description: >-
+      Waking the generator tore the Veil of Void. Goblins are breaching into your Echo through a
+      portal; find it and go through to see where they come from.
+    category: story
+    difficulty: Normal
+    lockedText: "Restore power to the goblin lab first."
+    startConditions:
+      - { type: questCompleted, quest: the_forgotten_temple }
+    startEvents:
+      # A breach portal near this player. Hytale also opens its own first breach when the generator is
+      # first used, near any player; either one counts below.
+      - { type: startGoblinBreach, kind: portal }
+      - type: notification
+        category: chapter
+        body: "A breach is opening in the wilds. Find it before it closes."
+    stages:
+      - { id: portal, displayName: The Breach Portal }
+    objectives:
+      - id: find_portal
+        displayName: Find the goblin breach
+        type: worldEvent
+        phase: detected
+        targets: [MysticQuests_Goblin_Breach_Portal, Goblin_Breach_First_Event, Goblin_Breach_Perpetual_Event]
+        stage: portal
+      - id: enter_hollows
+        displayName: Step through the breach into the Guttering Hollows
+        type: enterInstance
+        instance: Portals/Portals_Goblins
+    completeEvents:
+      - type: notification
+        category: chapter_step
+        body: "The Guttering Hollows. Something enormous is grinding its gears in the dark."
+      - { type: startQuest, quest: the_gobliterator }
+
+  the_gobliterator:
+    displayName: Gobliterator MkIIII
+    description: >-
+      Deep in the Guttering Hollows the goblins guard the Makinomagistra's war machine. Find its
+      arena and bring it down, alone or with friends: everyone in the fight shares the victory.
+    category: story
+    difficulty: Hard
+    partySize: 4
+    lockedText: "Step through a goblin breach first."
+    startConditions:
+      - { type: questCompleted, quest: breach_in_progress }
+    stages:
+      - { id: arena, displayName: The War Machine }
+    objectives:
+      - id: find_arena
+        displayName: Find the Gobliterator's arena
+        type: encounter
+        targets: [Goblin_Gobliterator_Encounter, Goblin_Gobliterator_Encounter_Hard]
+        stage: arena
+      - id: defeat_gobliterator
+        displayName: Defeat the Gobliterator MkIIII
+        type: bossDefeated
+        targets: [Goblin_Gobliterator_Phase3, Goblin_Gobliterator_Phase3_HM]
+    completeEvents:
+      - { type: addTag, tag: chapter_1_complete }
+      - type: notification
+        category: chapter_complete
+        body: "The Gobliterator lies in pieces. Goblin breaches will keep opening; be ready."
+
+  breach_hunter:
+    displayName: Breach Hunter
+    description: >-
+      With the temple awake, breaches keep tearing open across your Echo. Brave the Guttering Hollows
+      three more times and keep the goblins on their side of the Veil.
+    category: side
+    difficulty: Normal
+    lockedText: "Spot one of the breaches that keep opening once the temple is awake."
+    # Spotting a recurring breach (or a quest's breach portal) makes this quest available on the board.
+    unlockOn:
+      - type: worldEvent
+        phase: detected
+        targets: [Goblin_Breach_Perpetual_Event, MysticQuests_Goblin_Breach_Portal]
+    unlockEvents:
+      - type: notification
+        category: chapter
+        body: "New quest available: Breach Hunter. Open /quests to take it."
+    startConditions:
+      - { type: questCompleted, quest: the_gobliterator }
+    objectives:
+      - id: brave_hollows
+        displayName: Enter the Guttering Hollows
+        type: enterInstance
+        instance: Portals/Portals_Goblins
+        amount: 3
+    completeEvents:
+      - type: notification
+        category: chapter_step
+        body: "Breach Hunter complete. The goblins will think twice."

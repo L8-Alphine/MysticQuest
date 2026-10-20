@@ -74,14 +74,30 @@ public final class PlayerQuestService {
             "triggerHyExtrasEffect", "notification", "sendMessage", "giveItem", "removeItem", "runCommand",
             "cancelConversation", "cancelQuest", "folder", "party", "if", "ref", "hidePlayer", "hideEntity",
             "showPlayer", "showEntity", "spawnNpc", "despawnNpc", "preventTargeting", "allowTargeting",
-            "setCamera", "sendTitle", "actionBar");
+            "setCamera", "sendTitle", "actionBar", "startWorldEvent", "stopWorldEvent", "signalWorldEvent",
+            "startGoblinBreach", "setGameFlag", "startEncounter");
 
     /** Every condition type {@link #evaluateCondition} handles itself; the same contract as above. */
     public static final Set<String> BUILT_IN_CONDITION_TYPES = Set.of(
             "tag", "globalTag", "entityTag", "blockTag", "volumeTag", "notTag", "questCompleted",
             "questActive", "variable", "globalVariable", "entityVariable", "blockVariable", "volumeVariable",
             "economy", "and", "or", "not", "ref", "permission", "inConversation", "inParty", "partySize",
-            "playerHidden", "entityHidden", "targetingPrevented", "nearEntity");
+            "playerHidden", "entityHidden", "targetingPrevented", "nearEntity", "gameFlag", "worldEventActive");
+
+    /**
+     * The world events {@code startGoblinBreach} starts, by {@code kind}. {@code summoned} and
+     * {@code portal} are MysticQuests' own (its asset pack), placed near the quest's player: the
+     * pre-temple breach whose goblin pack must be beaten, and the portal into the Guttering Hollows.
+     * {@code first} and {@code perpetual} are vanilla's own events, placed near a random player.
+     */
+    private static final Map<String, String> GOBLIN_BREACHES = Map.of(
+            "summoned", "MysticQuests_Goblin_Breach",
+            "portal", "MysticQuests_Goblin_Breach_Portal",
+            "first", "Goblin_Breach_First_Event",
+            "perpetual", "Goblin_Breach_Perpetual_Event");
+
+    /** The player tag recording that an {@code unlockOn} trigger made a quest available. */
+    private static final String UNLOCK_TAG_PREFIX = "mysticquests.unlocked.";
 
     private static final Pattern SCRIPT_PLACEHOLDER = Pattern.compile("(?<!\\\\)%([^%]+)%");
     /** Seconds a {@code sendTitle} stays on screen when the author does not say. */
@@ -122,6 +138,9 @@ public final class PlayerQuestService {
      * instead of failing a quest mid-flight.
      */
     private volatile QuestActionServices actionServices;
+
+    /** Hytale's world events, game flags and encounters; null until the runtime binds them. */
+    private volatile StoryWorld storyWorld;
 
     public PlayerQuestService(
             Supplier<LoadedContent> contentSupplier,
@@ -175,6 +194,10 @@ public final class PlayerQuestService {
         this.actionServices = services;
     }
 
+    public void bindStoryWorld(StoryWorld storyWorld) {
+        this.storyWorld = storyWorld;
+    }
+
     public void addChangeListener(Consumer<UUID> listener) {
         changeListeners.add(listener);
     }
@@ -195,6 +218,9 @@ public final class PlayerQuestService {
         ReacceptState reaccept = reacceptState(playerId, questId);
         if (!reaccept.allowed()) {
             return QuestResult.failure(reaccept.reason());
+        }
+        if (!isUnlocked(playerId, questId, quest)) {
+            return QuestResult.failure(quest.displayName() + " has not been unlocked yet");
         }
         for (ConditionDefinition condition : quest.startConditions()) {
             if (!evaluateCondition(data, quest.packageId(), quest, condition, QuestTargetContext.none())) {
@@ -263,25 +289,153 @@ public final class PlayerQuestService {
             if (quest == null) {
                 continue;
             }
-            for (ObjectiveDefinition objective : quest.objectives()) {
-                if (sharedOnly && !objective.bool("shared", objective.bool("party", false))) {
-                    continue;
-                }
-                if (matchesObjective(objective, signal)) {
-                    int current = activeQuest.objectiveProgress().getOrDefault(objective.id(), 0);
-                    int target = objective.integer("amount", 1);
-                    activeQuest.objectiveProgress().put(objective.id(), Math.min(target, current + Math.max(1, signal.amount())));
-                    changed = true;
-                }
-            }
-            if (isComplete(quest, activeQuest)) {
-                completeQuest(data, quest, signal.targetContext());
-                changed = false;
+            if (countSignal(data, quest, activeQuest, signal, sharedOnly)) {
+                changed = true;
             }
         }
         if (changed) {
             save(data);
         }
+        if (!sharedOnly) {
+            fireQuestTriggers(data, objective -> matchesObjective(objective, signal), signal);
+        }
+    }
+
+    /**
+     * Counts one signal toward one active quest, completing it when that was its last objective.
+     *
+     * @return whether progress changed and still needs saving; a completed quest has saved itself
+     */
+    private boolean countSignal(PlayerQuestData data, QuestDefinition quest, ActiveQuestData activeQuest,
+                                QuestSignal signal, boolean sharedOnly) {
+        boolean changed = false;
+        for (ObjectiveDefinition objective : quest.objectives()) {
+            if (sharedOnly && !objective.bool("shared", objective.bool("party", false))) {
+                continue;
+            }
+            if (matchesObjective(objective, signal)) {
+                int current = activeQuest.objectiveProgress().getOrDefault(objective.id(), 0);
+                int target = objective.integer("amount", 1);
+                activeQuest.objectiveProgress().put(objective.id(), Math.min(target, current + Math.max(1, signal.amount())));
+                changed = true;
+            }
+        }
+        if (isComplete(quest, activeQuest)) {
+            completeQuest(data, quest, signal.targetContext());
+            return false;
+        }
+        return changed;
+    }
+
+    /**
+     * Unlocks and starts quests whose {@code unlockOn} or {@code startOn} triggers match. Runs after the
+     * player's active objectives have counted the signal, so it is never counted twice for one quest.
+     * A quest a signal starts does count that signal: a quest started by spotting a breach whose first
+     * objective is "find the breach" opens with it found, since the engine reports a sighting only once.
+     *
+     * @param signal what fired, counted toward a quest it starts; null for the game-flag poll, whose
+     *               objectives are read again on its next pass
+     */
+    private void fireQuestTriggers(PlayerQuestData data, Predicate<ObjectiveDefinition> fired, @Nullable QuestSignal signal) {
+        LoadedContent content = contentSupplier.get();
+        for (Map.Entry<String, QuestDefinition> entry : content.quests().entrySet()) {
+            QuestDefinition quest = entry.getValue();
+            if (quest.startOn().isEmpty() && quest.unlockOn().isEmpty()) {
+                continue;
+            }
+            String questId = entry.getKey();
+            if (data.activeQuests().containsKey(questId) || data.completedQuests().containsKey(questId)) {
+                continue;
+            }
+            if (!quest.unlockOn().isEmpty() && !isUnlocked(data.playerId(), questId, quest)
+                    && quest.unlockOn().stream().anyMatch(fired)) {
+                unlockQuest(data, questId, quest);
+            }
+            if (!quest.startOn().isEmpty() && quest.startOn().stream().anyMatch(fired)) {
+                QuestResult result = startQuest(data.playerId(), questId);
+                if (!result.success()) {
+                    logger.at(Level.FINE).log("Triggered quest " + questId + " did not start for "
+                            + data.playerId() + ": " + result.message());
+                    continue;
+                }
+                ActiveQuestData started = data.activeQuests().get(questId);
+                if (signal != null && started != null && countSignal(data, quest, started, signal, false)) {
+                    save(data);
+                }
+            }
+        }
+    }
+
+    /** Whether a quest gated by {@code unlockOn} has been unlocked; quests without the gate always are. */
+    private boolean isUnlocked(UUID playerId, String questId, QuestDefinition quest) {
+        return quest.unlockOn().isEmpty()
+                || scopedStateService.tags("player", playerId.toString()).contains(UNLOCK_TAG_PREFIX + questId);
+    }
+
+    private void unlockQuest(PlayerQuestData data, String questId, QuestDefinition quest) {
+        if (scopedStateService.addTag("player", data.playerId().toString(), UNLOCK_TAG_PREFIX + questId)) {
+            executeEvents(data, quest.packageId(), quest, quest.unlockEvents(), QuestTargetContext.none());
+            // Saving tells the board and the HUD that something changed for this player.
+            save(data);
+        }
+    }
+
+    /**
+     * Brings polled {@code gameFlag} objectives and triggers up to date for one player: an objective
+     * completes once its flag stands where it asks, and a trigger fires. Game flags are universe-wide
+     * and raise no event when they change, so the world-thread poll calls this about once a second.
+     *
+     * @param levels a flag's current level, 0 when unset
+     */
+    public void syncGameFlags(UUID playerId, ToIntFunction<String> levels) {
+        PlayerQuestData data = data(playerId);
+        LoadedContent content = contentSupplier.get();
+        boolean changed = false;
+        for (ActiveQuestData active : new ArrayList<>(data.activeQuests().values())) {
+            QuestDefinition quest = content.quests().get(active.questId());
+            if (quest == null) {
+                continue;
+            }
+            boolean advanced = false;
+            for (ObjectiveDefinition objective : quest.objectives()) {
+                if (!StoryObjectives.GAME_FLAG.equals(objective.type())) {
+                    continue;
+                }
+                int target = objective.integer("amount", 1);
+                if (active.objectiveProgress().getOrDefault(objective.id(), 0) < target
+                        && StoryObjectives.flagPasses(objective, levels)) {
+                    active.objectiveProgress().put(objective.id(), target);
+                    advanced = true;
+                }
+            }
+            if (!advanced) {
+                continue;
+            }
+            if (isComplete(quest, active)) {
+                completeQuest(data, quest);
+            } else {
+                changed = true;
+            }
+        }
+        if (changed) {
+            save(data);
+        }
+        fireQuestTriggers(data, trigger ->
+                StoryObjectives.GAME_FLAG.equals(trigger.type()) && StoryObjectives.flagPasses(trigger, levels), null);
+    }
+
+    /**
+     * Whether the poll has anything to do for this player: an active quest with a {@code gameFlag}
+     * objective, or a quest they have not finished that a flag can unlock or start.
+     */
+    public boolean watchesGameFlags(UUID playerId) {
+        PlayerQuestData data = data(playerId);
+        for (Map.Entry<String, QuestDefinition> entry : contentSupplier.get().quests().entrySet()) {
+            if (!data.completedQuests().containsKey(entry.getKey()) && StoryObjectives.watchesFlags(entry.getValue())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Whether any of the player's active quests has a {@code gather} objective; cheap, for the inventory hook. */
@@ -1067,6 +1221,8 @@ public final class PlayerQuestService {
                 }
                 case "sendTitle" -> applyTitle(data.playerId(), packageId, event, targetContext);
                 case "actionBar" -> applyActionBar(data.playerId(), packageId, event, targetContext);
+                case "startWorldEvent", "stopWorldEvent", "signalWorldEvent", "startGoblinBreach",
+                        "setGameFlag", "startEncounter" -> applyStoryWorld(data.playerId(), event);
                 default -> executeRegisteredEvent(data.playerId(), packageId, event, targetContext);
             }
         }
@@ -1488,6 +1644,9 @@ public final class PlayerQuestService {
     }
 
     private boolean canStart(PlayerQuestData data, QuestDefinition quest) {
+        if (!isUnlocked(data.playerId(), quest.packageId() + ":" + quest.id(), quest)) {
+            return false;
+        }
         for (ConditionDefinition condition : quest.startConditions()) {
             if (!evaluateCondition(data, quest.packageId(), quest, condition, QuestTargetContext.none())) {
                 return false;
@@ -1589,8 +1748,61 @@ public final class PlayerQuestService {
             case "playerHidden", "entityHidden" -> isHidden(data.playerId(), condition, targetContext);
             case "targetingPrevented" -> isTargetingPrevented(data.playerId(), condition, targetContext);
             case "nearEntity" -> hasEntityNearby(data.playerId(), condition, targetContext);
+            case "gameFlag" -> storyWorld != null && StoryObjectives.flagPasses(condition, storyWorld::gameFlag);
+            case "worldEventActive" -> storyWorld != null && storyWorld.worldEventActive(
+                    data.playerId(),
+                    condition.text("event", condition.text("target", "")),
+                    condition.bool("anywhere", false));
             default -> evaluateRegisteredCondition(data.playerId(), packageId, condition, targetContext);
         };
+    }
+
+    /** Hytale's world events, game flags and encounters, through the bound {@link StoryWorld}. */
+    private void applyStoryWorld(UUID playerId, EventDefinition event) {
+        StoryWorld world = storyWorld;
+        if (world == null) {
+            logSkipped(event.type());
+            return;
+        }
+        try {
+            applyStoryWorld(world, playerId, event);
+        } catch (RuntimeException | LinkageError failure) {
+            // A server with Hytale's world-event or encounter plugin turned off: the action is lost,
+            // the rest of the quest's events still run.
+            logger.at(Level.WARNING).withCause(failure).log("Could not run " + event.type() + " for " + playerId + ".");
+        }
+    }
+
+    private void applyStoryWorld(StoryWorld world, UUID playerId, EventDefinition event) {
+        String global = event.data().containsKey("global") ? event.text("global", "") : null;
+        switch (event.type()) {
+            case "startWorldEvent" -> world.startWorldEvent(playerId, event.text("event", event.text("target", "")), global);
+            case "stopWorldEvent" -> world.stopWorldEvent(playerId, event.text("event", event.text("target", "")), global);
+            case "signalWorldEvent" -> world.signalWorldEvent(playerId, event.text("signal", event.text("target", "")));
+            case "startGoblinBreach" -> {
+                String kind = event.text("kind", "summoned").strip().toLowerCase(Locale.ROOT);
+                String asset = GOBLIN_BREACHES.get(kind);
+                if (asset == null) {
+                    logger.at(Level.WARNING).log("startGoblinBreach: unknown kind '" + kind + "'; use summoned, portal or perpetual.");
+                    return;
+                }
+                world.startWorldEvent(playerId, asset, global);
+            }
+            case "setGameFlag" -> world.setGameFlag(
+                    event.text("flag", event.text("key", "")),
+                    event.integer("value", 1),
+                    event.text("mode", event.bool("raise", false) ? "raise" : "set"));
+            case "startEncounter" -> {
+                double[] position = event.data().containsKey("x") && event.data().containsKey("y") && event.data().containsKey("z")
+                        ? new double[] {
+                                event.decimal("x", BigDecimal.ZERO).doubleValue(),
+                                event.decimal("y", BigDecimal.ZERO).doubleValue(),
+                                event.decimal("z", BigDecimal.ZERO).doubleValue()}
+                        : null;
+                world.startEncounter(playerId, event.text("encounter", event.text("target", "")), position);
+            }
+            default -> logSkipped(event.type());
+        }
     }
 
     /** True when {@code target} is currently hidden from {@code viewer}. */
@@ -1768,6 +1980,11 @@ public final class PlayerQuestService {
     }
 
     private boolean matchesObjective(ObjectiveDefinition objective, QuestSignal signal) {
+        // World events, encounters and instances answer to signals named differently from the
+        // objective (worldEvent with phase completed waits for worldEventCompleted).
+        if (StoryObjectives.handles(objective.type())) {
+            return StoryObjectives.matches(objective, signal);
+        }
         if (!objective.type().equals(signal.type())) {
             return false;
         }

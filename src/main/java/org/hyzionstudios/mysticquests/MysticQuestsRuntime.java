@@ -13,6 +13,7 @@ import org.hyzionstudios.mysticquests.integration.studio.StudioIntegration;
 import javax.annotation.Nullable;
 import org.hyzionstudios.mysticquests.command.MQuestCommand;
 import org.hyzionstudios.mysticquests.config.MysticQuestsConfig;
+import org.hyzionstudios.mysticquests.content.BundledPackages;
 import org.hyzionstudios.mysticquests.content.LoadedContent;
 import org.hyzionstudios.mysticquests.content.QuestContentLoader;
 import org.hyzionstudios.mysticquests.event.MysticQuestsEventBus;
@@ -34,6 +35,8 @@ import org.hyzionstudios.mysticquests.integration.mysticidentity.QuestPortalSour
 import org.hyzionstudios.mysticquests.integration.mysticidentity.MysticIdentityPortal;
 import org.hyzionstudios.mysticquests.integration.triggervolumes.MysticTriggerVolumeRegistrar;
 import org.hyzionstudios.mysticquests.integration.triggervolumes.NarrativeTriggerBridge;
+import org.hyzionstudios.mysticquests.integration.worldevents.HytaleStoryActions;
+import org.hyzionstudios.mysticquests.integration.worldevents.WorldEventTracker;
 import org.hyzionstudios.mysticquests.narrative.NarrativeContent;
 import org.hyzionstudios.mysticquests.api.MysticQuestsApi;
 import org.hyzionstudios.mysticquests.api.MysticQuestsRegistry;
@@ -52,6 +55,8 @@ import org.hyzionstudios.mysticquests.service.TargetSelector;
 import org.hyzionstudios.mysticquests.service.QuestAuthoringService;
 import org.hyzionstudios.mysticquests.service.QuestScheduleService;
 import org.hyzionstudios.mysticquests.service.ScopedStateService;
+import org.hyzionstudios.mysticquests.service.StoryObjectives;
+import org.hyzionstudios.mysticquests.service.StoryWorld;
 import org.hyzionstudios.mysticquests.storage.JsonQuestStorage;
 import org.hyzionstudios.mysticquests.storage.QuestStorage;
 import org.hyzionstudios.mysticquests.storage.SqliteQuestStorage;
@@ -79,6 +84,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 
@@ -124,6 +130,10 @@ public final class MysticQuestsRuntime implements AutoCloseable {
     private StudioIntegration studio;
     private MysticIdentityPortal identityPortal;
     private ExternalQuestService externalQuests;
+    private final WorldEventTracker worldEvents;
+    private HytaleStoryActions storyActions;
+    /** The boss roles the loaded content watches, recomputed when the content changes. */
+    private volatile BossWatch bossWatch;
     private volatile PlayerStateAdmin playerAdmin;
     /**
      * False only during the first content load in {@link #start()}. That load tolerates narrative
@@ -132,9 +142,18 @@ public final class MysticQuestsRuntime implements AutoCloseable {
     private boolean initialLoadDone;
 
     public MysticQuestsRuntime(JavaPlugin plugin) {
+        this(plugin, new WorldEventTracker());
+    }
+
+    /**
+     * @param worldEvents what the world-event systems have seen; owned by the plugin, because those
+     *                    systems are registered and running before the runtime exists
+     */
+    public MysticQuestsRuntime(JavaPlugin plugin, WorldEventTracker worldEvents) {
         this.plugin = Objects.requireNonNull(plugin, "plugin");
         this.mapper = Json.createMapper();
         this.content = new AtomicReference<>(LoadedContent.empty());
+        this.worldEvents = Objects.requireNonNull(worldEvents, "worldEvents");
     }
 
     public void start() {
@@ -198,6 +217,9 @@ public final class MysticQuestsRuntime implements AutoCloseable {
                     registry,
                     generationBridge));
             this.signalBus = new QuestSignalBus(questService, partyIntegration);
+            // Hytale's goblin breaches, game flags and encounters, for quest actions and conditions.
+            this.storyActions = new HytaleStoryActions(sessionService, worldEvents, plugin.getLogger());
+            this.questService.bindStoryWorld(storyActions);
             this.scheduleService = new QuestScheduleService(
                     content::get, questService, sessionService, plugin.getLogger(),
                     dataDirectory.resolve("data/schedule-state.json"));
@@ -256,6 +278,7 @@ public final class MysticQuestsRuntime implements AutoCloseable {
             visibility.addPresentationLayer(narrative.runtime().overlays());
             // Dialogue nodes with a "voice" play it through the narrative media system (§15).
             conversationService.bindVoice(narrative::playVoice);
+            installBundledPackages();
             reloadContent();
             this.scheduleService.start();
             new HytaleEventBridge(
@@ -355,6 +378,25 @@ public final class MysticQuestsRuntime implements AutoCloseable {
                 "MysticQuests found existing content at " + serverDirectory.toAbsolutePath()
                         + " but is loading from " + dataDirectory.toAbsolutePath()
                         + ". Move config.json, packages/, and data/ across to keep that content; nothing was moved automatically.");
+    }
+
+    /**
+     * Writes the packages MysticQuests ships (Hytale's Chapter 1) into the packages directory the first
+     * time it runs. A failure is logged and never stops start-up: the server simply has no copy.
+     */
+    private void installBundledPackages() {
+        Path packagesPath = dataDirectory.resolve(config.packagesPath());
+        try {
+            BundledPackages.install(packagesPath, dataDirectory.resolve("data/bundled-packages.json"), mapper)
+                    .forEach((id, result) -> {
+                        if (result == BundledPackages.Result.INSTALLED) {
+                            plugin.getLogger().at(Level.INFO).log("Installed the bundled quest package "
+                                    + id + " into " + packagesPath.resolve(id).toAbsolutePath() + ".");
+                        }
+                    });
+        } catch (IOException | RuntimeException failure) {
+            plugin.getLogger().at(Level.WARNING).withCause(failure).log("Could not install the bundled quest packages.");
+        }
     }
 
     public synchronized LoadedContent reloadContent() throws IOException {
@@ -491,6 +533,28 @@ public final class MysticQuestsRuntime implements AutoCloseable {
 
     public QuestHudService hudService() {
         return hudService;
+    }
+
+    /** Hytale's world events, game flags and encounters as quests drive them; null before start. */
+    public StoryWorld storyWorld() {
+        return storyActions;
+    }
+
+    /**
+     * Which NPC roles a loaded quest waits on with {@code bossDefeated}. Boss deaths read this on every
+     * NPC death, so it is computed once per content load rather than per death.
+     */
+    public Predicate<String> watchedBosses() {
+        LoadedContent current = content.get();
+        BossWatch watch = bossWatch;
+        if (watch == null || watch.content() != current) {
+            watch = new BossWatch(current, StoryObjectives.watchedBosses(current));
+            bossWatch = watch;
+        }
+        return watch.roles();
+    }
+
+    private record BossWatch(LoadedContent content, Predicate<String> roles) {
     }
 
     /** Quests other mods run, mirrored into MysticQuests; null before start. */

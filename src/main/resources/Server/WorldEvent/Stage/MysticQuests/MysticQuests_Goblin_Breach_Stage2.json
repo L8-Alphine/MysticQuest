@@ -1,0 +1,55 @@
+{
+  "$Comment": "Wait for a player to walk up, as Goblin_Breach_Prelude_Stage2 does: the beam goes out and the site is pasted, which brings the goblins through. Nobody coming within ten minutes moves the breach to a new site instead of giving up, since a quest is waiting on it.",
+  "Forks": [
+    {
+      "Conditions": [
+        {
+          "Type": "ProximityCondition",
+          "LocationKey": "BreachLocation",
+          "Radius": 20
+        }
+      ],
+      "Actions": [
+        {
+          "Type": "EffectsAction",
+          "LocationKey": "BreachLocation",
+          "Radius": 100,
+          "Shape": {
+            "Type": "Point",
+            "Count": 1
+          },
+          "SoundFX": {
+            "Effect": "SFX_Goblin_Initial_Breach_Open"
+          }
+        },
+        {
+          "Type": "PrefabRemoveAction",
+          "PrefabKey": "BreachBeam"
+        },
+        {
+          "Type": "PrefabPasteAction",
+          "PrefabKey": "BreachSite",
+          "Permanent": false
+        }
+      ],
+      "Next": "MysticQuests_Goblin_Breach_Stage3"
+    },
+    {
+      "Conditions": [
+        {
+          "Type": "IntervalCondition",
+          "IntervalKey": "MysticQuestsBreachApproachTimeout",
+          "MinSeconds": 600,
+          "MaxSeconds": 600
+        }
+      ],
+      "Actions": [
+        {
+          "Type": "PrefabRemoveAction",
+          "PrefabKey": "BreachBeam"
+        }
+      ],
+      "Mode": "Restart"
+    }
+  ]
+}

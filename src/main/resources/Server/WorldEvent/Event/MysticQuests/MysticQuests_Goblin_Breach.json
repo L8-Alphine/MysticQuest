@@ -1,0 +1,10 @@
+{
+  "$Comment": "A goblin breach a quest summons with startWorldEvent (or startGoblinBreach). The pre-temple breach (Goblin_Breach_Prelude_Event) without its waits: it opens near the player whose quest started it, through the MysticQuestsPlayerLocation type, and runs until that pack is beaten. Vanilla's own pre-temple breaches stop for the whole universe once anyone powers the temple generator, so this is how a later player still gets one. The site carries the vanilla Goblin_Initial_Breach encounter, which sends goblin_initial_breach_cleared when its pack dies. Not persisted: a restart drops a breach still waiting to be found.",
+  "Root": "MysticQuests_Goblin_Breach_Stage1",
+  "Persistent": false,
+  "IterationCount": 1,
+  "InstanceCountMax": 8,
+  "PlayerCountMin": 1,
+  "Name": "server.worldEvents.goblinBreach.name",
+  "Icon": "UI/WorldMap/MapMarkers/GoblinBreach.png"
+}

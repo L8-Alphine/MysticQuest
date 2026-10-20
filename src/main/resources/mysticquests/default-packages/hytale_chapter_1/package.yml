@@ -1,0 +1,4 @@
+enabled: true
+version: 1.0.0
+# Hytale's Chapter 1 (the goblin story) as MysticQuests quests. Written into packages/ the first time
+# MysticQuests starts; edit it freely, MysticQuests never overwrites it. See README.md.

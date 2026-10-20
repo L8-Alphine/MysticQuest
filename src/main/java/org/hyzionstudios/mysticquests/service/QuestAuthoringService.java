@@ -30,7 +30,8 @@ import java.util.function.Supplier;
 public final class QuestAuthoringService {
     private static final Set<String> OBJECTIVE_TYPES = Set.of(
             "kill", "gather", "craft", "triggerEnter", "triggerExit", "interactEntity",
-            "interactObject", "interactNpc", "reachLocation", "dialogue", "timer", "custom");
+            "interactObject", "interactNpc", "reachLocation", "dialogue", "timer", "custom",
+            "worldEvent", "worldEventSignal", "encounter", "bossDefeated", "enterInstance", "gameFlag");
 
     private final Path packagesDirectory;
     private final ObjectMapper mapper;
@@ -220,6 +221,14 @@ public final class QuestAuthoringService {
         JsonNode stages = replaced.get("stages");
         if (stages != null && stages.isArray() && !stages.isEmpty() && questNode.path("stages").isEmpty()) {
             questNode.set("stages", stages.deepCopy());
+        }
+        // The form has no inputs for triggers either; a studio save must not quietly stop a story
+        // quest from starting or unlocking on its breach.
+        for (String field : List.of("startOn", "unlockOn", "unlockEvents")) {
+            JsonNode previous = replaced.get(field);
+            if (previous != null && previous.isArray() && !previous.isEmpty() && questNode.path(field).isEmpty()) {
+                questNode.set(field, previous.deepCopy());
+            }
         }
         Map<String, String> previousStages = new HashMap<>();
         for (JsonNode objective : replaced.path("objectives")) {

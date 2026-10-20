@@ -1,0 +1,100 @@
+{
+  "$Comment": "Find a site near the quest's player and drop the breach spark, as Goblin_Breach_First_Stage1 does, but placed with MysticQuestsPlayerLocation instead of near a random player. The second fork only keeps the 'search the wilds' hint on the map while the search runs.",
+  "Forks": [
+    {
+      "Conditions": [
+        {
+          "Type": "LocationCondition",
+          "LocationKey": "BreachLocation",
+          "LocationType": {
+            "Type": "MysticQuestsPlayerLocation",
+            "MinHorizontalDistance": 8,
+            "MaxHorizontalDistance": 60,
+            "MinVerticalDistance": 0,
+            "MaxVerticalDistance": 16
+          },
+          "SearchRadius": 16,
+          "Content": [
+            {
+              "Type": "PrefabSpawner",
+              "PrefabKey": "BreachPortal",
+              "Rotations": [
+                "Rotation0"
+              ],
+              "Mask": {
+                "Type": "BlocksOnly",
+                "Blocks": [
+                  "Soils",
+                  "Rock",
+                  "PlantScatter"
+                ]
+              },
+              "Prefab": {
+                "Prefabs": [
+                  {
+                    "RootDirectory": "Asset",
+                    "Path": "Orbis/WorldEvent/Goblins/Goblin_World_Event_Portal",
+                    "Recursive": true
+                  }
+                ]
+              }
+            },
+            {
+              "Type": "PrefabSpawner",
+              "PrefabKey": "BreachSpark",
+              "Prefab": {
+                "Prefabs": [
+                  {
+                    "RootDirectory": "Asset",
+                    "Path": "Orbis/WorldEvent/Goblins/Goblin_World_Event_Breach_Spark"
+                  }
+                ]
+              },
+              "Mask": {
+                "Type": "BlocksOnly",
+                "Blocks": [
+                  "Soils",
+                  "Rock",
+                  "PlantScatter"
+                ]
+              }
+            }
+          ],
+          "Clearance": 8
+        }
+      ],
+      "Actions": [
+        {
+          "Type": "ShowEventTitleAction",
+          "LocationKey": "BreachLocation",
+          "Radius": 200,
+          "PrimaryTitle": "server.customUI.goblinBreach.stage1.title.primary",
+          "SecondaryTitle": "server.customUI.goblinBreach.stage1.title.secondary",
+          "SoundFX": {
+            "Effect": "SFX_Event_Goblin_Title"
+          },
+          "FadeInDuration": 0.5,
+          "Style": "GoblinBreach"
+        },
+        {
+          "Type": "PrefabPasteAction",
+          "PrefabKey": "BreachSpark",
+          "Permanent": false
+        }
+      ],
+      "Next": "MysticQuests_Goblin_Breach_Portal_Stage2"
+    },
+    {
+      "Conditions": [
+        {
+          "Type": "IntervalCondition",
+          "IntervalKey": "GoblinFirstBreachPlaceTimeout",
+          "MinSeconds": 32767,
+          "MaxSeconds": 32767,
+          "MapIntervalKey": "server.map.worldEvents.lookAround",
+          "ShowOnMap": true
+        }
+      ]
+    }
+  ]
+}

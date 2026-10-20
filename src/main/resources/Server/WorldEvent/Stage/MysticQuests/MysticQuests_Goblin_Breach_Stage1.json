@@ -1,0 +1,84 @@
+{
+  "$Comment": "Find a site near the quest's player and light the beam, as Goblin_Breach_Prelude_Stage1_Place does. The location condition keeps searching until a spot passes both spawner masks; the gameplay config's ExclusionRadius can hold it back while another event has a site nearby.",
+  "Forks": [
+    {
+      "Conditions": [
+        {
+          "Type": "LocationCondition",
+          "LocationKey": "BreachLocation",
+          "LocationType": {
+            "$Comment": "Keep the minimum above the ProximityCondition radius in Stage2, so the beam is up before the player is close enough to open the breach.",
+            "Type": "MysticQuestsPlayerLocation",
+            "MinHorizontalDistance": 30,
+            "MaxHorizontalDistance": 60,
+            "MinVerticalDistance": 0,
+            "MaxVerticalDistance": 16
+          },
+          "SearchRadius": 16,
+          "Content": [
+            {
+              "Type": "PrefabSpawner",
+              "PrefabKey": "BreachBeam",
+              "Mask": {
+                "Type": "BlocksOnly",
+                "Blocks": [
+                  "Soils",
+                  "Rock",
+                  "PlantScatter"
+                ]
+              },
+              "Prefab": {
+                "Prefabs": [
+                  {
+                    "RootDirectory": "Asset",
+                    "Path": "Orbis/WorldEvent/Goblins/Goblin_Initial_Breach_Beam"
+                  }
+                ]
+              }
+            },
+            {
+              "$Comment": "Resolved here so the paste in Stage2 lands on the beam's spot. The site carries the Goblin_Initial_Breach encounter and the tall empty column that needs open sky.",
+              "Type": "PrefabSpawner",
+              "PrefabKey": "BreachSite",
+              "Mask": {
+                "Type": "BlocksOnly",
+                "Blocks": [
+                  "Soils",
+                  "Rock",
+                  "PlantScatter"
+                ]
+              },
+              "Prefab": {
+                "Prefabs": [
+                  {
+                    "RootDirectory": "Asset",
+                    "Path": "Orbis/WorldEvent/Goblins/Goblin_Initial_Breach_Site"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "Actions": [
+        {
+          "Type": "ShowEventTitleAction",
+          "LocationKey": "BreachLocation",
+          "Radius": 200,
+          "PrimaryTitle": "server.customUI.goblinInitialBreach.stage1.title.primary",
+          "SecondaryTitle": "server.customUI.goblinInitialBreach.stage1.title.secondary",
+          "SoundFX": {
+            "Effect": "SFX_Event_Goblin_Title"
+          },
+          "FadeInDuration": 0.5
+        },
+        {
+          "Type": "PrefabPasteAction",
+          "PrefabKey": "BreachBeam",
+          "Permanent": false
+        }
+      ],
+      "Next": "MysticQuests_Goblin_Breach_Stage2"
+    }
+  ]
+}

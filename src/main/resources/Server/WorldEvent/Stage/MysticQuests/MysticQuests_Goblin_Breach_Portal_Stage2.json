@@ -1,0 +1,79 @@
+{
+  "$Comment": "Wait for a player to come within 20 blocks, then open the portal effect (Goblin_Breach_First_Stage2). Nobody engaging within five minutes waits five more and ends the iteration, which restarts the search.",
+  "Forks": [
+    {
+      "Conditions": [
+        {
+          "Type": "ProximityCondition",
+          "LocationKey": "BreachLocation",
+          "Radius": 20
+        }
+      ],
+      "Actions": [
+        {
+          "Type": "PrefabRemoveAction",
+          "PrefabKey": "BreachSpark"
+        },
+        {
+          "Type": "EffectsAction",
+          "LocationKey": "BreachLocation",
+          "VisualFX": {
+            "ScaleMin": 1.8,
+            "ScaleMax": 1.8,
+            "Effect": "GoblinBreach_Portal",
+            "Offset": {
+              "Y": 1.05,
+              "X": 0.5,
+              "Z": 0.5
+            },
+            "DurationMin": 26.4,
+            "DurationMax": 26.4
+          },
+          "Shape": {
+            "Type": "Point",
+            "Count": 1
+          },
+          "Radius": 100,
+          "SoundFX": {
+            "Effect": "SFX_Goblin_World_Breach_Open"
+          }
+        }
+      ],
+      "Next": "MysticQuests_Goblin_Breach_Portal_Stage3"
+    },
+    {
+      "Conditions": [
+        {
+          "Type": "IntervalCondition",
+          "IntervalKey": "GoblinEventTimeout",
+          "MinSeconds": 300,
+          "MaxSeconds": 300,
+          "ShowOnMap": true,
+          "MapIntervalKey": "server.map.worldEvents.engageWithin"
+        }
+      ],
+      "Actions": [
+        {
+          "Type": "PrefabRemoveAction",
+          "PrefabKey": "BreachSpark"
+        }
+      ],
+      "Next": {
+        "Forks": [
+          {
+            "Conditions": [
+              {
+                "Type": "IntervalCondition",
+                "MapIntervalKey": "server.map.worldEvents.nextIn",
+                "ShowOnMap": true,
+                "IntervalKey": "GoblinBreachRetryInterval",
+                "MinSeconds": 300,
+                "MaxSeconds": 300
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

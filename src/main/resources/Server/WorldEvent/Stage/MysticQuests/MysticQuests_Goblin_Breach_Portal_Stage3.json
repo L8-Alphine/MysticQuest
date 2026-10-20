@@ -1,0 +1,120 @@
+{
+  "$Comment": "The breach bursts open: launch volume, portal prefab and an unbreakable zone around it (Goblin_Breach_First_Stage3).",
+  "Forks": [
+    {
+      "Conditions": [
+        {
+          "Type": "IntervalCondition",
+          "IntervalKey": "PrefabSpawnTimeout",
+          "MinSeconds": 5.5,
+          "MaxSeconds": 5.5,
+          "ShowOnMap": true,
+          "MapIntervalKey": "server.map.worldEvents.opensIn"
+        }
+      ],
+      "Actions": [
+        {
+          "Type": "EffectsAction",
+          "LocationKey": "BreachLocation",
+          "Radius": 100,
+          "Shape": {
+            "Type": "Ring",
+            "Radius": 10,
+            "Count": 8
+          },
+          "VisualFX": {
+            "Effect": "Explosion_Big",
+            "ScaleMin": 4,
+            "ScaleMax": 4,
+            "DurationMin": 3,
+            "DurationMax": 3
+          }
+        },
+        {
+          "Type": "TriggerVolumeCreateAction",
+          "LocationKey": "BreachLocation",
+          "VolumeKey": "BreachLaunchTV",
+          "Offset": {
+            "X": 0.5,
+            "Y": 0.0,
+            "Z": 0.5
+          },
+          "Volume": {
+            "Shape": {
+              "Type": "Cylinder",
+              "Center": {
+                "X": 0.0,
+                "Y": 0.0,
+                "Z": 0.0
+              },
+              "Radius": 6.5,
+              "Height": 3.0
+            },
+            "Effects": [
+              {
+                "Type": "SetVelocity",
+                "Event": "ENTER",
+                "Interval": 0.0,
+                "Delay": 0.0,
+                "Velocity": {
+                  "X": 0.0,
+                  "Y": 10.0,
+                  "Z": -20.0
+                },
+                "Additive": false,
+                "RelativeMode": "VolumeOrigin"
+              },
+              {
+                "Type": "DeleteVolume",
+                "Event": "VOLUME_CREATE",
+                "Interval": 0.0,
+                "Delay": 1.0,
+                "MatchKey": "",
+                "MatchValue": "",
+                "Radius": 50.0,
+                "Center": "Volume"
+              }
+            ],
+            "Enabled": true,
+            "TargetTypes": [
+              "Player"
+            ],
+            "KeepLoaded": false,
+            "Name": "Goblin_Breach_Explosion"
+          }
+        },
+        {
+          "Type": "PrefabPasteAction",
+          "PrefabKey": "BreachPortal",
+          "Permanent": false
+        },
+        {
+          "Type": "TriggerVolumeCreateAction",
+          "LocationKey": "BreachLocation",
+          "VolumeKey": "UnbrecablePortalTV",
+          "Volume": {
+            "Shape": {
+              "Type": "Cylinder",
+              "Radius": 6.5,
+              "Height": 8
+            },
+            "Rules": [
+              {
+                "Type": "NoDestroy",
+                "Enabled": true
+              },
+              {
+                "Type": "NoBuild"
+              }
+            ]
+          },
+          "Offset": {
+            "Z": 0.5,
+            "X": 0.5
+          }
+        }
+      ],
+      "Next": "MysticQuests_Goblin_Breach_Portal_Stage4"
+    }
+  ]
+}

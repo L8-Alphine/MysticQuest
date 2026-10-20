@@ -244,6 +244,10 @@ Each objective has an `id`, a `type`, usually a `target`, and an `amount` (defau
 | `dialogue` | reaches a conversation, or a node in one | `package:conversation` or `package:conversation:node` |
 | `triggerEnter` / `triggerExit` | enters or leaves a trigger volume | the volume id, without the world (`bandit_camp`); see [trigger volumes](trigger-volumes.md) |
 | `signal` | a 2.0 story transition sends that signal | the signal ID (field `signal`) |
+| `worldEvent`, `worldEventSignal`, `encounter`, `bossDefeated`, `enterInstance`, `gameFlag` | Hytale's own story moves on: a goblin breach is spotted or closes, a boss falls, the player enters the Forgotten Temple, a game flag is set | see [Hytale's own story](hytale-story.md) |
+
+Quests can also start or unlock themselves when one of these happens (`startOn`, `unlockOn`); see
+[Starting and unlocking quests](hytale-story.md#starting-and-unlocking-quests-when-they-happen).
 
 ### How interactions are counted
 

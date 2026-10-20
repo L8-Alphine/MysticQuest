@@ -36,7 +36,7 @@ public final class ContentSchema {
 
     /** Fields whose contents are events, for recursion. */
     private static final Set<String> EVENT_FIELDS =
-            Set.of("events", "then", "else", "startEvents", "completeEvents", "rewards");
+            Set.of("events", "then", "else", "startEvents", "completeEvents", "rewards", "unlockEvents");
     /** Fields whose contents are conditions, for recursion. */
     private static final Set<String> CONDITION_FIELDS =
             Set.of("conditions", "condition", "startConditions", "reacceptConditions");
