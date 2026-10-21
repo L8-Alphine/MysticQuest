@@ -179,7 +179,7 @@ owner.
 ## Built-in types worth knowing
 
 Events: `tag`, `variable`, `giveItem`, `removeItem`, `runCommand`, `sendMessage`, `startQuest`,
-`completeQuest`, `modifyMoney`, `notification`, `folder`, `party`, `if`, `ref`, `cancelConversation`,
+`completeQuest`, `modifyMoney`, `notification`, `folder`, `party`, `if`, `ref`, `openQuestMenu`, `cancelConversation`,
 `cancelQuest`, `hidePlayer`, `showPlayer`, `hideEntity`, `showEntity`, `preventTargeting`,
 `allowTargeting`, `setCamera`, `sendTitle`, `actionBar`, `spawnNpc`, `despawnNpc`.
 

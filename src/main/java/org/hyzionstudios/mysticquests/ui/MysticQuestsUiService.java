@@ -11,6 +11,7 @@ import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 
+import java.util.UUID;
 import java.util.logging.Level;
 
 public final class MysticQuestsUiService {
@@ -30,6 +31,24 @@ public final class MysticQuestsUiService {
 
     public boolean openQuestMenu(CommandContext context) {
         return open(context, false);
+    }
+
+    /**
+     * Replaces the current page with the quest board on the next world task.
+     *
+     * <p>Dialogue choices use this path: their current conversation must finish and close before the
+     * board opens, otherwise the conversation's cleanup would immediately close the new page too.
+     */
+    public void queueQuestMenu(UUID playerId) {
+        if (playerId == null || !shipped(UiDocuments.QUEST_MENU)) {
+            return;
+        }
+        runtime.sessionService().runOnWorld(playerId, (playerEntity, store) ->
+                store.getExternalData().getWorld().execute(() -> {
+                    if (playerEntity.isValid()) {
+                        open(playerEntity, store, false);
+                    }
+                }));
     }
 
     public boolean openAdminStudio(CommandContext context) {
@@ -72,6 +91,15 @@ public final class MysticQuestsUiService {
         try {
             Ref<EntityStore> playerEntity = context.senderAsPlayerRef();
             Store<EntityStore> store = playerEntity.getStore();
+            return open(playerEntity, store, journal);
+        } catch (RuntimeException exception) {
+            logger.at(Level.WARNING).withCause(exception).log("Failed to open MysticQuests " + (journal ? "journal" : "quest menu") + " UI.");
+            return false;
+        }
+    }
+
+    private boolean open(Ref<EntityStore> playerEntity, Store<EntityStore> store, boolean journal) {
+        try {
             Player player = store.getComponent(playerEntity, Player.getComponentType());
             PlayerRef playerRef = store.getComponent(playerEntity, PlayerRef.getComponentType());
             if (player == null || playerRef == null) {

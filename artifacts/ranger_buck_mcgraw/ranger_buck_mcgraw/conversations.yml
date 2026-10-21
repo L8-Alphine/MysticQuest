@@ -1,0 +1,102 @@
+conversations:
+  ranger_buck:
+    speaker: Ranger Buck McGraw
+    # The first candidate is available once per player; every later visit falls through to return.
+    start: [first_greeting, return_greeting]
+    entity:
+      # Stable ID shown by HyCitizens in the Ranger citizen editor.
+      hyCitizensId: f8be1750-f61c-4737-a350-04d535c8bffc
+      type: HyCitizens
+      name: Ranger
+      interactionHint: talk
+      showPrompt: true
+    nodes:
+      - id: first_greeting
+        conditions:
+          - { type: notTag, tag: met_ranger_buck, packageScoped: true }
+        events:
+          - { type: addTag, tag: met_ranger_buck, packageScoped: true }
+        text: >-
+          Oi! You there! Yeah, YOU! Get yer boots on over yonder! Well, butter my biscuits—ain't
+          seen a fresh face 'round these parts in a coon's age. Name's Buck McGraw. Folks 'round
+          here call me Hawkeye. I keep an eye on them woods, help lost travelers, and occasionally
+          wrestle a critter or two. And you must be %player%. How 'bout I point ya toward some good
+          ol' adventurin'?
+        choices:
+          - text: "Got any quests for me?"
+            next: quests
+          - text: "Where should I go?"
+            next: directions
+          - text: "Who are you?"
+            next: background
+          - text: "Maybe later."
+            next: farewell
+
+      - id: return_greeting
+        # One is selected on each return visit. MysticQuests remembers each player's previous
+        # selection and excludes it from the next roll, even after a reconnect or server restart.
+        textVariants:
+          - >-
+            Well, butter my biscuits, %player%! Ain't seen a face that eager since a fox found
+            an unlocked henhouse. What can ol' Buck do for ya?
+          - >-
+            Oi, %player%! Yeah, YOU! Get yer boots on over yonder and tell Ranger Buck what kind
+            of adventure you're hankerin' for.
+          - >-
+            Howdy, %player%! Hawkeye McGraw's the name, watchin' these woods is the game. What
+            brings ya out my way today?
+          - >-
+            There ya are, %player%! I was startin' to think the trail had swallowed every brave
+            soul in Hyzion. Need a quest, a direction, or a ranger's wisdom?
+          - >-
+            Yeehaw, %player%! You look ready enough to wrestle trouble and polite enough to ask
+            where it's hidin'. What can I point ya toward?
+        choices:
+          - text: "Got any quests for me?"
+            next: quests
+          - text: "Where should I go?"
+            next: directions
+          - text: "Who are you?"
+            next: background
+          - text: "Maybe later."
+            next: farewell
+
+      - id: quests
+        text: >-
+          YEEHAW! Now THAT'S what I like to hear! Got a whole heap o' folks needin' help.
+          Lemme pull up the quest board fer ya!
+        choices:
+          - text: "Open the quest board."
+            events:
+              - { type: openQuestMenu }
+            next: end
+          - text: "Actually, I had another question."
+            next: return_greeting
+
+      - id: directions
+        text: >-
+          If adventure's what yer after, make for the entrance to Avalon. If ya need to get
+          yer bearings first, head back through the Nexus Hub and follow the posted signs.
+          Either trail'll put some honest road beneath yer boots.
+        choices:
+          - text: "Thanks, Buck."
+            next: return_greeting
+          - text: "That's all I needed."
+            next: farewell
+
+      - id: background
+        text: >-
+          Name's Buck McGraw. Folks 'round here call me Hawkeye. I'm the wilderness ranger and
+          quest guide for these parts—I watch the woods, steer lost travelers home, and wrangle
+          any critter ornery enough to test me.
+        choices:
+          - text: "Good to meet you."
+            next: return_greeting
+          - text: "See you around, Buck."
+            next: farewell
+
+      - id: farewell
+        text: >-
+          Fair enough, partner. Keep yer powder dry, yer boots laced, and holler if adventure
+          comes callin'!
+

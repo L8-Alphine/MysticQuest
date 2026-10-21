@@ -262,6 +262,7 @@ public final class MysticQuestsRuntime implements AutoCloseable {
             this.authoringService = new QuestAuthoringService(
                     dataDirectory.resolve(config.packagesPath()), mapper, content::get, this::reloadContent);
             this.uiService = new MysticQuestsUiService(this, plugin.getLogger());
+            this.questService.bindQuestMenuSupport(uiService::queueQuestMenu);
             // Before the first reload, which compiles narrative sections alongside the v1 content.
             this.narrative = new NarrativeIntegration(
                     dataDirectory, config.narrative(), mapper, partyIntegration, questService, signalBus,
