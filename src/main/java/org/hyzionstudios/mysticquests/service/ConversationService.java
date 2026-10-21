@@ -11,6 +11,8 @@ import org.hyzionstudios.mysticquests.integration.MysticGenerationBridge.Generat
 import org.hyzionstudios.mysticquests.ui.ConversationPage;
 import org.hyzionstudios.mysticquests.ui.QuestHudCoordinator;
 import org.hyzionstudios.mysticquests.ui.QuestHudService;
+import org.hyzionstudios.mysticquests.ui.SpeakerPreviewService;
+import org.hyzionstudios.mysticquests.ui.SpeakerStage;
 import org.hyzionstudios.mysticquests.ui.UiDocuments;
 
 import com.hypixel.hytale.component.Archetype;
@@ -85,6 +87,8 @@ public final class ConversationService {
     private volatile MysticGenerationBridge generationBridge;
     private volatile VoicePlayer voicePlayer;
     private volatile QuestHudService hudService;
+    /** Null until bound; the dialogue card then shows the speaker's model live when enabled. */
+    private volatile SpeakerPreviewService previewService;
 
     /** Plays a node's narrative voice line to the reader; bound by the narrative integration. */
     @FunctionalInterface
@@ -110,6 +114,15 @@ public final class ConversationService {
      */
     public void bindVoice(VoicePlayer voicePlayer) {
         this.voicePlayer = voicePlayer;
+    }
+
+    public void bindLivePreview(SpeakerPreviewService previewService) {
+        this.previewService = previewService;
+    }
+
+    /** The live card's service, for the page that shows it; null when none is bound. */
+    public SpeakerPreviewService livePreview() {
+        return previewService;
     }
 
     public void bindHud(QuestHudService hudService) {
@@ -138,6 +151,10 @@ public final class ConversationService {
             transcripts.remove(playerId);
             clearCinematicHud(playerId);
             lastReconcileNanos.remove(playerId);
+            SpeakerPreviewService preview = previewService;
+            if (preview != null) {
+                preview.forget(playerId);
+            }
         }
     }
 
@@ -227,7 +244,14 @@ public final class ConversationService {
         if (node == null) {
             return false;
         }
-        long token = startSession(playerRef.getUuid(), conversation, node, targetContext);
+        Ref<EntityStore> targetRef = event.getTargetRef();
+        String portrait = targetRef == null || !targetRef.isValid()
+                ? SpeakerPortraits.resolve(conversation.portrait(), null, null)
+                : SpeakerPortraits.forEntity(conversation.portrait(), targetRef.getStore(), targetRef);
+        SpeakerStage.Capture stage = targetRef == null || !targetRef.isValid()
+                ? null
+                : stage(targetRef.getStore(), targetRef);
+        long token = startSession(playerRef.getUuid(), conversation, node, targetContext, portrait, stage);
         openPage(event.getPlayerRef(), event.getPlayerRef().getStore(), event.getPlayer(), playerRef, token);
         return true;
     }
@@ -262,7 +286,9 @@ public final class ConversationService {
         if (node == null) {
             return false;
         }
-        long token = startSession(playerRef.getUuid(), conversation, node, targetContext);
+        String portrait = SpeakerPortraits.forEntity(conversation.portrait(), store, targetRef);
+        long token = startSession(playerRef.getUuid(), conversation, node, targetContext, portrait,
+                stage(store, targetRef));
         openPage(event.getPlayerRef(), event.getPlayerRef().getStore(), event.getPlayer(), playerRef, token);
         return true;
     }
@@ -293,7 +319,10 @@ public final class ConversationService {
             if (player == null) {
                 return;
             }
-            long token = startSession(playerRef.getUuid(), conversation, node, targetContext);
+            Ref<EntityStore> citizenEntity = citizenRef(store, citizen);
+            String portrait = SpeakerPortraits.forEntity(conversation.portrait(), store, citizenEntity);
+            long token = startSession(playerRef.getUuid(), conversation, node, targetContext, portrait,
+                    stage(store, citizenEntity));
             openPage(playerEntity, store, player, playerRef, token);
         };
         if (store.isInThread()) {
@@ -345,7 +374,9 @@ public final class ConversationService {
         if (node == null) {
             return null;
         }
-        long token = startSession(playerRef.getUuid(), conversation, node, targetContext);
+        String portrait = SpeakerPortraits.forEntity(conversation.portrait(), accessor, targetRef);
+        long token = startSession(playerRef.getUuid(), conversation, node, targetContext, portrait,
+                stage(accessor, targetRef));
         return new ConversationPage(playerRef, playerRef.getUuid(), token, this);
     }
 
@@ -382,7 +413,9 @@ public final class ConversationService {
                 session.text(),
                 node.voice() != null,
                 List.copyOf(transcripts.getOrDefault(playerId, List.of())),
-                resolvedChoices);
+                resolvedChoices,
+                session.portrait(),
+                session.stage());
     }
 
     public boolean choose(UUID playerId, String choiceToken, Ref<EntityStore> playerEntity, Store<EntityStore> store) {
@@ -814,7 +847,9 @@ public final class ConversationService {
             UUID playerId,
             ConversationDefinition conversation,
             ConversationNode node,
-            QuestTargetContext targetContext) {
+            QuestTargetContext targetContext,
+            String portrait,
+            SpeakerStage.Capture stage) {
         long token = sessionTokens.incrementAndGet();
         String text = resolvedNodeText(playerId, conversation, node);
         sessions.put(playerId, new ConversationSession(
@@ -823,7 +858,9 @@ public final class ConversationService {
                 node.id(),
                 text,
                 targetContext,
-                token));
+                token,
+                portrait,
+                stage));
         transcripts.put(playerId, new ArrayList<>());
         QuestHudService hud = hudService;
         if (hud != null) {
@@ -1022,7 +1059,39 @@ public final class ConversationService {
         NAME
     }
 
+    /**
+     * {@code portrait} is the character card's image (a Common asset path), or null for initials;
+     * {@code stage} the speaker's model for the live card, or null when it cannot be shown live.
+     */
     private record ConversationSession(
+            UUID playerId, String conversationId, String nodeId, QuestTargetContext targetContext, long token,
+            String portrait, SpeakerStage.Capture stage) {
+
+        ConversationSession atNode(String nextNodeId) {
+            return new ConversationSession(playerId, conversationId, nextNodeId, targetContext, token, portrait, stage);
+        }
+
+        ConversationSession ownedBy(long newToken) {
+            return new ConversationSession(playerId, conversationId, nodeId, targetContext, newToken, portrait, stage);
+        }
+    }
+
+    /** The speaker's model for the live card, or null when the live card is off or cannot show it. */
+    private SpeakerStage.Capture stage(ComponentAccessor<EntityStore> accessor, Ref<EntityStore> ref) {
+        SpeakerPreviewService preview = previewService;
+        return preview == null || !preview.enabled() ? null : SpeakerStage.capture(accessor, ref);
+    }
+
+    /** The spawned citizen in this world, when HyCitizens reported its entity UUID. */
+    private static Ref<EntityStore> citizenRef(Store<EntityStore> store, CitizenView citizen) {
+        String spawned = citizen.spawnedUuid();
+        if (spawned == null || spawned.isBlank()) {
+            return null;
+        }
+        try {
+            return store.getExternalData().getRefFromUUID(UUID.fromString(spawned.trim()));
+        } catch (IllegalArgumentException malformed) {
+            return null;
             UUID playerId, String conversationId, String nodeId, String text, QuestTargetContext targetContext, long token) {
 
         ConversationSession atNode(String nextNodeId, String nextText) {
@@ -1053,6 +1122,8 @@ public final class ConversationService {
             String text,
             boolean voiced,
             List<TranscriptLine> transcript,
-            List<ConversationOption> choices) {
+            List<ConversationOption> choices,
+            String portrait,
+            SpeakerStage.Capture stage) {
     }
 }

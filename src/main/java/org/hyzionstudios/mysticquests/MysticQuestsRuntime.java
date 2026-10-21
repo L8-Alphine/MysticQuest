@@ -63,6 +63,7 @@ import org.hyzionstudios.mysticquests.storage.SqliteQuestStorage;
 import org.hyzionstudios.mysticquests.ui.CutsceneHudBridge;
 import org.hyzionstudios.mysticquests.ui.MysticQuestsUiService;
 import org.hyzionstudios.mysticquests.ui.QuestHudService;
+import org.hyzionstudios.mysticquests.ui.SpeakerPreviewService;
 import org.hyzionstudios.mysticquests.ui.QuestTransitionService;
 import org.hyzionstudios.mysticquests.ui.QuestNotificationService;
 import org.hyzionstudios.mysticquests.util.Json;
@@ -113,6 +114,7 @@ public final class MysticQuestsRuntime implements AutoCloseable {
     private PlayerSessionService sessionService;
     private QuestNotificationService notificationService;
     private QuestHudService hudService;
+    private SpeakerPreviewService speakerPreview;
     private QuestTransitionService transitionService;
     private ConversationService conversationService;
     private HyCitizensBridge hyCitizensBridge;
@@ -252,6 +254,8 @@ public final class MysticQuestsRuntime implements AutoCloseable {
             new MysticTriggerVolumeRegistrar(plugin.getLogger()).bindServices(scopedStateService, questService);
             this.conversationService = new ConversationService(content::get, questService, signalBus, plugin.getLogger());
             this.conversationService.bindHud(hudService);
+            this.speakerPreview = new SpeakerPreviewService(config.dialogue().livePreview());
+            this.conversationService.bindLivePreview(speakerPreview);
             this.questService.bindConversationSupport(
                     conversationService::isInConversation,
                     conversationService::cancel);
@@ -530,6 +534,11 @@ public final class MysticQuestsRuntime implements AutoCloseable {
         if (stateWriteQueue != null) {
             stateWriteQueue.flush();
         }
+    }
+
+    /** The dialogue card's live model preview; null before start. */
+    public SpeakerPreviewService speakerPreview() {
+        return speakerPreview;
     }
 
     public QuestHudService hudService() {
@@ -858,6 +867,10 @@ public final class MysticQuestsRuntime implements AutoCloseable {
         }
         if (conversationService != null) {
             ConversationService.deactivatePageSupplier(conversationService);
+        }
+        if (speakerPreview != null) {
+            speakerPreview.close();
+            speakerPreview = null;
         }
         if (visibility != null) {
             visibility.clearAll();

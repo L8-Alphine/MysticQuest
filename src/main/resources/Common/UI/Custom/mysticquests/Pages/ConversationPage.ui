@@ -7,14 +7,24 @@ $MQ = "../Theme.ui";
 //
 // Positioning: #ConversationRoot has no LayoutMode, so its children are placed by their own Anchor
 // offsets from its edges; each band then centres its fixed-width content with LayoutMode: Center.
-// Choice rows are appended from ConversationPage (mysticquests/Rows/ConversationChoiceRow.ui).
+// Choice rows are appended from ConversationPage (mysticquests/Rows/ConversationChoiceRow.ui), one
+// per choice and as many as the node offers; #ChoiceList scrolls once they outgrow it.
+//
+// The NPC's line lives in #DialogueScroll, a fixed-height scrolling box: a long line wraps and
+// scrolls inside it instead of spilling over the choices below.
+//
+// Character card: #SpeakerStage shows the speaking NPC's own model live, turning slowly, in the
+// PrefabPreviewComponent vanilla's prefab browser uses (Pages/PrefabListPage.ui); the model arrives
+// as a separate prefab preview packet (SpeakerStage / SpeakerPreviewService). When the live card is
+// off or the NPC cannot be shown live, #PortraitFallback shows the model's generated portrait
+// (Icons/ModelsGenerated/<model>.png, as the vanilla Memories page does), or the speaker's initials.
 
 Group #ConversationRoot {
   Anchor: (Full: 0);
   Background: #000000(0.30);
 
   Group #TranscriptBand {
-    Anchor: (Bottom: 352, Height: 250);
+    Anchor: (Bottom: 452, Height: 250);
     LayoutMode: Center;
 
     Group #TranscriptPanel {
@@ -43,11 +53,11 @@ Group #ConversationRoot {
   }
 
   Group #DialogueBand {
-    Anchor: (Bottom: 36, Height: 300);
+    Anchor: (Bottom: 36, Height: 400);
     LayoutMode: Center;
 
     Group #DialogueRow {
-      Anchor: (Width: 1160, Height: 300);
+      Anchor: (Width: 1160, Height: 400);
       LayoutMode: Left;
 
       Group #SpeakerPortrait {
@@ -58,13 +68,38 @@ Group #ConversationRoot {
 
         Group #PortraitFrame {
           FlexWeight: 1;
-          LayoutMode: Middle;
           Background: $MQ.@InsetBackground;
           Anchor: (Bottom: 12);
 
-          Label #SpeakerInitials {
-            Anchor: (Height: 60);
-            Style: (FontSize: 40, RenderBold: true, TextColor: #B9A2F2, HorizontalAlignment: Center, VerticalAlignment: Center);
+          Group #PortraitFallback {
+            Anchor: (Full: 0);
+            LayoutMode: Middle;
+
+            AssetImage #SpeakerImage {
+              Anchor: (Width: 160, Height: 160);
+              FallbackTexturePath: "UI/Custom/Pages/Memories/MissingIcon.png";
+              Visible: false;
+            }
+
+            Label #SpeakerInitials {
+              Anchor: (Height: 60);
+              Style: (FontSize: 40, RenderBold: true, TextColor: #B9A2F2, HorizontalAlignment: Center, VerticalAlignment: Center);
+            }
+          }
+
+          Group #SpeakerStageWrap {
+            Anchor: (Full: 4);
+            LayoutMode: Full;
+            Visible: false;
+
+            PrefabPreviewComponent #SpeakerStage {
+              Anchor: (Full: 0);
+              AllowDragYaw: true;
+              AllowDragPitch: true;
+              AllowZoom: true;
+              AllowPan: false;
+              ShowAnchor: false;
+            }
           }
         }
 
@@ -96,15 +131,25 @@ Group #ConversationRoot {
           }
         }
 
-        Label #DialogueText {
-          Anchor: (Height: 66, Bottom: 10);
-          Style: (FontSize: 19, RenderBold: true, TextColor: #F2F4F8, Wrap: true, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 13);
+        Group #DialogueScroll {
+          Anchor: (Height: 104, Bottom: 8);
+          LayoutMode: TopScrolling;
+          ScrollbarStyle: $C.@DefaultScrollbarStyle;
+
+          Label #DialogueText {
+            Style: (FontSize: 18, RenderBold: true, TextColor: #F2F4F8, Wrap: true);
+          }
+        }
+
+        Group #ChoiceDivider {
+          Anchor: (Height: 1, Bottom: 8);
+          Background: #F2F4F8(0.15);
         }
 
         Group #ChoiceList {
           FlexWeight: 1;
           LayoutMode: TopScrolling;
-          ScrollbarStyle: $C.@TranslucentScrollbarStyle;
+          ScrollbarStyle: $C.@DefaultScrollbarStyle;
         }
 
         Group #Footer {

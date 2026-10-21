@@ -7,7 +7,7 @@ troubleshooting. Players want the [player guide](players.md); quest authors want
 
 ## Requirements
 
-- A Hytale server in the `0.6.x` range (the manifest declares `>=0.6.0 <0.7.0`).
+- A Hytale server in the `0.7.x` range from 0.7.2 (the manifest declares `>=0.7.2 <0.8.0`).
 - The built-in `Hytale:TriggerVolumes` plugin (required) and the built-in Audio plugin for story
   music (without it, music is switched off and logged; everything else works).
 

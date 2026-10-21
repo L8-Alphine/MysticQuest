@@ -9,10 +9,12 @@ import org.hyzionstudios.mysticquests.service.PlayerQuestService;
 import org.hyzionstudios.mysticquests.service.PlayerSessionService;
 import org.hyzionstudios.mysticquests.service.QuestTargetContext;
 import org.hyzionstudios.mysticquests.ui.QuestHudService;
+import org.hyzionstudios.mysticquests.ui.SpeakerPreviewService;
 
 import com.hypixel.hytale.builtin.instances.config.InstanceWorldConfig;
 import com.hypixel.hytale.builtin.triggervolumes.effect.TriggerEventType;
 import com.hypixel.hytale.builtin.triggervolumes.event.TriggerVolumeEvent;
+import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.event.events.player.AddPlayerToWorldEvent;
 import com.hypixel.hytale.server.core.event.events.player.PlayerCraftEvent;
 import com.hypixel.hytale.server.core.event.events.player.PlayerDisconnectEvent;
@@ -77,6 +79,12 @@ public final class HytaleEventBridge {
         World world = event.getWorld();
         if (player == null) {
             return;
+        }
+        // A world change leaves no dialogue card behind: hand the client its real game mode back.
+        SpeakerPreviewService preview = conversationService.livePreview();
+        if (preview != null) {
+            Player playerComponent = event.getHolder().getComponent(Player.getComponentType());
+            preview.hide(player, playerComponent == null ? null : playerComponent.getGameMode());
         }
         InstanceWorldConfig instance = InstanceWorldConfig.get(world.getWorldConfig());
         String target = instance != null && instance.getInstanceName() != null ? instance.getInstanceName() : world.getName();

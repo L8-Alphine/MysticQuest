@@ -11,6 +11,7 @@ import org.hyzionstudios.mysticquests.hytale.GameFlagObjectiveSystem;
 import org.hyzionstudios.mysticquests.hytale.GatherObjectiveSystem;
 import org.hyzionstudios.mysticquests.hytale.InteractObjectiveSystems;
 import org.hyzionstudios.mysticquests.hytale.KillObjectiveSystem;
+import org.hyzionstudios.mysticquests.hytale.SpeakerPreviewDeathSystem;
 import org.hyzionstudios.mysticquests.hytale.StoryEntityDeathSystem;
 import org.hyzionstudios.mysticquests.hytale.NameplateVisibilitySystem;
 import org.hyzionstudios.mysticquests.hytale.StoryEntitySystems;
@@ -83,6 +84,9 @@ public class MysticquestsPlugin extends JavaPlugin {
         getEntityStoreRegistry().registerSystem(new KillObjectiveSystem(
                 () -> runtime == null ? null : runtime.signalBus(),
                 () -> runtime == null ? null : runtime.generationBridge()));
+        // A player who dies mid-dialogue with no death screen gets their real game mode back.
+        getEntityStoreRegistry().registerSystem(new SpeakerPreviewDeathSystem(
+                () -> runtime == null ? null : runtime.speakerPreview()));
         // A claimed story NPC's death runs its onDeath actions for the audience that owns it (§8).
         getEntityStoreRegistry().registerSystem(new StoryEntityDeathSystem(
                 () -> runtime == null || runtime.narrative() == null ? null : runtime.narrative().runtime()));

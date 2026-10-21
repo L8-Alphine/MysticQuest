@@ -17,7 +17,8 @@ public record MysticQuestsConfig(
         boolean debug,
         NarrativeConfig narrative,
         StudioConfig studio,
-        ExternalQuestsConfig externalQuests) {
+        ExternalQuestsConfig externalQuests,
+        DialogueConfig dialogue) {
     public static MysticQuestsConfig defaults() {
         return new MysticQuestsConfig(
                 new StorageConfig("sqlite", "data/players", "data/mysticquests.db"),
@@ -28,7 +29,8 @@ public record MysticQuestsConfig(
                 false,
                 NarrativeConfig.DEFAULTS,
                 StudioConfig.DEFAULTS,
-                ExternalQuestsConfig.DEFAULTS);
+                ExternalQuestsConfig.DEFAULTS,
+                DialogueConfig.DEFAULTS);
     }
 
     public static MysticQuestsConfig load(Path dataDirectory, ObjectMapper mapper) throws IOException {
@@ -54,7 +56,26 @@ public record MysticQuestsConfig(
                 debug,
                 narrative == null ? defaults.narrative : narrative.withDefaults(),
                 studio == null ? defaults.studio : studio.withDefaults(),
-                externalQuests == null ? defaults.externalQuests : externalQuests.withDefaults());
+                externalQuests == null ? defaults.externalQuests : externalQuests.withDefaults(),
+                dialogue == null ? defaults.dialogue : dialogue.withDefaults());
+    }
+
+    /**
+     * The NPC dialogue screen.
+     *
+     * @param livePreview show the speaking NPC's real 3D model, turning slowly, in the dialogue's
+     *         character card. Hytale's client only draws that preview while it believes it is in
+     *         Creative, so while the card is open MysticQuests tells that one client it is in
+     *         Creative (the server keeps the real mode and enforces it) and hands the real mode back
+     *         when the card closes. Players already in Creative are never touched. Off, the card
+     *         shows the model's portrait image instead.
+     */
+    public record DialogueConfig(Boolean livePreview) {
+        static final DialogueConfig DEFAULTS = new DialogueConfig(true);
+
+        DialogueConfig withDefaults() {
+            return new DialogueConfig(livePreview == null || livePreview);
+        }
     }
 
     /**

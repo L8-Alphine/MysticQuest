@@ -3,7 +3,7 @@
   "Name": "mysticquests",
   "Version": "2.0.1",
   "Main": "org.hyzionstudios.mysticquests.MysticquestsPlugin",
-  "ServerVersion": ">=0.7.0 <0.8.0",
+  "ServerVersion": ">=0.7.2 <0.8.0",
   "Description": "Questing System that is Tag and Variable Driven",
   "Authors": [
     {

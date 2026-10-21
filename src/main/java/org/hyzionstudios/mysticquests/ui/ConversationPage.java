@@ -28,7 +28,6 @@ import java.util.stream.Collectors;
 public final class ConversationPage extends MysticQuestsPage<ConversationPage.PageEventData> {
     static final String DOCUMENT = "mysticquests/Pages/ConversationPage.ui";
     static final String CHOICE_ROW = "mysticquests/Rows/ConversationChoiceRow.ui";
-    private static final int MAX_CHOICES = 12;
     private static final int TRANSCRIPT_LINES = 12;
 
     private static final BuilderCodec<PageEventData> EVENT_CODEC = BuilderCodec
@@ -41,6 +40,8 @@ public final class ConversationPage extends MysticQuestsPage<ConversationPage.Pa
     private final long sessionToken;
     private final ConversationService conversationService;
     private boolean transcriptVisible;
+    /** The model the card shows live, as of the last render; null for the portrait fallback. */
+    private SpeakerStage.Capture liveStage;
 
     public ConversationPage(PlayerRef playerRef, UUID playerId, long sessionToken, ConversationService conversationService) {
         super(playerRef, EVENT_CODEC);
@@ -59,7 +60,22 @@ public final class ConversationPage extends MysticQuestsPage<ConversationPage.Pa
      */
     @Override
     public void onDismiss(@Nonnull Ref<EntityStore> playerEntity, @Nonnull Store<EntityStore> store) {
+        // Every way the page goes away ends here: closed, replaced, the death screen, a player reset.
+        SpeakerPreviewService preview = conversationService.livePreview();
+        if (preview != null) {
+            preview.hide(playerRef, playerEntity, store);
+        }
         conversationService.pageDismissed(playerId, sessionToken);
+    }
+
+    /** Sends the speaker's model to the card once the page is on its way to the client. */
+    @Override
+    protected void onBuilt(Ref<EntityStore> ref, Store<EntityStore> store) {
+        // Not view(): that re-issues the choice tokens render() has just bound.
+        SpeakerPreviewService preview = conversationService.livePreview();
+        if (preview != null && liveStage != null) {
+            preview.show(playerRef, ref, store, this, liveStage, true);
+        }
     }
 
     @Override
@@ -85,12 +101,17 @@ public final class ConversationPage extends MysticQuestsPage<ConversationPage.Pa
     protected void render(UICommandBuilder commands, UIEventBuilder events) {
         events.addEventBinding(CustomUIEventBindingType.Activating, "#TranscriptToggle", EventData.of("Action", "transcript"));
         events.addEventBinding(CustomUIEventBindingType.Activating, "#LeaveButton", EventData.of("Action", "leave"));
-        commands.clear("#ChoiceList");
+        commands.clear(ConversationLayout.CHOICE_LIST);
 
         ConversationService.ConversationView view = conversationService.view(playerId);
         if (view == null) {
             commands.set("#SpeakerName.Text", "");
             commands.set("#SpeakerInitials.Text", "");
+            commands.set("#SpeakerInitials.Visible", true);
+            commands.set("#SpeakerImage.Visible", false);
+            commands.set("#SpeakerStageWrap.Visible", false);
+            commands.set("#PortraitFallback.Visible", true);
+            liveStage = null;
             commands.set("#SpeakerTitle.Text", "");
             commands.set("#DialogueText.Text", "");
             commands.set("#VoiceBadge.Visible", false);
@@ -99,7 +120,7 @@ public final class ConversationPage extends MysticQuestsPage<ConversationPage.Pa
             return;
         }
         commands.set("#SpeakerName.Text", UiText.oneLine(view.speaker()));
-        commands.set("#SpeakerInitials.Text", initials(view.speaker()));
+        portrait(commands, view);
         commands.set("#SpeakerTitle.Text", UiText.oneLine(view.speaker()));
         commands.set("#DialogueText.Text", UiText.safe(view.text()));
         commands.set("#VoiceBadge.Visible", view.voiced());
@@ -107,26 +128,37 @@ public final class ConversationPage extends MysticQuestsPage<ConversationPage.Pa
         commands.set("#TranscriptText.Text", transcript(view.transcript()));
         commands.set("#TranscriptToggle.Text", transcriptVisible ? "Hide transcript" : "Transcript");
 
+        // One row per choice, however many the node offers: #ChoiceList scrolls.
         List<ConversationOption> choices = view.choices();
-        int shown = Math.min(choices.size(), MAX_CHOICES);
-        commands.set("#FooterHint.Text", shown == 0
-                ? "Leave to end the conversation."
-                : "Choose a reply. Leaving ends the conversation.");
-        for (int index = 0; index < shown; index += 2) {
-            String row = "#ChoiceList[" + (index / 2) + "]";
-            commands.append("#ChoiceList", CHOICE_ROW);
-            choice(commands, events, row + " #ChoiceA", index, choices.get(index));
-            boolean second = index + 1 < shown;
-            commands.set(row + " #ChoiceB.Visible", second);
-            if (second) {
-                choice(commands, events, row + " #ChoiceB", index + 1, choices.get(index + 1));
-            }
+        List<String> labels = ConversationLayout.choiceLabels(
+                choices.stream().map(ConversationOption::text).toList());
+        commands.set("#FooterHint.Text", ConversationLayout.footerHint(choices.size()));
+        for (int index = 0; index < choices.size(); index++) {
+            String selector = ConversationLayout.choiceSelector(index);
+            commands.append(ConversationLayout.CHOICE_LIST, CHOICE_ROW);
+            commands.set(selector + ".Text", labels.get(index));
+            events.addEventBinding(CustomUIEventBindingType.Activating, selector,
+                    EventData.of("Choice", choices.get(index).token()));
         }
     }
 
-    private static void choice(UICommandBuilder commands, UIEventBuilder events, String selector, int index, ConversationOption option) {
-        commands.set(selector + ".Text", (index + 1) + "   " + UiText.oneLine(option.text()));
-        events.addEventBinding(CustomUIEventBindingType.Activating, selector, EventData.of("Choice", option.token()));
+    /**
+     * The NPC's model portrait in the character card, as the vanilla Memories page shows an NPC
+     * ({@code AssetImage.AssetPath}); the speaker's initials when it has none.
+     */
+    private void portrait(UICommandBuilder commands, ConversationService.ConversationView view) {
+        SpeakerPreviewService preview = conversationService.livePreview();
+        boolean live = preview != null && preview.enabled() && view.stage() != null;
+        liveStage = live ? view.stage() : null;
+        commands.set("#SpeakerStageWrap.Visible", live);
+        commands.set("#PortraitFallback.Visible", !live);
+        boolean hasPortrait = view.portrait() != null && !view.portrait().isBlank();
+        if (hasPortrait) {
+            commands.set("#SpeakerImage.AssetPath", view.portrait());
+        }
+        commands.set("#SpeakerImage.Visible", hasPortrait);
+        commands.set("#SpeakerInitials.Visible", !hasPortrait);
+        commands.set("#SpeakerInitials.Text", ConversationLayout.initials(view.speaker()));
     }
 
     private static String transcript(List<ConversationService.TranscriptLine> lines) {
@@ -134,17 +166,6 @@ public final class ConversationPage extends MysticQuestsPage<ConversationPage.Pa
         return lines.subList(from, lines.size()).stream()
                 .map(line -> line.speaker() + ":  " + line.text())
                 .collect(Collectors.joining("\n\n"));
-    }
-
-    private static String initials(String text) {
-        if (text == null || text.isBlank()) {
-            return "";
-        }
-        String[] parts = text.trim().split("\\s+");
-        if (parts.length == 1) {
-            return parts[0].substring(0, Math.min(2, parts[0].length())).toUpperCase();
-        }
-        return (parts[0].substring(0, 1) + parts[1].substring(0, 1)).toUpperCase();
     }
 
     public static final class PageEventData {
