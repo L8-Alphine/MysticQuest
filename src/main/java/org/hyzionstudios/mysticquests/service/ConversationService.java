@@ -1064,15 +1064,17 @@ public final class ConversationService {
      * {@code stage} the speaker's model for the live card, or null when it cannot be shown live.
      */
     private record ConversationSession(
-            UUID playerId, String conversationId, String nodeId, QuestTargetContext targetContext, long token,
+            UUID playerId, String conversationId, String nodeId, String text, QuestTargetContext targetContext, long token,
             String portrait, SpeakerStage.Capture stage) {
 
-        ConversationSession atNode(String nextNodeId) {
-            return new ConversationSession(playerId, conversationId, nextNodeId, targetContext, token, portrait, stage);
+        ConversationSession atNode(String nextNodeId, String nextText) {
+            return new ConversationSession(
+                    playerId, conversationId, nextNodeId, nextText, targetContext, token, portrait, stage);
         }
 
         ConversationSession ownedBy(long newToken) {
-            return new ConversationSession(playerId, conversationId, nodeId, targetContext, newToken, portrait, stage);
+            return new ConversationSession(
+                    playerId, conversationId, nodeId, text, targetContext, newToken, portrait, stage);
         }
     }
 
@@ -1092,14 +1094,6 @@ public final class ConversationService {
             return store.getExternalData().getRefFromUUID(UUID.fromString(spawned.trim()));
         } catch (IllegalArgumentException malformed) {
             return null;
-            UUID playerId, String conversationId, String nodeId, String text, QuestTargetContext targetContext, long token) {
-
-        ConversationSession atNode(String nextNodeId, String nextText) {
-            return new ConversationSession(playerId, conversationId, nextNodeId, nextText, targetContext, token);
-        }
-
-        ConversationSession ownedBy(long newToken) {
-            return new ConversationSession(playerId, conversationId, nodeId, text, targetContext, newToken);
         }
     }
 
