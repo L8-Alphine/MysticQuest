@@ -494,6 +494,26 @@ final class UiMarkupTest {
         assertTrue(java.contains("\"#SpeakerImage.AssetPath\""), "ConversationPage must set the portrait");
     }
 
+    /**
+     * The card shows the speaker's model live in the component vanilla's prefab browser uses, and the
+     * page clears it — handing the client its real game mode back — whenever the page goes away.
+     */
+    @Test
+    void characterCardShowsTheNpcModelLiveAndClearsItOnDismiss() throws IOException {
+        String ui = withoutComments(Files.readString(UI_ROOT.resolve("Custom/mysticquests/Pages/ConversationPage.ui")));
+        String java = Files.readString(JAVA_ROOT.resolve("ConversationPage.java"));
+        String stage = block(block(ui, "Group #PortraitFrame"), "Group #SpeakerStageWrap");
+        assertTrue(stage.contains("PrefabPreviewComponent #SpeakerStage"), "The card needs a model preview");
+        assertTrue(stage.contains("Visible: false"), "The live card starts hidden; the page turns it on");
+        assertTrue(java.contains("\"#SpeakerStageWrap.Visible\"") && java.contains("\"#PortraitFallback.Visible\""),
+                "ConversationPage switches between the live model and the portrait");
+        int dismiss = java.indexOf("public void onDismiss(");
+        int hide = java.indexOf("preview.hide(", dismiss);
+        int dropped = java.indexOf("conversationService.pageDismissed(", dismiss);
+        assertTrue(dismiss >= 0 && hide > dismiss && hide < dropped,
+                "Dismissing the page must clear the preview and restore the real game mode");
+    }
+
     /** The body of the first element opened by {@code header}, braces included. */
     private static String block(String document, String header) {
         int start = document.indexOf(header);

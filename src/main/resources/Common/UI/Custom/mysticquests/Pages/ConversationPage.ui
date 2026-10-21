@@ -13,9 +13,11 @@ $MQ = "../Theme.ui";
 // The NPC's line lives in #DialogueScroll, a fixed-height scrolling box: a long line wraps and
 // scrolls inside it instead of spilling over the choices below.
 //
-// Character card: Hytale cannot draw a live entity in a server-driven page, so #SpeakerImage shows
-// the NPC model's generated portrait (Icons/ModelsGenerated/<model>.png), the way the vanilla
-// Memories page shows an NPC. #SpeakerInitials stands in when the NPC has no portrait.
+// Character card: #SpeakerStage shows the speaking NPC's own model live, turning slowly, in the
+// PrefabPreviewComponent vanilla's prefab browser uses (Pages/PrefabListPage.ui); the model arrives
+// as a separate prefab preview packet (SpeakerStage / SpeakerPreviewService). When the live card is
+// off or the NPC cannot be shown live, #PortraitFallback shows the model's generated portrait
+// (Icons/ModelsGenerated/<model>.png, as the vanilla Memories page does), or the speaker's initials.
 
 Group #ConversationRoot {
   Anchor: (Full: 0);
@@ -66,19 +68,38 @@ Group #ConversationRoot {
 
         Group #PortraitFrame {
           FlexWeight: 1;
-          LayoutMode: Middle;
           Background: $MQ.@InsetBackground;
           Anchor: (Bottom: 12);
 
-          AssetImage #SpeakerImage {
-            Anchor: (Width: 160, Height: 160);
-            FallbackTexturePath: "UI/Custom/Pages/Memories/MissingIcon.png";
-            Visible: false;
+          Group #PortraitFallback {
+            Anchor: (Full: 0);
+            LayoutMode: Middle;
+
+            AssetImage #SpeakerImage {
+              Anchor: (Width: 160, Height: 160);
+              FallbackTexturePath: "UI/Custom/Pages/Memories/MissingIcon.png";
+              Visible: false;
+            }
+
+            Label #SpeakerInitials {
+              Anchor: (Height: 60);
+              Style: (FontSize: 40, RenderBold: true, TextColor: #B9A2F2, HorizontalAlignment: Center, VerticalAlignment: Center);
+            }
           }
 
-          Label #SpeakerInitials {
-            Anchor: (Height: 60);
-            Style: (FontSize: 40, RenderBold: true, TextColor: #B9A2F2, HorizontalAlignment: Center, VerticalAlignment: Center);
+          Group #SpeakerStageWrap {
+            Anchor: (Full: 4);
+            LayoutMode: Full;
+            Visible: false;
+
+            PrefabPreviewComponent #SpeakerStage {
+              Anchor: (Full: 0);
+              AllowDragYaw: true;
+              AllowDragPitch: true;
+              AllowZoom: true;
+              AllowPan: false;
+              ShowAnchor: false;
+            }
           }
         }
 

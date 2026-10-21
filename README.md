@@ -98,6 +98,9 @@ Default config is generated at `mods/MysticQuests/config.json`:
     "hiddenHuds": [],
     "forwardSignals": true,
     "syncIntervalMillis": 1000
+  },
+  "dialogue": {
+    "livePreview": true
   }
 }
 ```
@@ -117,6 +120,13 @@ still registering asset-pack UI documents on the ready tick, and a HUD append th
 window disconnects the player with "Could not find document …" even though the document shipped.
 `ui.questHud: false` stops the HUD being pushed at all — worth setting while diagnosing that
 disconnect, since a failed HUD append kicks the player rather than degrading.
+`dialogue.livePreview` shows the speaking NPC's real 3D model, turning slowly, in the dialogue's
+character card. **Caveat:** Hytale's client only draws that preview while it believes it is in
+Creative, so while the card is open MysticQuests tells that one client it is in Creative. The server
+keeps the player's real game mode and enforces it (creative actions are still refused), and the real
+mode is sent back when the card closes, the page is replaced, the player dies, changes world or the
+plugin stops. Players already in Creative are never touched. Set it to `false` to show the model's
+portrait image instead (see [The dialogue screen](docs/content-format.md#the-dialogue-screen)).
 `ui.transitionCards: true` has MysticQuests announce quest accepted, new step, progress and complete
 as native notifications; it is off by default so content that sends its own `notification` events
 does not show both (see [Quest announcements](docs/content-format.md#quest-announcements)).

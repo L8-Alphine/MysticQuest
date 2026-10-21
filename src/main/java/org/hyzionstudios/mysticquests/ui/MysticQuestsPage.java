@@ -62,6 +62,18 @@ public abstract class MysticQuestsPage<T> extends InteractiveCustomUIPage<T> {
                             @Nonnull UIEventBuilder events, @Nonnull Store<EntityStore> store) {
         commands.append(document());
         renderSafely(commands, events);
+        try {
+            onBuilt(ref, store);
+        } catch (RuntimeException failure) {
+            LOGGER.at(Level.WARNING).withCause(failure).log(getClass().getSimpleName() + " failed after building.");
+        }
+    }
+
+    /**
+     * Runs once the page's first build has been written, on the world thread. For work that needs
+     * the player entity, such as packets that accompany the page. Nothing by default.
+     */
+    protected void onBuilt(Ref<EntityStore> ref, Store<EntityStore> store) {
     }
 
     @Override

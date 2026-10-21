@@ -40,6 +40,8 @@ public final class ConversationPage extends MysticQuestsPage<ConversationPage.Pa
     private final long sessionToken;
     private final ConversationService conversationService;
     private boolean transcriptVisible;
+    /** The model the card shows live, as of the last render; null for the portrait fallback. */
+    private SpeakerStage.Capture liveStage;
 
     public ConversationPage(PlayerRef playerRef, UUID playerId, long sessionToken, ConversationService conversationService) {
         super(playerRef, EVENT_CODEC);
@@ -58,7 +60,22 @@ public final class ConversationPage extends MysticQuestsPage<ConversationPage.Pa
      */
     @Override
     public void onDismiss(@Nonnull Ref<EntityStore> playerEntity, @Nonnull Store<EntityStore> store) {
+        // Every way the page goes away ends here: closed, replaced, the death screen, a player reset.
+        SpeakerPreviewService preview = conversationService.livePreview();
+        if (preview != null) {
+            preview.hide(playerRef, playerEntity, store);
+        }
         conversationService.pageDismissed(playerId, sessionToken);
+    }
+
+    /** Sends the speaker's model to the card once the page is on its way to the client. */
+    @Override
+    protected void onBuilt(Ref<EntityStore> ref, Store<EntityStore> store) {
+        // Not view(): that re-issues the choice tokens render() has just bound.
+        SpeakerPreviewService preview = conversationService.livePreview();
+        if (preview != null && liveStage != null) {
+            preview.show(playerRef, ref, store, this, liveStage, true);
+        }
     }
 
     @Override
@@ -92,6 +109,9 @@ public final class ConversationPage extends MysticQuestsPage<ConversationPage.Pa
             commands.set("#SpeakerInitials.Text", "");
             commands.set("#SpeakerInitials.Visible", true);
             commands.set("#SpeakerImage.Visible", false);
+            commands.set("#SpeakerStageWrap.Visible", false);
+            commands.set("#PortraitFallback.Visible", true);
+            liveStage = null;
             commands.set("#SpeakerTitle.Text", "");
             commands.set("#DialogueText.Text", "");
             commands.set("#VoiceBadge.Visible", false);
@@ -126,7 +146,12 @@ public final class ConversationPage extends MysticQuestsPage<ConversationPage.Pa
      * The NPC's model portrait in the character card, as the vanilla Memories page shows an NPC
      * ({@code AssetImage.AssetPath}); the speaker's initials when it has none.
      */
-    private static void portrait(UICommandBuilder commands, ConversationService.ConversationView view) {
+    private void portrait(UICommandBuilder commands, ConversationService.ConversationView view) {
+        SpeakerPreviewService preview = conversationService.livePreview();
+        boolean live = preview != null && preview.enabled() && view.stage() != null;
+        liveStage = live ? view.stage() : null;
+        commands.set("#SpeakerStageWrap.Visible", live);
+        commands.set("#PortraitFallback.Visible", !live);
         boolean hasPortrait = view.portrait() != null && !view.portrait().isBlank();
         if (hasPortrait) {
             commands.set("#SpeakerImage.AssetPath", view.portrait());

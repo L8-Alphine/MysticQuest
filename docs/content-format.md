@@ -263,11 +263,18 @@ name a real node; a typo is a load error rather than an NPC that goes quiet mont
 
 ### The dialogue screen
 
-The speaker's card shows the NPC's **portrait**: Hytale 0.7 cannot draw a live entity inside a
-server-driven page, so MysticQuests shows the model's generated portrait
-(`Icons/ModelsGenerated/<model>.png`), the same picture the vanilla Memories page uses for an NPC. It
-tries, in order: the conversation's optional `portrait`, the entity's model `Icon`, the portrait named
-after its model, then the one named after its NPC role. When none exists (a player-skinned NPC, a
+The speaker's card shows the NPC's **real 3D model**, as it stands in the world (its own scale and
+attachments), turning slowly; the player can drag to turn it and scroll to zoom. It is framed from the
+model's bounding box, so any NPC fits the card. This uses the prefab preview of vanilla's prefab browser,
+which the client only draws while it believes it is in Creative: while the card is open MysticQuests
+tells that one client it is in Creative and sends the real game mode back when the card goes away. The
+server's game mode never changes. Turn it off with `dialogue.livePreview: false` in `config.json`.
+
+The card falls back to the NPC's **portrait** when the live model is off, or when the NPC wears a player
+skin (a skin cannot travel in a preview, so the model would show bare). The portrait is the model's
+generated picture (`Icons/ModelsGenerated/<model>.png`), the one the vanilla Memories page uses for an
+NPC. It tries, in order: the conversation's optional `portrait`, the entity's model `Icon`, the portrait
+named after its model, then the one named after its NPC role. When none exists (a player-skinned NPC, a
 custom model with no icon) the card shows the speaker's initials.
 
 ```json
