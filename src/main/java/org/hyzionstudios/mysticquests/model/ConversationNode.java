@@ -6,6 +6,8 @@ import java.util.List;
 public final class ConversationNode {
     private String id;
     private String text;
+    /** Optional randomized alternatives to {@link #text}; the previous per-player pick is skipped. */
+    private List<String> textVariants = new ArrayList<>();
     private List<ConditionDefinition> conditions = new ArrayList<>();
     private List<ConversationChoice> choices = new ArrayList<>();
     private List<EventDefinition> events = new ArrayList<>();
@@ -26,6 +28,14 @@ public final class ConversationNode {
 
     public void setText(String text) {
         this.text = text;
+    }
+
+    public List<String> textVariants() {
+        return textVariants;
+    }
+
+    public void setTextVariants(List<String> textVariants) {
+        this.textVariants = textVariants == null ? new ArrayList<>() : textVariants;
     }
 
     public List<ConditionDefinition> conditions() {

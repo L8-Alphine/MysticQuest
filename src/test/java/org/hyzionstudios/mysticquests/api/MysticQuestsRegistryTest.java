@@ -25,6 +25,7 @@ final class MysticQuestsRegistryTest {
         assertFalse(registry.registerEvent("tag", context -> { }));
         assertFalse(registry.registerEvent("giveItem", context -> { }));
         assertFalse(registry.registerEvent("hidePlayer", context -> { }));
+        assertFalse(registry.registerEvent("openQuestMenu", context -> { }));
         assertFalse(registry.registerCondition("variable", context -> true));
         assertFalse(registry.registerCondition("nearEntity", context -> true));
 

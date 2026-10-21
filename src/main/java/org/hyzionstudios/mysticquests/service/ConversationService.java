@@ -53,8 +53,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
+import java.util.function.IntUnaryOperator;
 import java.util.function.Supplier;
 import java.util.logging.Level;
+import java.util.concurrent.ThreadLocalRandom;
 
 public final class ConversationService {
     public static final String CONVERSATION_ROOT_INTERACTION = "MysticQuests_Conversation";
@@ -408,7 +410,7 @@ public final class ConversationService {
         return new ConversationView(
                 questService.resolveText(playerId, conversation.packageId(), conversation.speaker()),
                 conversation.id(),
-                questService.resolveText(playerId, conversation.packageId(), node.text()),
+                session.text(),
                 node.voice() != null,
                 List.copyOf(transcripts.getOrDefault(playerId, List.of())),
                 resolvedChoices,
@@ -445,8 +447,9 @@ public final class ConversationService {
             return false;
         }
         // Advancing keeps the token: the same page is still showing this conversation.
-        sessions.put(playerId, session.atNode(nextNode.id()));
-        enterNode(playerId, conversation, nextNode, session.targetContext());
+        String nextText = resolvedNodeText(playerId, conversation, nextNode);
+        sessions.put(playerId, session.atNode(nextNode.id(), nextText));
+        enterNode(playerId, conversation, nextNode, nextText, session.targetContext());
         return true;
     }
 
@@ -848,10 +851,12 @@ public final class ConversationService {
             String portrait,
             SpeakerStage.Capture stage) {
         long token = sessionTokens.incrementAndGet();
+        String text = resolvedNodeText(playerId, conversation, node);
         sessions.put(playerId, new ConversationSession(
                 playerId,
                 conversation.packageId() + ":" + conversation.id(),
                 node.id(),
+                text,
                 targetContext,
                 token,
                 portrait,
@@ -861,7 +866,7 @@ public final class ConversationService {
         if (hud != null) {
             hud.setContext(playerId, new QuestHudCoordinator.Context(true, false));
         }
-        enterNode(playerId, conversation, node, targetContext);
+        enterNode(playerId, conversation, node, text, targetContext);
         return token;
     }
 
@@ -880,7 +885,12 @@ public final class ConversationService {
         return new ConversationPage(playerRef, playerRef.getUuid(), token, this);
     }
 
-    private void enterNode(UUID playerId, ConversationDefinition conversation, ConversationNode node, QuestTargetContext targetContext) {
+    private void enterNode(
+            UUID playerId,
+            ConversationDefinition conversation,
+            ConversationNode node,
+            String text,
+            QuestTargetContext targetContext) {
         questService.executeEvents(playerId, conversation.packageId(), node.events(), targetContext);
         VoicePlayer voice = voicePlayer;
         if (voice != null && node.voice() != null) {
@@ -889,8 +899,46 @@ public final class ConversationService {
         String conversationId = conversation.packageId() + ":" + conversation.id();
         transcripts.computeIfAbsent(playerId, ignored -> new ArrayList<>()).add(new TranscriptLine(
                 questService.resolveText(playerId, conversation.packageId(), conversation.speaker()),
-                questService.resolveText(playerId, conversation.packageId(), node.text())));
+                text));
         signalBus.publish(QuestSignal.simple(playerId, "dialogue", conversationId + ":" + node.id(), 1));
+    }
+
+    /** Resolves one authored line for this visit and remembers the chosen variant per player. */
+    private String resolvedNodeText(UUID playerId, ConversationDefinition conversation, ConversationNode node) {
+        List<String> variants = node.textVariants().stream()
+                .filter(text -> text != null && !text.isBlank())
+                .toList();
+        String raw = node.text();
+        if (!variants.isEmpty()) {
+            String memoryKey = "mysticquests.conversation.variant."
+                    + conversation.packageId().replace('/', '.') + "." + conversation.id() + "." + node.id();
+            int previous = parseVariant(questService.conversationMemory(playerId, memoryKey));
+            int selected = selectVariantIndex(
+                    variants.size(), previous, bound -> ThreadLocalRandom.current().nextInt(bound));
+            questService.rememberConversation(playerId, memoryKey, Integer.toString(selected));
+            raw = variants.get(selected);
+        }
+        return questService.resolveText(playerId, conversation.packageId(), raw);
+    }
+
+    private static int parseVariant(String value) {
+        try {
+            return value == null ? -1 : Integer.parseInt(value);
+        } catch (NumberFormatException ignored) {
+            return -1;
+        }
+    }
+
+    /** Picks uniformly while mapping around the previous index, guaranteeing no immediate repeat. */
+    static int selectVariantIndex(int variantCount, int previousIndex, IntUnaryOperator randomIndex) {
+        if (variantCount <= 1) {
+            return 0;
+        }
+        if (previousIndex < 0 || previousIndex >= variantCount) {
+            return randomIndex.applyAsInt(variantCount);
+        }
+        int selected = randomIndex.applyAsInt(variantCount - 1);
+        return selected >= previousIndex ? selected + 1 : selected;
     }
 
     private List<ConversationChoice> visibleChoices(UUID playerId, ConversationDefinition conversation, ConversationNode node, QuestTargetContext targetContext) {
@@ -1044,6 +1092,14 @@ public final class ConversationService {
             return store.getExternalData().getRefFromUUID(UUID.fromString(spawned.trim()));
         } catch (IllegalArgumentException malformed) {
             return null;
+            UUID playerId, String conversationId, String nodeId, String text, QuestTargetContext targetContext, long token) {
+
+        ConversationSession atNode(String nextNodeId, String nextText) {
+            return new ConversationSession(playerId, conversationId, nextNodeId, nextText, targetContext, token);
+        }
+
+        ConversationSession ownedBy(long newToken) {
+            return new ConversationSession(playerId, conversationId, nodeId, text, targetContext, newToken);
         }
     }
 

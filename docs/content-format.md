@@ -290,6 +290,18 @@ are more than fit on screen.
 
 Dialogue objectives receive signals for each node as `package:conversation:node`, and for completed conversations as `package:conversation`.
 
+A node can provide `textVariants` instead of `text`. One nonblank variant is selected randomly when
+the player enters that node, and MysticQuests persists the last selection per player so the same line
+is never chosen twice in a row. The chosen text remains stable while the page rerenders. Variants use
+the usual placeholders, including `%player%` for the player's current name:
+
+```yaml
+- id: hello
+  textVariants:
+    - "Welcome back, %player%."
+    - "Good trail to you, %player%."
+```
+
 Conversation-bound entities are automatically given Hytale's `Interactable` component for online players on join and after `/mquest reload`, so the normal interaction prompt appears and using the entity opens the conversation. The current generic entity API exposes interactability directly; custom per-player hint text is represented in package JSON for future/native NPC prompt integrations.
 
 ### HyCitizens NPC Bindings

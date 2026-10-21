@@ -34,7 +34,7 @@ public final class MysticQuestsRegistry {
     private static final Set<String> RESERVED_EVENT_TYPES = Set.of(
             "tag", "variable", "giveItem", "removeItem", "runCommand", "sendMessage",
             "startQuest", "completeQuest", "modifyMoney", "packetEffect", "triggerHyExtrasEffect",
-            "notification", "folder", "party", "if", "cancelConversation", "cancelQuest", "ref",
+            "notification", "folder", "party", "if", "openQuestMenu", "cancelConversation", "cancelQuest", "ref",
             "addTag", "removeTag", "setVariable", "removeVariable", "incrementVariable",
             "hidePlayer", "showPlayer", "hideEntity", "showEntity", "spawnNpc", "despawnNpc",
             "preventTargeting", "allowTargeting", "setCamera", "sendTitle", "actionBar", "narrative",

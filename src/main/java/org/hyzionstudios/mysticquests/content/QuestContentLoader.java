@@ -60,7 +60,7 @@ public final class QuestContentLoader {
             "modifyMoney", "triggerHyExtrasEffect",
             "hidePlayer", "showPlayer", "hideEntity", "showEntity",
             "preventTargeting", "allowTargeting", "setCamera", "sendTitle", "actionBar",
-            "notification", "folder", "party", "if", "cancelConversation", "cancelQuest", "ref",
+            "notification", "folder", "party", "if", "openQuestMenu", "cancelConversation", "cancelQuest", "ref",
             "startWorldEvent", "stopWorldEvent", "signalWorldEvent", "startGoblinBreach", "setGameFlag", "startEncounter",
             // 2.0 narrative action lists; their contents are checked by the narrative compiler.
             "narrative");

@@ -72,7 +72,7 @@ public final class PlayerQuestService {
             "setVariable", "globalVariable", "entityVariable", "blockVariable", "volumeVariable",
             "removeVariable", "incrementVariable", "startQuest", "completeQuest", "modifyMoney",
             "triggerHyExtrasEffect", "notification", "sendMessage", "giveItem", "removeItem", "runCommand",
-            "cancelConversation", "cancelQuest", "folder", "party", "if", "ref", "hidePlayer", "hideEntity",
+            "openQuestMenu", "cancelConversation", "cancelQuest", "folder", "party", "if", "ref", "hidePlayer", "hideEntity",
             "showPlayer", "showEntity", "spawnNpc", "despawnNpc", "preventTargeting", "allowTargeting",
             "setCamera", "sendTitle", "actionBar", "startWorldEvent", "stopWorldEvent", "signalWorldEvent",
             "startGoblinBreach", "setGameFlag", "startEncounter");
@@ -129,6 +129,8 @@ public final class PlayerQuestService {
     private volatile Supplier<Predicate<UUID>> conversationStateSupplier = () -> playerId -> false;
     private volatile Consumer<UUID> conversationCanceller = playerId -> {
     };
+    private volatile Consumer<UUID> questMenuOpener = playerId -> {
+    };
     private volatile Function<UUID, java.util.Collection<UUID>> partyMembers = playerId -> Set.of(playerId);
     private volatile BiFunction<UUID, String, String> externalTextResolver = (playerId, text) -> text;
 
@@ -178,6 +180,11 @@ public final class PlayerQuestService {
     public void bindConversationSupport(Predicate<UUID> inConversation, Consumer<UUID> cancelConversation) {
         this.conversationStateSupplier = () -> inConversation;
         this.conversationCanceller = cancelConversation;
+    }
+
+    /** Wires the UI-only {@code openQuestMenu} event after the quest board service exists. */
+    public void bindQuestMenuSupport(Consumer<UUID> openQuestMenu) {
+        this.questMenuOpener = openQuestMenu == null ? playerId -> { } : openQuestMenu;
     }
 
     public void bindPartySupport(Function<UUID, java.util.Collection<UUID>> partyMembers) {
@@ -983,6 +990,20 @@ public final class PlayerQuestService {
         return resolved.replace("\\%", "%");
     }
 
+    /** Internal persistent metadata used to keep randomized dialogue personal without exposing it as quest state. */
+    String conversationMemory(UUID playerId, String key) {
+        return scopedStateService.store()
+                .metadata(StateKey.of(StateScope.PLAYER, playerId.toString()))
+                .get(key);
+    }
+
+    /** Persists internal randomized-dialogue state across reconnects and server restarts. */
+    void rememberConversation(UUID playerId, String key, String value) {
+        scopedStateService.store().putMetadata(
+                StateKey.of(StateScope.PLAYER, playerId.toString()),
+                Map.of(key, value));
+    }
+
     /**
      * Sends rich chat to the triggering player or every online player.
      *
@@ -1198,6 +1219,7 @@ public final class PlayerQuestService {
                 case "giveItem" -> inventoryService.give(data.playerId(), resolveItemEvent(packageId, event));
                 case "removeItem" -> inventoryService.remove(data.playerId(), resolveItemEvent(packageId, event));
                 case "runCommand" -> runCommand(data.playerId(), packageId, event);
+                case "openQuestMenu" -> questMenuOpener.accept(data.playerId());
                 case "cancelConversation" -> conversationCanceller.accept(data.playerId());
                 case "cancelQuest" -> cancelQuest(data.playerId(), packageId, event.text("canceler", event.text("id", "")));
                 case "folder" -> executeEvents(data, packageId, quest, event.children("events", EventDefinition::new), targetContext, referenceStack);

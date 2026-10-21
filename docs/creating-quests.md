@@ -313,6 +313,7 @@ Events (also called actions) are the "do something" entries: in `startEvents`, `
 | `actionBar` | `message` | Short text above the hotbar. |
 | `giveItem` / `removeItem` | `item`, `amount` | Changes the player's inventory. |
 | `runCommand` | `command`, `executeAs` (`player` default, or `console`) | Runs a command. |
+| `openQuestMenu` | | Closes the current dialogue, if any, then opens the quest board. |
 | `startQuest` / `completeQuest` | `quest` | Starts or completes another quest. |
 | `addTag` / `removeTag` | `tag`, `scope` | See [Tags](#tags). |
 | `setVariable` / `incrementVariable` / `removeVariable` | `key`, `value` or `amount`, `scope` | See [Variables](#variables). |

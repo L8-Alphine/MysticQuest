@@ -35,6 +35,27 @@ final class QuestContentLoaderTest {
     }
 
     @Test
+    void rangerBuckExampleBindsTheHyCitizenAndOpensTheQuestBoard() throws IOException {
+        LoadedContent content = new QuestContentLoader(Json.createMapper()).load(Path.of("examples/packages"));
+
+        var conversation = content.conversations().get("ranger_buck_mcgraw:ranger_buck");
+        assertEquals("f8be1750-f61c-4737-a350-04d535c8bffc", conversation.entity().hyCitizensId());
+        assertEquals(List.of("first_greeting", "return_greeting"), conversation.startCandidates());
+        assertEquals("tag", conversation.nodes().getFirst().conditions().getFirst().type());
+        assertTrue(conversation.nodes().getFirst().conditions().getFirst().bool("invert", false));
+        assertEquals("add", conversation.nodes().getFirst().events().getFirst().text("op", ""));
+        assertEquals(List.of("Got any quests for me?", "Where should I go?", "Who are you?", "Maybe later."),
+                conversation.nodes().getFirst().choices().stream().map(choice -> choice.text()).toList());
+        assertEquals(5, conversation.nodes().get(1).textVariants().size());
+        assertTrue(conversation.nodes().get(1).textVariants().stream().allMatch(text -> text.contains("%player%")));
+        assertEquals("openQuestMenu", conversation.nodes().stream()
+                .filter(node -> node.id().equals("quests"))
+                .findFirst()
+                .orElseThrow()
+                .choices().getFirst().events().getFirst().type());
+    }
+
+    @Test
     void loadsRecursiveYamlPackagesTemplatesAndNamedInstructions() throws IOException {
         Path packages = Files.createDirectories(tempDir.resolve("packages"));
         Path template = Files.createDirectories(tempDir.resolve("templates/combat"));
