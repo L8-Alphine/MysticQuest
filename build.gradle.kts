@@ -44,7 +44,7 @@ dependencies {
     if (hasZiggfreed) compileOnly(ziggfreedJars)
 
     // Hytale Server API from official Maven repository
-    compileOnly("com.hypixel.hytale:Server:0.7.0")
+    compileOnly("com.hypixel.hytale:Server:0.7.2")
 
     // VaultUnlocked
     compileOnly("net.cfh.vault:VaultUnlocked:2.18.3")
@@ -74,7 +74,7 @@ dependencies {
 
     // compileOnly deps are not inherited by the test source set, so tests covering anything whose
     // signature mentions a Hytale type (loggers, refs, packets) cannot compile without this.
-    testImplementation("com.hypixel.hytale:Server:0.7.0")
+    testImplementation("com.hypixel.hytale:Server:0.7.2")
 }
 
 java {
