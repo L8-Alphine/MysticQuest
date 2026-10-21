@@ -2,8 +2,10 @@ package org.hyzionstudios.mysticquests.integration;
 
 import org.hyzionstudios.mysticquests.service.ConversationService;
 
+import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
+import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 
 import org.joml.Vector3d;
 
@@ -149,6 +151,7 @@ public final class HyCitizensBridge implements AutoCloseable {
     private CitizenView toCitizenView(Object citizen) {
         Vector3d position = invokeVector(citizen, "getCurrentPosition")
                 .orElseGet(() -> invokeVector(citizen, "getPosition").orElse(null));
+        Object npcRef = invoke(citizen, "getNpcRef");
         return new CitizenView(
                 invokeString(citizen, "getId"),
                 invokeString(citizen, "getName"),
@@ -158,7 +161,13 @@ public final class HyCitizensBridge implements AutoCloseable {
                 position == null ? Double.NaN : position.x,
                 position == null ? Double.NaN : position.y,
                 position == null ? Double.NaN : position.z,
-                Objects.toString(invoke(citizen, "getNpcRef"), ""));
+                Objects.toString(npcRef, ""),
+                entityRef(npcRef));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Ref<EntityStore> entityRef(Object npcRef) {
+        return npcRef instanceof Ref<?> ref && ref.isValid() ? (Ref<EntityStore>) ref : null;
     }
 
     private Object invoke(Object target, String methodName) {
@@ -216,6 +225,7 @@ public final class HyCitizensBridge implements AutoCloseable {
             double x,
             double y,
             double z,
-            String npcRef) {
+            String npcRef,
+            Ref<EntityStore> entity) {
     }
 }

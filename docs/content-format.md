@@ -270,8 +270,16 @@ which the client only draws while it believes it is in Creative: while the card 
 tells that one client it is in Creative and sends the real game mode back when the card goes away. The
 server's game mode never changes. Turn it off with `dialogue.livePreview: false` in `config.json`.
 
-The card falls back to the NPC's **portrait** when the live model is off, or when the NPC wears a player
-skin (a skin cannot travel in a preview, so the model would show bare). The portrait is the model's
+An NPC that wears a player skin (HyCitizens' player-model citizens) is shown in its skin: the preview
+can only carry a model, so MysticQuests dresses the player model in the skin's parts (body and skin tone,
+face, hair, clothes, accessories) from the game's cosmetics registry.
+
+Every card decision is logged with its reason, at FINE, or at INFO with `"debug": true` in `config.json`
+(lines start with `[dialogue card]`): which model was shown, or why the card fell back (live preview off,
+the NPC not found in the player's world, no model, no bounding box), and whether the preview reached the
+page.
+
+The card falls back to the NPC's **portrait** when the live model is off or cannot be built. The portrait is the model's
 generated picture (`Icons/ModelsGenerated/<model>.png`), the one the vanilla Memories page uses for an
 NPC. It tries, in order: the conversation's optional `portrait`, the entity's model `Icon`, the portrait
 named after its model, then the one named after its NPC role. When none exists (a player-skinned NPC, a

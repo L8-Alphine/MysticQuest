@@ -254,7 +254,7 @@ public final class MysticQuestsRuntime implements AutoCloseable {
             new MysticTriggerVolumeRegistrar(plugin.getLogger()).bindServices(scopedStateService, questService);
             this.conversationService = new ConversationService(content::get, questService, signalBus, plugin.getLogger());
             this.conversationService.bindHud(hudService);
-            this.speakerPreview = new SpeakerPreviewService(config.dialogue().livePreview());
+            this.speakerPreview = new SpeakerPreviewService(config.dialogue().livePreview(), config.debug());
             this.conversationService.bindLivePreview(speakerPreview);
             this.questService.bindConversationSupport(
                     conversationService::isInConversation,
