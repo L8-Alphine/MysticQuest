@@ -12,6 +12,10 @@ $MQ = "../Theme.ui";
 //
 // The NPC's line lives in #DialogueScroll, a fixed-height scrolling box: a long line wraps and
 // scrolls inside it instead of spilling over the choices below.
+//
+// Character card: Hytale cannot draw a live entity in a server-driven page, so #SpeakerImage shows
+// the NPC model's generated portrait (Icons/ModelsGenerated/<model>.png), the way the vanilla
+// Memories page shows an NPC. #SpeakerInitials stands in when the NPC has no portrait.
 
 Group #ConversationRoot {
   Anchor: (Full: 0);
@@ -65,6 +69,12 @@ Group #ConversationRoot {
           LayoutMode: Middle;
           Background: $MQ.@InsetBackground;
           Anchor: (Bottom: 12);
+
+          AssetImage #SpeakerImage {
+            Anchor: (Width: 160, Height: 160);
+            FallbackTexturePath: "UI/Custom/Pages/Memories/MissingIcon.png";
+            Visible: false;
+          }
 
           Label #SpeakerInitials {
             Anchor: (Height: 60);

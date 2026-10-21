@@ -225,7 +225,11 @@ public final class ConversationService {
         if (node == null) {
             return false;
         }
-        long token = startSession(playerRef.getUuid(), conversation, node, targetContext);
+        Ref<EntityStore> targetRef = event.getTargetRef();
+        String portrait = targetRef == null || !targetRef.isValid()
+                ? SpeakerPortraits.resolve(conversation.portrait(), null, null)
+                : SpeakerPortraits.forEntity(conversation.portrait(), targetRef.getStore(), targetRef);
+        long token = startSession(playerRef.getUuid(), conversation, node, targetContext, portrait);
         openPage(event.getPlayerRef(), event.getPlayerRef().getStore(), event.getPlayer(), playerRef, token);
         return true;
     }
@@ -260,7 +264,8 @@ public final class ConversationService {
         if (node == null) {
             return false;
         }
-        long token = startSession(playerRef.getUuid(), conversation, node, targetContext);
+        String portrait = SpeakerPortraits.forEntity(conversation.portrait(), store, targetRef);
+        long token = startSession(playerRef.getUuid(), conversation, node, targetContext, portrait);
         openPage(event.getPlayerRef(), event.getPlayerRef().getStore(), event.getPlayer(), playerRef, token);
         return true;
     }
@@ -291,7 +296,9 @@ public final class ConversationService {
             if (player == null) {
                 return;
             }
-            long token = startSession(playerRef.getUuid(), conversation, node, targetContext);
+            String portrait = SpeakerPortraits.forEntity(
+                    conversation.portrait(), store, citizenRef(store, citizen));
+            long token = startSession(playerRef.getUuid(), conversation, node, targetContext, portrait);
             openPage(playerEntity, store, player, playerRef, token);
         };
         if (store.isInThread()) {
@@ -343,7 +350,8 @@ public final class ConversationService {
         if (node == null) {
             return null;
         }
-        long token = startSession(playerRef.getUuid(), conversation, node, targetContext);
+        String portrait = SpeakerPortraits.forEntity(conversation.portrait(), accessor, targetRef);
+        long token = startSession(playerRef.getUuid(), conversation, node, targetContext, portrait);
         return new ConversationPage(playerRef, playerRef.getUuid(), token, this);
     }
 
@@ -380,7 +388,8 @@ public final class ConversationService {
                 questService.resolveText(playerId, conversation.packageId(), node.text()),
                 node.voice() != null,
                 List.copyOf(transcripts.getOrDefault(playerId, List.of())),
-                resolvedChoices);
+                resolvedChoices,
+                session.portrait());
     }
 
     public boolean choose(UUID playerId, String choiceToken, Ref<EntityStore> playerEntity, Store<EntityStore> store) {
@@ -811,14 +820,16 @@ public final class ConversationService {
             UUID playerId,
             ConversationDefinition conversation,
             ConversationNode node,
-            QuestTargetContext targetContext) {
+            QuestTargetContext targetContext,
+            String portrait) {
         long token = sessionTokens.incrementAndGet();
         sessions.put(playerId, new ConversationSession(
                 playerId,
                 conversation.packageId() + ":" + conversation.id(),
                 node.id(),
                 targetContext,
-                token));
+                token,
+                portrait));
         transcripts.put(playerId, new ArrayList<>());
         QuestHudService hud = hudService;
         if (hud != null) {
@@ -974,15 +985,30 @@ public final class ConversationService {
         NAME
     }
 
+    /** {@code portrait} is the character card's image (a Common asset path), or null for initials. */
     private record ConversationSession(
-            UUID playerId, String conversationId, String nodeId, QuestTargetContext targetContext, long token) {
+            UUID playerId, String conversationId, String nodeId, QuestTargetContext targetContext, long token,
+            String portrait) {
 
         ConversationSession atNode(String nextNodeId) {
-            return new ConversationSession(playerId, conversationId, nextNodeId, targetContext, token);
+            return new ConversationSession(playerId, conversationId, nextNodeId, targetContext, token, portrait);
         }
 
         ConversationSession ownedBy(long newToken) {
-            return new ConversationSession(playerId, conversationId, nodeId, targetContext, newToken);
+            return new ConversationSession(playerId, conversationId, nodeId, targetContext, newToken, portrait);
+        }
+    }
+
+    /** The spawned citizen in this world, when HyCitizens reported its entity UUID. */
+    private static Ref<EntityStore> citizenRef(Store<EntityStore> store, CitizenView citizen) {
+        String spawned = citizen.spawnedUuid();
+        if (spawned == null || spawned.isBlank()) {
+            return null;
+        }
+        try {
+            return store.getExternalData().getRefFromUUID(UUID.fromString(spawned.trim()));
+        } catch (IllegalArgumentException malformed) {
+            return null;
         }
     }
 
@@ -1005,6 +1031,7 @@ public final class ConversationService {
             String text,
             boolean voiced,
             List<TranscriptLine> transcript,
-            List<ConversationOption> choices) {
+            List<ConversationOption> choices,
+            String portrait) {
     }
 }

@@ -90,6 +90,8 @@ public final class ConversationPage extends MysticQuestsPage<ConversationPage.Pa
         if (view == null) {
             commands.set("#SpeakerName.Text", "");
             commands.set("#SpeakerInitials.Text", "");
+            commands.set("#SpeakerInitials.Visible", true);
+            commands.set("#SpeakerImage.Visible", false);
             commands.set("#SpeakerTitle.Text", "");
             commands.set("#DialogueText.Text", "");
             commands.set("#VoiceBadge.Visible", false);
@@ -98,7 +100,7 @@ public final class ConversationPage extends MysticQuestsPage<ConversationPage.Pa
             return;
         }
         commands.set("#SpeakerName.Text", UiText.oneLine(view.speaker()));
-        commands.set("#SpeakerInitials.Text", ConversationLayout.initials(view.speaker()));
+        portrait(commands, view);
         commands.set("#SpeakerTitle.Text", UiText.oneLine(view.speaker()));
         commands.set("#DialogueText.Text", UiText.safe(view.text()));
         commands.set("#VoiceBadge.Visible", view.voiced());
@@ -118,6 +120,20 @@ public final class ConversationPage extends MysticQuestsPage<ConversationPage.Pa
             events.addEventBinding(CustomUIEventBindingType.Activating, selector,
                     EventData.of("Choice", choices.get(index).token()));
         }
+    }
+
+    /**
+     * The NPC's model portrait in the character card, as the vanilla Memories page shows an NPC
+     * ({@code AssetImage.AssetPath}); the speaker's initials when it has none.
+     */
+    private static void portrait(UICommandBuilder commands, ConversationService.ConversationView view) {
+        boolean hasPortrait = view.portrait() != null && !view.portrait().isBlank();
+        if (hasPortrait) {
+            commands.set("#SpeakerImage.AssetPath", view.portrait());
+        }
+        commands.set("#SpeakerImage.Visible", hasPortrait);
+        commands.set("#SpeakerInitials.Visible", !hasPortrait);
+        commands.set("#SpeakerInitials.Text", ConversationLayout.initials(view.speaker()));
     }
 
     private static String transcript(List<ConversationService.TranscriptLine> lines) {

@@ -11,6 +11,13 @@ public final class ConversationDefinition {
     private String speaker;
 
     /**
+     * Optional picture for the dialogue's character card: a Common asset path
+     * ({@code Icons/ModelsGenerated/Kweebec_Sapling.png}) or a model id ({@code Kweebec_Sapling}).
+     * Left blank, the card shows the bound entity's own model portrait.
+     */
+    private String portrait;
+
+    /**
      * The nodes this conversation may open on, most specific first.
      *
      * <p>A list rather than a single id because an NPC has to be able to greet a player differently
@@ -49,6 +56,14 @@ public final class ConversationDefinition {
 
     public void setSpeaker(String speaker) {
         this.speaker = speaker;
+    }
+
+    public String portrait() {
+        return portrait == null || portrait.isBlank() ? null : portrait.trim();
+    }
+
+    public void setPortrait(String portrait) {
+        this.portrait = portrait;
     }
 
     /**

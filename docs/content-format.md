@@ -261,6 +261,26 @@ name a real node; a typo is a load error rather than an NPC that goes quiet mont
 
 `"start": "hello"` is unchanged and still means exactly what it did.
 
+### The dialogue screen
+
+The speaker's card shows the NPC's **portrait**: Hytale 0.7 cannot draw a live entity inside a
+server-driven page, so MysticQuests shows the model's generated portrait
+(`Icons/ModelsGenerated/<model>.png`), the same picture the vanilla Memories page uses for an NPC. It
+tries, in order: the conversation's optional `portrait`, the entity's model `Icon`, the portrait named
+after its model, then the one named after its NPC role. When none exists (a player-skinned NPC, a
+custom model with no icon) the card shows the speaker's initials.
+
+```json
+"portrait": "Kweebec_Sapling"
+```
+
+`portrait` takes a model id or a Common asset path such as `Icons/ModelsGenerated/Kweebec_Sapling.png`
+or an icon your own asset pack ships. Only paths the server has loaded are sent to the client.
+
+A node's line wraps and scrolls inside its own box, so a long line never covers the replies. A node may
+offer any number of `choices`: each is a numbered row in a scrolling list, and the footer says when there
+are more than fit on screen.
+
 Dialogue objectives receive signals for each node as `package:conversation:node`, and for completed conversations as `package:conversation`.
 
 Conversation-bound entities are automatically given Hytale's `Interactable` component for online players on join and after `/mquest reload`, so the normal interaction prompt appears and using the entity opens the conversation. The current generic entity API exposes interactability directly; custom per-player hint text is represented in package JSON for future/native NPC prompt integrations.

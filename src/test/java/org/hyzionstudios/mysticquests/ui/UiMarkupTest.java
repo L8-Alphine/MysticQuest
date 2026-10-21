@@ -483,6 +483,17 @@ final class UiMarkupTest {
                 "#ChoiceList must take the remaining height and scroll");
     }
 
+    /** The character card shows the NPC's model portrait the way vanilla's Memories page does. */
+    @Test
+    void characterCardShowsTheNpcPortrait() throws IOException {
+        String ui = withoutComments(Files.readString(UI_ROOT.resolve("Custom/mysticquests/Pages/ConversationPage.ui")));
+        String java = Files.readString(JAVA_ROOT.resolve("ConversationPage.java"));
+        String frame = block(ui, "Group #PortraitFrame");
+        assertTrue(frame.contains("AssetImage #SpeakerImage"), "The card needs an image for the NPC");
+        assertTrue(frame.contains("#SpeakerInitials"), "Initials stay as the fallback");
+        assertTrue(java.contains("\"#SpeakerImage.AssetPath\""), "ConversationPage must set the portrait");
+    }
+
     /** The body of the first element opened by {@code header}, braces included. */
     private static String block(String document, String header) {
         int start = document.indexOf(header);
