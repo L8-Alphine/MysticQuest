@@ -448,6 +448,59 @@ final class UiMarkupTest {
     }
 
     /**
+     * A long NPC line must stay in its own box. A bare label with a fixed height draws its wrapped
+     * overflow over whatever sits below it — the choices — so the line lives in a fixed-height
+     * scrolling group instead, and the label itself is left to grow inside it.
+     */
+    @Test
+    void longDialogueLinesScrollInsideTheirOwnBoxAboveTheChoices() throws IOException {
+        String ui = withoutComments(Files.readString(UI_ROOT.resolve("Custom/mysticquests/Pages/ConversationPage.ui")));
+        String scroll = block(ui, "Group #DialogueScroll");
+        assertTrue(scroll.contains("LayoutMode: TopScrolling"), "#DialogueScroll must scroll");
+        assertTrue(Pattern.compile("Anchor:\\s*\\([^)]*Height:\\s*\\d+").matcher(scroll).find(),
+                "#DialogueScroll needs a fixed height, or it grows into the choices");
+        String text = block(scroll, "Label #DialogueText");
+        assertTrue(text.contains("Wrap: true"), "The NPC line must wrap");
+        assertFalse(text.contains("Anchor:"), "A fixed label height lets wrapped text spill past it");
+        assertFalse(text.contains("ShrinkTextToFit"), "Long lines scroll; they are not shrunk to fit");
+        assertTrue(ui.indexOf("Group #DialogueScroll") < ui.indexOf("Group #ChoiceList"),
+                "The NPC line sits above the replies");
+    }
+
+    /** Every reply the server offers gets a row: no fixed slots, no cap in the page. */
+    @Test
+    void dialogueChoicesAreOneAppendedRowEachWithNoCap() throws IOException {
+        String row = withoutComments(Files.readString(UI_ROOT.resolve("Custom/mysticquests/Rows/ConversationChoiceRow.ui")));
+        String java = Files.readString(JAVA_ROOT.resolve("ConversationPage.java"));
+        assertTrue(row.contains("TextButton #Choice "), "A choice row holds one #Choice button");
+        assertFalse(row.contains("#ChoiceA") || row.contains("#ChoiceB"), "Choice rows are not fixed pairs of slots");
+        assertFalse(java.contains("MAX_CHOICES") || java.contains("Math.min(choices.size()"),
+                "ConversationPage must render every choice the node offers");
+        assertTrue(java.contains("index < choices.size()"), "One row per offered choice");
+        String list = block(withoutComments(Files.readString(UI_ROOT.resolve("Custom/mysticquests/Pages/ConversationPage.ui"))),
+                "Group #ChoiceList");
+        assertTrue(list.contains("LayoutMode: TopScrolling") && list.contains("FlexWeight: 1"),
+                "#ChoiceList must take the remaining height and scroll");
+    }
+
+    /** The body of the first element opened by {@code header}, braces included. */
+    private static String block(String document, String header) {
+        int start = document.indexOf(header);
+        assertTrue(start >= 0, "Missing " + header);
+        int open = document.indexOf('{', start);
+        int depth = 0;
+        for (int index = open; index < document.length(); index++) {
+            char c = document.charAt(index);
+            if (c == '{') {
+                depth++;
+            } else if (c == '}' && --depth == 0) {
+                return document.substring(open, index + 1);
+            }
+        }
+        throw new AssertionError("Unbalanced braces after " + header);
+    }
+
+    /**
      * The tracker shows one step of the quest, so it must also say which step that is and how much
      * of the whole quest is done — otherwise a thirteen-objective quest looks like a five-objective
      * one. Both halves have to exist: the ids in the document, and the Java that fills them.

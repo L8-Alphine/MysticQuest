@@ -1,20 +1,13 @@
 $MQ = "../Theme.ui";
 
-// Two dialogue choices side by side (Redesign Bible §6.5). A row with one choice hides #ChoiceB.
-// Appended to #ChoiceList, addressed #ChoiceList[i] #ChoiceA.
+// One dialogue choice (Redesign Bible §6.5). ConversationPage appends one row per choice to
+// #ChoiceList and addresses it as #ChoiceList[i] #Choice, so a node may offer any number of replies.
 
 Group #ChoiceRow {
   LayoutMode: Left;
-  Anchor: (Height: 40, Bottom: 8);
+  Anchor: (Height: 34, Bottom: 6);
 
-  TextButton #ChoiceA {
-    FlexWeight: 1;
-    Anchor: (Right: 10);
-    Padding: (Horizontal: 16);
-    Style: $MQ.@ChoiceButtonStyle;
-  }
-
-  TextButton #ChoiceB {
+  TextButton #Choice {
     FlexWeight: 1;
     Padding: (Horizontal: 16);
     Style: $MQ.@ChoiceButtonStyle;

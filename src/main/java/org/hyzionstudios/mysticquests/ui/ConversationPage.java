@@ -28,7 +28,6 @@ import java.util.stream.Collectors;
 public final class ConversationPage extends MysticQuestsPage<ConversationPage.PageEventData> {
     static final String DOCUMENT = "mysticquests/Pages/ConversationPage.ui";
     static final String CHOICE_ROW = "mysticquests/Rows/ConversationChoiceRow.ui";
-    private static final int MAX_CHOICES = 12;
     private static final int TRANSCRIPT_LINES = 12;
 
     private static final BuilderCodec<PageEventData> EVENT_CODEC = BuilderCodec
@@ -85,7 +84,7 @@ public final class ConversationPage extends MysticQuestsPage<ConversationPage.Pa
     protected void render(UICommandBuilder commands, UIEventBuilder events) {
         events.addEventBinding(CustomUIEventBindingType.Activating, "#TranscriptToggle", EventData.of("Action", "transcript"));
         events.addEventBinding(CustomUIEventBindingType.Activating, "#LeaveButton", EventData.of("Action", "leave"));
-        commands.clear("#ChoiceList");
+        commands.clear(ConversationLayout.CHOICE_LIST);
 
         ConversationService.ConversationView view = conversationService.view(playerId);
         if (view == null) {
@@ -99,7 +98,7 @@ public final class ConversationPage extends MysticQuestsPage<ConversationPage.Pa
             return;
         }
         commands.set("#SpeakerName.Text", UiText.oneLine(view.speaker()));
-        commands.set("#SpeakerInitials.Text", initials(view.speaker()));
+        commands.set("#SpeakerInitials.Text", ConversationLayout.initials(view.speaker()));
         commands.set("#SpeakerTitle.Text", UiText.oneLine(view.speaker()));
         commands.set("#DialogueText.Text", UiText.safe(view.text()));
         commands.set("#VoiceBadge.Visible", view.voiced());
@@ -107,26 +106,18 @@ public final class ConversationPage extends MysticQuestsPage<ConversationPage.Pa
         commands.set("#TranscriptText.Text", transcript(view.transcript()));
         commands.set("#TranscriptToggle.Text", transcriptVisible ? "Hide transcript" : "Transcript");
 
+        // One row per choice, however many the node offers: #ChoiceList scrolls.
         List<ConversationOption> choices = view.choices();
-        int shown = Math.min(choices.size(), MAX_CHOICES);
-        commands.set("#FooterHint.Text", shown == 0
-                ? "Leave to end the conversation."
-                : "Choose a reply. Leaving ends the conversation.");
-        for (int index = 0; index < shown; index += 2) {
-            String row = "#ChoiceList[" + (index / 2) + "]";
-            commands.append("#ChoiceList", CHOICE_ROW);
-            choice(commands, events, row + " #ChoiceA", index, choices.get(index));
-            boolean second = index + 1 < shown;
-            commands.set(row + " #ChoiceB.Visible", second);
-            if (second) {
-                choice(commands, events, row + " #ChoiceB", index + 1, choices.get(index + 1));
-            }
+        List<String> labels = ConversationLayout.choiceLabels(
+                choices.stream().map(ConversationOption::text).toList());
+        commands.set("#FooterHint.Text", ConversationLayout.footerHint(choices.size()));
+        for (int index = 0; index < choices.size(); index++) {
+            String selector = ConversationLayout.choiceSelector(index);
+            commands.append(ConversationLayout.CHOICE_LIST, CHOICE_ROW);
+            commands.set(selector + ".Text", labels.get(index));
+            events.addEventBinding(CustomUIEventBindingType.Activating, selector,
+                    EventData.of("Choice", choices.get(index).token()));
         }
-    }
-
-    private static void choice(UICommandBuilder commands, UIEventBuilder events, String selector, int index, ConversationOption option) {
-        commands.set(selector + ".Text", (index + 1) + "   " + UiText.oneLine(option.text()));
-        events.addEventBinding(CustomUIEventBindingType.Activating, selector, EventData.of("Choice", option.token()));
     }
 
     private static String transcript(List<ConversationService.TranscriptLine> lines) {
@@ -134,17 +125,6 @@ public final class ConversationPage extends MysticQuestsPage<ConversationPage.Pa
         return lines.subList(from, lines.size()).stream()
                 .map(line -> line.speaker() + ":  " + line.text())
                 .collect(Collectors.joining("\n\n"));
-    }
-
-    private static String initials(String text) {
-        if (text == null || text.isBlank()) {
-            return "";
-        }
-        String[] parts = text.trim().split("\\s+");
-        if (parts.length == 1) {
-            return parts[0].substring(0, Math.min(2, parts[0].length())).toUpperCase();
-        }
-        return (parts[0].substring(0, 1) + parts[1].substring(0, 1)).toUpperCase();
     }
 
     public static final class PageEventData {

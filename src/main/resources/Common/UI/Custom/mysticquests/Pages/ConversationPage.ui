@@ -7,14 +7,18 @@ $MQ = "../Theme.ui";
 //
 // Positioning: #ConversationRoot has no LayoutMode, so its children are placed by their own Anchor
 // offsets from its edges; each band then centres its fixed-width content with LayoutMode: Center.
-// Choice rows are appended from ConversationPage (mysticquests/Rows/ConversationChoiceRow.ui).
+// Choice rows are appended from ConversationPage (mysticquests/Rows/ConversationChoiceRow.ui), one
+// per choice and as many as the node offers; #ChoiceList scrolls once they outgrow it.
+//
+// The NPC's line lives in #DialogueScroll, a fixed-height scrolling box: a long line wraps and
+// scrolls inside it instead of spilling over the choices below.
 
 Group #ConversationRoot {
   Anchor: (Full: 0);
   Background: #000000(0.30);
 
   Group #TranscriptBand {
-    Anchor: (Bottom: 352, Height: 250);
+    Anchor: (Bottom: 452, Height: 250);
     LayoutMode: Center;
 
     Group #TranscriptPanel {
@@ -43,11 +47,11 @@ Group #ConversationRoot {
   }
 
   Group #DialogueBand {
-    Anchor: (Bottom: 36, Height: 300);
+    Anchor: (Bottom: 36, Height: 400);
     LayoutMode: Center;
 
     Group #DialogueRow {
-      Anchor: (Width: 1160, Height: 300);
+      Anchor: (Width: 1160, Height: 400);
       LayoutMode: Left;
 
       Group #SpeakerPortrait {
@@ -96,15 +100,25 @@ Group #ConversationRoot {
           }
         }
 
-        Label #DialogueText {
-          Anchor: (Height: 66, Bottom: 10);
-          Style: (FontSize: 19, RenderBold: true, TextColor: #F2F4F8, Wrap: true, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 13);
+        Group #DialogueScroll {
+          Anchor: (Height: 104, Bottom: 8);
+          LayoutMode: TopScrolling;
+          ScrollbarStyle: $C.@DefaultScrollbarStyle;
+
+          Label #DialogueText {
+            Style: (FontSize: 18, RenderBold: true, TextColor: #F2F4F8, Wrap: true);
+          }
+        }
+
+        Group #ChoiceDivider {
+          Anchor: (Height: 1, Bottom: 8);
+          Background: #F2F4F8(0.15);
         }
 
         Group #ChoiceList {
           FlexWeight: 1;
           LayoutMode: TopScrolling;
-          ScrollbarStyle: $C.@TranslucentScrollbarStyle;
+          ScrollbarStyle: $C.@DefaultScrollbarStyle;
         }
 
         Group #Footer {
