@@ -55,8 +55,13 @@ dependencies {
     // MysticIdentity: the player-portal provider (integration/mysticidentity) compiles against its
     // public API. The mod is optional at runtime and never bundled; MysticIdentityPortal probes for
     // it by name before any class naming the API is allowed to load. Same setup as MysticEconomy.
-    compileOnly(files("../MysticIdentity/mysticidentity-api/build/libs/mysticidentity-api-0.1.1.jar"))
-    testImplementation(files("../MysticIdentity/mysticidentity-api/build/libs/mysticidentity-api-0.1.1.jar"))
+    // Whichever API version the sibling checkout last built: its version moves with MysticIdentity.
+    val mysticIdentityApi = fileTree("../MysticIdentity/mysticidentity-api/build/libs") {
+        include("mysticidentity-api-*.jar")
+        exclude("*-sources.jar", "*-javadoc.jar")
+    }
+    compileOnly(mysticIdentityApi)
+    testImplementation(mysticIdentityApi)
 
     implementation("com.fasterxml.jackson.core:jackson-databind:2.20.1")
     implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.20.1")
