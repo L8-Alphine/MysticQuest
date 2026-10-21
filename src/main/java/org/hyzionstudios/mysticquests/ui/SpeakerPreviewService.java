@@ -15,9 +15,7 @@ import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 
@@ -42,7 +40,6 @@ public final class SpeakerPreviewService {
     static final long[] FIRST_SEND_DELAYS_MS = {50L, 150L, 400L};
 
     private final boolean enabled;
-    private final ScheduledExecutorService scheduler;
     private final Map<UUID, State> states = new ConcurrentHashMap<>();
 
     private static final class State {
@@ -58,11 +55,6 @@ public final class SpeakerPreviewService {
 
     public SpeakerPreviewService(boolean enabled) {
         this.enabled = enabled;
-        this.scheduler = Executors.newSingleThreadScheduledExecutor(runnable -> {
-            Thread thread = new Thread(runnable, "MysticQuests-SpeakerPreview");
-            thread.setDaemon(true);
-            return thread;
-        });
     }
 
     /** Whether the card shows a live model at all ({@code dialogue.livePreview}). */
@@ -97,7 +89,8 @@ public final class SpeakerPreviewService {
         World world = store.getExternalData().getWorld();
         for (long delay : FIRST_SEND_DELAYS_MS) {
             try {
-                scheduler.schedule(() -> world.execute(() -> send(playerRef, ref, store, page, state, mine, packet)),
+                // Dropped by the world itself if it stops accepting tasks first.
+                world.scheduleAfter(() -> send(playerRef, ref, store, page, state, mine, packet),
                         delay, TimeUnit.MILLISECONDS);
             } catch (RejectedExecutionException shuttingDown) {
                 return;
@@ -180,9 +173,8 @@ public final class SpeakerPreviewService {
         }
     }
 
-    /** Stops the retries. Players still looking at a card get their remembered real mode back. */
+    /** Players still looking at a card get their remembered real mode back; pending sends lapse. */
     public void close() {
-        scheduler.shutdownNow();
         for (State state : states.values()) {
             end(state, null);
         }
