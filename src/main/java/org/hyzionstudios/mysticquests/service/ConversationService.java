@@ -250,7 +250,7 @@ public final class ConversationService {
                 : SpeakerPortraits.forEntity(conversation.portrait(), targetRef.getStore(), targetRef);
         SpeakerStage.Capture stage = targetRef == null || !targetRef.isValid()
                 ? null
-                : stage(targetRef.getStore(), targetRef);
+                : stage(conversation, targetRef.getStore(), targetRef);
         long token = startSession(playerRef.getUuid(), conversation, node, targetContext, portrait, stage);
         openPage(event.getPlayerRef(), event.getPlayerRef().getStore(), event.getPlayer(), playerRef, token);
         return true;
@@ -288,7 +288,7 @@ public final class ConversationService {
         }
         String portrait = SpeakerPortraits.forEntity(conversation.portrait(), store, targetRef);
         long token = startSession(playerRef.getUuid(), conversation, node, targetContext, portrait,
-                stage(store, targetRef));
+                stage(conversation, store, targetRef));
         openPage(event.getPlayerRef(), event.getPlayerRef().getStore(), event.getPlayer(), playerRef, token);
         return true;
     }
@@ -322,7 +322,7 @@ public final class ConversationService {
             Ref<EntityStore> citizenEntity = citizenRef(store, citizen);
             String portrait = SpeakerPortraits.forEntity(conversation.portrait(), store, citizenEntity);
             long token = startSession(playerRef.getUuid(), conversation, node, targetContext, portrait,
-                    stage(store, citizenEntity));
+                    stage(conversation, store, citizenEntity));
             openPage(playerEntity, store, player, playerRef, token);
         };
         if (store.isInThread()) {
@@ -376,7 +376,7 @@ public final class ConversationService {
         }
         String portrait = SpeakerPortraits.forEntity(conversation.portrait(), accessor, targetRef);
         long token = startSession(playerRef.getUuid(), conversation, node, targetContext, portrait,
-                stage(accessor, targetRef));
+                stage(conversation, accessor, targetRef));
         return new ConversationPage(playerRef, playerRef.getUuid(), token, this);
     }
 
@@ -1079,13 +1079,23 @@ public final class ConversationService {
     }
 
     /** The speaker's model for the live card, or null when the live card is off or cannot show it. */
-    private SpeakerStage.Capture stage(ComponentAccessor<EntityStore> accessor, Ref<EntityStore> ref) {
+    private SpeakerStage.Capture stage(
+            ConversationDefinition conversation, ComponentAccessor<EntityStore> accessor, Ref<EntityStore> ref) {
         SpeakerPreviewService preview = previewService;
-        return preview == null || !preview.enabled() ? null : SpeakerStage.capture(accessor, ref);
+        return preview == null
+                ? null
+                : preview.capture(conversation.packageId() + ":" + conversation.id(), accessor, ref);
     }
 
-    /** The spawned citizen in this world, when HyCitizens reported its entity UUID. */
+    /**
+     * The citizen's entity in this world: the ref HyCitizens holds, else the one its spawned UUID
+     * names. Null when it is not spawned here.
+     */
     private static Ref<EntityStore> citizenRef(Store<EntityStore> store, CitizenView citizen) {
+        Ref<EntityStore> held = citizen.entity();
+        if (held != null && held.isValid() && held.getStore() == store) {
+            return held;
+        }
         String spawned = citizen.spawnedUuid();
         if (spawned == null || spawned.isBlank()) {
             return null;

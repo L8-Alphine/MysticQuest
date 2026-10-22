@@ -1,5 +1,6 @@
 package org.hyzionstudios.mysticquests.ui;
 
+import com.hypixel.hytale.component.ComponentAccessor;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.logger.HytaleLogger;
@@ -40,6 +41,7 @@ public final class SpeakerPreviewService {
     static final long[] FIRST_SEND_DELAYS_MS = {50L, 150L, 400L};
 
     private final boolean enabled;
+    private final boolean verbose;
     private final Map<UUID, State> states = new ConcurrentHashMap<>();
 
     private static final class State {
@@ -53,13 +55,35 @@ public final class SpeakerPreviewService {
         }
     }
 
-    public SpeakerPreviewService(boolean enabled) {
+    /**
+     * @param enabled {@code dialogue.livePreview}
+     * @param verbose log every preview decision at INFO ({@code debug} in config.json); otherwise
+     *         they are logged at FINE
+     */
+    public SpeakerPreviewService(boolean enabled, boolean verbose) {
         this.enabled = enabled;
+        this.verbose = verbose;
     }
 
     /** Whether the card shows a live model at all ({@code dialogue.livePreview}). */
     public boolean enabled() {
         return enabled;
+    }
+
+    /**
+     * The speaker's model for the card, or null for the portrait; logs which way it went and why, so
+     * a card that falls back can be diagnosed from the server log. Call on the world thread.
+     */
+    public SpeakerStage.Capture capture(String conversation, ComponentAccessor<EntityStore> accessor, Ref<EntityStore> ref) {
+        if (!enabled) {
+            log(conversation + ": portrait card, dialogue.livePreview is off");
+            return null;
+        }
+        return SpeakerStage.capture(accessor, ref, why -> log(conversation + ": " + why));
+    }
+
+    void log(String message) {
+        LOGGER.at(verbose ? Level.INFO : Level.FINE).log("[dialogue card] " + message);
     }
 
     /**
@@ -185,10 +209,12 @@ public final class SpeakerPreviewService {
                       State state, int mine, BuilderToolPrefabPreview packet) {
         try {
             if (!ref.isValid() || ref.getStore() != store) {
+                log(playerRef.getUsername() + ": preview not sent, the player entity changed");
                 return;
             }
             Player player = store.getComponent(ref, Player.getComponentType());
             if (player == null || player.getPageManager().getCustomPage() != page) {
+                log(playerRef.getUsername() + ": preview not sent, the dialogue page is no longer open");
                 return;
             }
             synchronized (state) {
@@ -196,6 +222,8 @@ public final class SpeakerPreviewService {
                     return;
                 }
                 GameMode spoof = state.spoof.beforeSend(player.getGameMode());
+                log(playerRef.getUsername() + ": preview sent"
+                        + (spoof != null ? ", client told Creative over " + player.getGameMode() : ""));
                 if (spoof != null) {
                     playerRef.getPacketHandler().writeNoCache(new SetGameMode(spoof));
                 }
