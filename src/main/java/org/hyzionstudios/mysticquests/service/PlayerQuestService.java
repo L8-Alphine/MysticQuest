@@ -1,6 +1,8 @@
 package org.hyzionstudios.mysticquests.service;
 
 import org.hyzionstudios.mysticquests.content.LoadedContent;
+import org.hyzionstudios.mysticquests.event.MysticQuestsEventBus;
+import org.hyzionstudios.mysticquests.event.QuestLifecycleEvents;
 import org.hyzionstudios.mysticquests.integration.HyExtrasBridge;
 import org.hyzionstudios.mysticquests.integration.MysticGenerationBridge;
 import org.hyzionstudios.mysticquests.integration.VaultUnlockedEconomyBridge;
@@ -144,6 +146,9 @@ public final class PlayerQuestService {
     /** Hytale's world events, game flags and encounters; null until the runtime binds them. */
     private volatile StoryWorld storyWorld;
 
+    /** Where quest lifecycle events (Q-1) are posted; null until the runtime binds it. */
+    private volatile MysticQuestsEventBus lifecycleBus;
+
     public PlayerQuestService(
             Supplier<LoadedContent> contentSupplier,
             QuestStorage storage,
@@ -209,11 +214,39 @@ public final class PlayerQuestService {
         changeListeners.add(listener);
     }
 
+    /** Posts {@link QuestLifecycleEvents} on this bus from now on. */
+    public void bindLifecycleEvents(MysticQuestsEventBus bus) {
+        this.lifecycleBus = bus;
+    }
+
+    private void postLifecycle(Object event) {
+        MysticQuestsEventBus bus = lifecycleBus;
+        if (bus != null) {
+            bus.post(event);
+        }
+    }
+
     public QuestResult startQuest(UUID playerId, String questId) {
+        return startQuest(playerId, questId, false);
+    }
+
+    /**
+     * Starts a trial quest for the trial service ({@code QuestTrials#start}). Ordinary starts refuse
+     * trial quests: a run nobody awaits would complete without being reported to the mod that owns
+     * the trial.
+     */
+    public QuestResult startQuestAsTrial(UUID playerId, String questId) {
+        return startQuest(playerId, questId, true);
+    }
+
+    private QuestResult startQuest(UUID playerId, String questId, boolean asTrial) {
         LoadedContent content = contentSupplier.get();
         QuestDefinition quest = content.quests().get(questId);
         if (quest == null) {
             return QuestResult.failure("Unknown quest: " + questId);
+        }
+        if (quest.trial() != null && !asTrial) {
+            return QuestResult.failure(quest.displayName() + " is a trial; it is started by the mod that owns it.");
         }
         PlayerQuestData data = data(playerId);
         if (data.activeQuests().containsKey(questId)) {
@@ -244,6 +277,8 @@ public final class PlayerQuestService {
         }
         executeEvents(data, quest.packageId(), quest, quest.startEvents(), QuestTargetContext.none());
         save(data);
+        postLifecycle(new QuestLifecycleEvents.QuestStarted(playerId, questId,
+                QuestLifecycleEvents.completionId(playerId, questId, activeQuest.startedAt()), activeQuest.startedAt()));
         return QuestResult.success("Started quest: " + quest.displayName());
     }
 
@@ -561,6 +596,7 @@ public final class PlayerQuestService {
         PlayerQuestData data = data(playerId);
         LoadedContent content = contentSupplier.get();
         return content.quests().entrySet().stream()
+                .filter(entry -> entry.getValue().trial() == null)
                 .filter(entry -> !data.activeQuests().containsKey(entry.getKey()))
                 .filter(entry -> !data.completedQuests().containsKey(entry.getKey()))
                 .filter(entry -> reacceptState(playerId, entry.getKey()).allowed())
@@ -581,6 +617,7 @@ public final class PlayerQuestService {
         LoadedContent content = contentSupplier.get();
         return content.quests().entrySet().stream()
                 .filter(entry -> !entry.getValue().lockedText().isEmpty())
+                .filter(entry -> entry.getValue().trial() == null)
                 .filter(entry -> !data.activeQuests().containsKey(entry.getKey()))
                 .filter(entry -> !data.completedQuests().containsKey(entry.getKey()))
                 .filter(entry -> reacceptState(playerId, entry.getKey()).allowed())
@@ -642,13 +679,18 @@ public final class PlayerQuestService {
      * restarts from zero if it becomes available again; completion history is untouched.
      */
     public QuestResult abandonQuest(UUID playerId, String questId) {
+        return abandonQuest(playerId, questId, "abandoned by the player");
+    }
+
+    /** As {@link #abandonQuest(UUID, String)}, with the reason the lifecycle event reports. */
+    public QuestResult abandonQuest(UUID playerId, String questId, String reason) {
         PlayerQuestData data = data(playerId);
         if (!data.activeQuests().containsKey(questId)) {
             return QuestResult.failure("Quest is not active: " + questId);
         }
         LoadedContent content = contentSupplier.get();
         QuestDefinition quest = content.quests().get(questId);
-        data.activeQuests().remove(questId);
+        ActiveQuestData abandoned = data.activeQuests().remove(questId);
         data.questVariables().remove(questId);
         data.abandonedQuests().put(questId, Instant.now());
         if (questId.equals(data.trackedQuestId())) {
@@ -656,7 +698,57 @@ public final class PlayerQuestService {
             normalizeTrackedQuest(data);
         }
         save(data);
+        postLifecycle(new QuestLifecycleEvents.QuestAbandoned(playerId, questId,
+                QuestLifecycleEvents.completionId(playerId, questId, abandoned.startedAt()), abandoned.startedAt(),
+                Instant.now(), reason));
         return QuestResult.success("Abandoned quest: " + (quest == null ? questId : quest.displayName()));
+    }
+
+    /**
+     * Fails an active quest (MysticRPG request Q-2): its progress is dropped like an abandonment, but
+     * no abandonment is recorded, so re-accept rules do not apply and the quest may be started again.
+     * Posts {@link QuestLifecycleEvents.QuestFailed}.
+     */
+    public QuestResult failQuest(UUID playerId, String questId, String reason) {
+        PlayerQuestData data = data(playerId);
+        ActiveQuestData failed = data.activeQuests().remove(questId);
+        if (failed == null) {
+            return QuestResult.failure("Quest is not active: " + questId);
+        }
+        data.questVariables().remove(questId);
+        if (questId.equals(data.trackedQuestId())) {
+            data.setTrackedQuestId(null);
+            normalizeTrackedQuest(data);
+        }
+        save(data);
+        postLifecycle(new QuestLifecycleEvents.QuestFailed(playerId, questId,
+                QuestLifecycleEvents.completionId(playerId, questId, failed.startedAt()), failed.startedAt(),
+                Instant.now(), reason == null || reason.isBlank() ? "failed" : reason));
+        QuestDefinition quest = contentSupplier.get().quests().get(questId);
+        return QuestResult.success("Failed quest: " + (quest == null ? questId : quest.displayName()));
+    }
+
+    /** Typed quest status (MysticRPG request Q-3). */
+    public enum QuestStatus { NOT_STARTED, ACTIVE, COMPLETED, ABANDONED }
+
+    public QuestStatus questStatus(UUID playerId, String questId) {
+        PlayerQuestData data = data(playerId);
+        if (data.activeQuests().containsKey(questId)) {
+            return QuestStatus.ACTIVE;
+        }
+        if (data.completedQuests().containsKey(questId)) {
+            return QuestStatus.COMPLETED;
+        }
+        if (data.abandonedQuests().containsKey(questId)) {
+            return QuestStatus.ABANDONED;
+        }
+        return QuestStatus.NOT_STARTED;
+    }
+
+    /** When the player's current run of an active quest started; empty when it is not active. */
+    public Optional<Instant> activeSince(UUID playerId, String questId) {
+        ActiveQuestData active = data(playerId).activeQuests().get(questId);
+        return active == null ? Optional.empty() : Optional.of(active.startedAt());
     }
 
     /**
@@ -709,7 +801,8 @@ public final class PlayerQuestService {
     /** Clears every stored status and quest-scoped variable for one quest. */
     public QuestResult resetQuestState(UUID playerId, String questId) {
         PlayerQuestData data = data(playerId);
-        boolean changed = data.activeQuests().remove(questId) != null;
+        ActiveQuestData wasActive = data.activeQuests().remove(questId);
+        boolean changed = wasActive != null;
         changed |= data.completedQuests().remove(questId) != null;
         changed |= data.abandonedQuests().remove(questId) != null;
         changed |= data.questVariables().remove(questId) != null;
@@ -722,6 +815,11 @@ public final class PlayerQuestService {
             return QuestResult.failure("No stored state for quest: " + questId);
         }
         save(data);
+        if (wasActive != null) {
+            postLifecycle(new QuestLifecycleEvents.QuestAbandoned(playerId, questId,
+                    QuestLifecycleEvents.completionId(playerId, questId, wasActive.startedAt()), wasActive.startedAt(),
+                    Instant.now(), "quest state reset"));
+        }
         return QuestResult.success("Reset quest state: " + questId);
     }
 
@@ -1173,8 +1271,14 @@ public final class PlayerQuestService {
 
     private QuestResult completeQuest(PlayerQuestData data, QuestDefinition quest, QuestTargetContext targetContext) {
         String questId = quest.packageId() + ":" + quest.id();
-        data.activeQuests().remove(questId);
-        data.completedQuests().put(questId, Instant.now());
+        ActiveQuestData finished = data.activeQuests().remove(questId);
+        if (finished == null) {
+            // Already completed by an earlier signal in the same tick: completing twice would run the
+            // rewards twice and report the run twice.
+            return QuestResult.failure("Quest is not active: " + questId);
+        }
+        Instant completedAt = Instant.now();
+        data.completedQuests().put(questId, completedAt);
         if (questId.equals(data.trackedQuestId())) {
             data.setTrackedQuestId(null);
             normalizeTrackedQuest(data);
@@ -1182,6 +1286,9 @@ public final class PlayerQuestService {
         executeEvents(data, quest.packageId(), quest, quest.completeEvents(), targetContext);
         executeEvents(data, quest.packageId(), quest, quest.rewards(), targetContext);
         save(data);
+        postLifecycle(new QuestLifecycleEvents.QuestCompleted(data.playerId(), questId,
+                QuestLifecycleEvents.completionId(data.playerId(), questId, finished.startedAt()), finished.startedAt(),
+                completedAt, finished.objectiveProgress()));
         return QuestResult.success("Completed quest: " + quest.displayName());
     }
 
@@ -2035,6 +2142,10 @@ public final class PlayerQuestService {
 
     private boolean isComplete(QuestDefinition quest, ActiveQuestData activeQuest) {
         for (ObjectiveDefinition objective : quest.objectives()) {
+            if (objective.bool("optional", false)) {
+                // Optional objectives score a trial (Q11) but never hold a quest open.
+                continue;
+            }
             int target = objective.integer("amount", 1);
             if (activeQuest.objectiveProgress().getOrDefault(objective.id(), 0) < target) {
                 return false;
