@@ -176,6 +176,30 @@ Listeners run synchronously on the posting thread and are isolated from each oth
 listener cannot break dispatch for anyone else. `name` is null on a `CLEAR`, which covers the whole
 owner.
 
+### Quest lifecycle events (2.1)
+
+`org.hyzionstudios.mysticquests.event.QuestLifecycleEvents` holds `QuestStarted`, `QuestCompleted`,
+`QuestFailed` and `QuestAbandoned`. Each carries the run's **completion id**, the same for every
+event of one run and stable across restarts, so a consumer that grants something can refuse a
+replay. They are posted once per transition, after the change is saved:
+
+```java
+api.subscribe(QuestLifecycleEvents.QuestCompleted.class, done ->
+        rewards.grantOnce(done.completionId(), done.player(), done.questId()));
+```
+
+Typed queries: `questStatus(player, questId)` (`NOT_STARTED`, `ACTIVE`, `COMPLETED`, `ABANDONED`),
+`hasCompletedQuest`, and `hasQuestTag(player, tag)`, which is true for a completed quest
+`<package>:<quest>`, a player tag of that exact name, or the package-scoped tag `<package>.<tag>`.
+
+## Trials (2.1)
+
+`api.trials()` runs quests another mod starts and awaits, such as MysticRPG's class advancement
+trials: `start(player, trialId)` returns a future that always completes once, as completed (with a
+score when the trial is ranked), failed or abandoned; a logout abandons. Results are kept by
+completion id (`evidence`). See [integrations/mysticrpg-trials.md](integrations/mysticrpg-trials.md).
+`MysticQuestsApi.API_VERSION` is 2 and `QuestTrials.API_VERSION` 1.
+
 ## Built-in types worth knowing
 
 Events: `tag`, `variable`, `giveItem`, `removeItem`, `runCommand`, `sendMessage`, `startQuest`,

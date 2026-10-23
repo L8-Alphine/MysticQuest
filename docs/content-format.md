@@ -63,6 +63,14 @@ exact objective progress, tracking, abandonment overrides, player tags, and play
 - `difficulty`, `partySize`: optional. Shown on the quest board.
 - `lockedText`: optional. Shows the quest on the board as a locked card, with this text, while the
   player cannot start it. Without it, a locked quest is not shown.
+- `trial`: optional. Makes the quest a trial another mod starts through the API (MysticRPG's class
+  trials): `id` (the namespaced trial id, unique across packages), `timeLimitSeconds`, `maxDeaths`
+  and optional `ranking` (`parTimeSeconds`, `timeWeight`, `deathPenalty`, `optionalWeight`). A trial
+  quest is never offered on the board and cannot be started by `startQuest`. See
+  [integrations/mysticrpg-trials.md](integrations/mysticrpg-trials.md).
+
+Any objective may set `optional: true`: it is tracked and shown, but never holds the quest open. A
+ranked trial counts optional objectives into its score.
 
 ## Typed Entries
 
