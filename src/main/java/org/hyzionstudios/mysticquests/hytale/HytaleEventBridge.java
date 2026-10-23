@@ -169,6 +169,11 @@ public final class HytaleEventBridge {
         hudService.unregisterPlayer(playerId);
         runtime.transitionService().forget(playerId);
         conversationService.unregisterPlayer(playerId);
+        // A trial never waits on someone who has left: it resolves as abandoned, and the mod that
+        // started it (MysticRPG) is told at once.
+        if (runtime.trials() != null) {
+            runtime.trials().onDisconnect(playerId);
+        }
         if (runtime.narrative() != null) {
             // Writes and unloads the player's story sessions, so a transfer to another server that
             // shares the narrative store picks them up exactly as they were left.

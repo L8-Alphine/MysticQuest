@@ -17,6 +17,7 @@ import org.hyzionstudios.mysticquests.hytale.NameplateVisibilitySystem;
 import org.hyzionstudios.mysticquests.hytale.StoryEntitySystems;
 import org.hyzionstudios.mysticquests.narrative.entity.StoryEntityRegistry;
 import org.hyzionstudios.mysticquests.hytale.TargetingPreventionSystem;
+import org.hyzionstudios.mysticquests.hytale.TrialDeathSystem;
 import org.hyzionstudios.mysticquests.hytale.WorldEventSystems;
 import org.hyzionstudios.mysticquests.integration.worldevents.QuestPlayerLocation;
 import org.hyzionstudios.mysticquests.integration.worldevents.WorldEventTracker;
@@ -87,6 +88,9 @@ public class MysticquestsPlugin extends JavaPlugin {
         // A player who dies mid-dialogue with no death screen gets their real game mode back.
         getEntityStoreRegistry().registerSystem(new SpeakerPreviewDeathSystem(
                 () -> runtime == null ? null : runtime.speakerPreview()));
+        // Deaths during a trial count against its death limit and its score.
+        getEntityStoreRegistry().registerSystem(new TrialDeathSystem(
+                () -> runtime == null ? null : runtime.trials()));
         // A claimed story NPC's death runs its onDeath actions for the audience that owns it (§8).
         getEntityStoreRegistry().registerSystem(new StoryEntityDeathSystem(
                 () -> runtime == null || runtime.narrative() == null ? null : runtime.narrative().runtime()));

@@ -655,6 +655,8 @@ public final class QuestContentLoader {
     }
 
     private void validate(LoadedContent content, List<String> errors) {
+        // One quest per trial id: a trial another mod starts must name exactly one quest.
+        Map<String, String> trialOwners = new java.util.HashMap<>();
         for (Map.Entry<String, QuestDefinition> entry : content.quests().entrySet()) {
             QuestDefinition quest = entry.getValue();
             validateTypedList(entry.getKey(), "start condition", quest.startConditions(), CONDITION_TYPES, errors);
@@ -676,6 +678,16 @@ public final class QuestContentLoader {
             Integer cooldown = quest.abandonCooldownSeconds();
             if (cooldown != null && cooldown < 0) {
                 errors.add(entry.getKey() + " has a negative abandonCooldownSeconds: " + cooldown);
+            }
+            if (quest.trial() != null) {
+                for (String problem : quest.trial().problems()) {
+                    errors.add(entry.getKey() + ": " + problem);
+                }
+                String owner = trialOwners.putIfAbsent(quest.trial().id(), entry.getKey());
+                if (owner != null && !quest.trial().id().isEmpty()) {
+                    errors.add(entry.getKey() + " declares trial " + quest.trial().id()
+                            + ", which " + owner + " already declares");
+                }
             }
         }
         for (Map.Entry<String, ConversationDefinition> entry : content.conversations().entrySet()) {

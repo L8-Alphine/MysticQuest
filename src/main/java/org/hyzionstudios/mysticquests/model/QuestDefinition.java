@@ -36,6 +36,8 @@ public final class QuestDefinition {
     private Integer partySize;
     /** What a player is told while the quest is not available yet; without it a locked quest stays off the board. */
     private String lockedText;
+    /** Set when another mod can start this quest as a trial; see {@link TrialDefinition}. */
+    private TrialDefinition trial;
 
     public String id() {
         return id;
@@ -77,6 +79,15 @@ public final class QuestDefinition {
     /** The recommended party size, or 0 when the quest is not meant for a group. */
     public int partySize() {
         return partySize == null || partySize < 2 ? 0 : partySize;
+    }
+
+    /** The trial this quest implements, or null when it is an ordinary quest. */
+    public TrialDefinition trial() {
+        return trial;
+    }
+
+    public void setTrial(TrialDefinition trial) {
+        this.trial = trial;
     }
 
     public String lockedText() {

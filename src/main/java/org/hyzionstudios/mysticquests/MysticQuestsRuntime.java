@@ -60,6 +60,8 @@ import org.hyzionstudios.mysticquests.service.StoryWorld;
 import org.hyzionstudios.mysticquests.storage.JsonQuestStorage;
 import org.hyzionstudios.mysticquests.storage.QuestStorage;
 import org.hyzionstudios.mysticquests.storage.SqliteQuestStorage;
+import org.hyzionstudios.mysticquests.service.trial.QuestTrialService;
+import org.hyzionstudios.mysticquests.service.trial.TrialQuests;
 import org.hyzionstudios.mysticquests.ui.CutsceneHudBridge;
 import org.hyzionstudios.mysticquests.ui.MysticQuestsUiService;
 import org.hyzionstudios.mysticquests.ui.QuestHudService;
@@ -132,6 +134,10 @@ public final class MysticQuestsRuntime implements AutoCloseable {
     private StudioIntegration studio;
     private MysticIdentityPortal identityPortal;
     private ExternalQuestService externalQuests;
+    /** Trials other mods start (MysticRPG class advancement); null until started. */
+    private QuestTrialService trials;
+    /** Fails trials past their time limit; one daemon thread. */
+    private java.util.concurrent.ScheduledExecutorService trialClock;
     private final WorldEventTracker worldEvents;
     private HytaleStoryActions storyActions;
     /** The boss roles the loaded content watches, recomputed when the content changes. */
@@ -197,6 +203,8 @@ public final class MysticQuestsRuntime implements AutoCloseable {
                     sessionService,
                     inventoryService,
                     plugin.getLogger());
+            // Quest lifecycle events with completion ids (Q-1), for the trial service and other mods.
+            this.questService.bindLifecycleEvents(eventBus);
             this.partyIntegration = new MysticPartyIntegration(plugin.getLogger());
             this.partyIntegration.register();
             this.questService.bindPartySupport(partyIntegration::members);
@@ -298,10 +306,11 @@ public final class MysticQuestsRuntime implements AutoCloseable {
             this.placeholderIntegration.register();
             this.questService.bindExternalTextResolver((playerId, text) ->
                     placeholderIntegration.resolve(sessionService.playerRef(playerId), text));
+            startTrials();
             // Published last: other mods must never see a half-built API.
             MysticQuestsApi.install(new MysticQuestsApi(
                     stateStore, entityIndex, visibility, targeting, packetService, questService, registry, eventBus,
-                    narrative.runtime()));
+                    narrative.runtime(), trials));
             // After the API: the web portal reads quests through the same services other mods do.
             this.identityPortal = MysticIdentityPortal.start(portalSource(), plugin.getLogger()).orElse(null);
             // Last: a Studio publish reloads content, so everything a reload touches must exist.
@@ -312,6 +321,53 @@ public final class MysticQuestsRuntime implements AutoCloseable {
             plugin.getLogger().at(Level.SEVERE).withCause(exception).log("MysticQuests failed to start.");
             throw new IllegalStateException("MysticQuests failed to start", exception);
         }
+    }
+
+    /**
+     * The trial service (MysticRPG's class advancement trials). After the first content load, because
+     * it abandons runs a crashed server left behind, which needs their quests.
+     */
+    private void startTrials() {
+        this.trials = new QuestTrialService(
+                TrialQuests.of(questService, () -> content.get().quests(), notificationService),
+                dataDirectory.resolve(QuestTrialService.LEDGER_FILE), mapper, eventBus, java.time.Clock.systemUTC(),
+                message -> plugin.getLogger().at(Level.WARNING).log(message));
+        this.trials.start();
+        this.trialClock = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(runnable -> {
+            Thread thread = new Thread(runnable, "MysticQuests-Trials");
+            thread.setDaemon(true);
+            return thread;
+        });
+        this.trialClock.scheduleAtFixedRate(this::enforceTrialTimeLimits, 5, 5, java.util.concurrent.TimeUnit.SECONDS);
+    }
+
+    /** Fails overdue trial runs on their player's world thread, where quest state changes belong. */
+    private void enforceTrialTimeLimits() {
+        QuestTrialService current = trials;
+        if (current == null) {
+            return;
+        }
+        try {
+            for (String completionId : current.overdue(java.time.Instant.now())) {
+                Optional<UUID> player = current.playerOf(completionId);
+                if (player.isEmpty()) {
+                    continue;
+                }
+                if (sessionService.playerRef(player.get()) == null) {
+                    current.enforceTimeLimit(completionId);
+                } else {
+                    sessionService.runOnWorld(player.get(), (entity, store) -> current.enforceTimeLimit(completionId));
+                }
+            }
+        } catch (RuntimeException failure) {
+            plugin.getLogger().at(Level.WARNING).withCause(failure).log("MysticQuests trial time-limit check failed.");
+        }
+    }
+
+    /** The trial service, or null before start. */
+    @Nullable
+    public QuestTrialService trials() {
+        return trials;
     }
 
     /**
@@ -831,6 +887,18 @@ public final class MysticQuestsRuntime implements AutoCloseable {
     public void close() {
         // Withdrawn first, so no other mod can call into services that are about to shut down.
         MysticQuestsApi.uninstall();
+        // Then every trial still running resolves as abandoned, so no other mod waits on it forever.
+        if (trialClock != null) {
+            trialClock.shutdownNow();
+            trialClock = null;
+        }
+        if (trials != null) {
+            try {
+                trials.close();
+            } catch (RuntimeException exception) {
+                plugin.getLogger().at(Level.WARNING).withCause(exception).log("Failed to close MysticQuests trials.");
+            }
+        }
         if (studio != null) {
             studio.close();
             studio = null;

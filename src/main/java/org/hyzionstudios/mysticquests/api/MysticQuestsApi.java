@@ -1,5 +1,6 @@
 package org.hyzionstudios.mysticquests.api;
 
+import org.hyzionstudios.mysticquests.api.trial.QuestTrials;
 import org.hyzionstudios.mysticquests.event.MysticQuestsEventBus;
 import org.hyzionstudios.mysticquests.narrative.NarrativeRuntime;
 import org.hyzionstudios.mysticquests.narrative.action.ActionTypeRegistry;
@@ -56,6 +57,13 @@ import java.util.function.Consumer;
  * usually the world thread mid-tick, so they should be quick.
  */
 public final class MysticQuestsApi {
+    /**
+     * Version of this facade's contract. 2: MysticQuests 2.1.0 added {@link #trials()}, quest
+     * lifecycle events ({@code QuestLifecycleEvents}), {@link #questStatus}, {@link #hasCompletedQuest}
+     * and {@link #hasQuestTag}.
+     */
+    public static final int API_VERSION = 2;
+
     private static volatile MysticQuestsApi instance;
 
     private final MysticStateStore state;
@@ -67,6 +75,8 @@ public final class MysticQuestsApi {
     private final MysticQuestsRegistry registry;
     private final MysticQuestsEventBus eventBus;
     private final NarrativeRuntime narrative;
+    @Nullable
+    private final QuestTrials trials;
 
     public MysticQuestsApi(
             MysticStateStore state,
@@ -78,6 +88,21 @@ public final class MysticQuestsApi {
             MysticQuestsRegistry registry,
             MysticQuestsEventBus eventBus,
             NarrativeRuntime narrative) {
+        this(state, entityIndex, visibility, targeting, packets, quests, registry, eventBus, narrative, null);
+    }
+
+    public MysticQuestsApi(
+            MysticStateStore state,
+            EntityIndexService entityIndex,
+            VisibilityService visibility,
+            TargetingPreventionService targeting,
+            QuestPacketService packets,
+            PlayerQuestService quests,
+            MysticQuestsRegistry registry,
+            MysticQuestsEventBus eventBus,
+            NarrativeRuntime narrative,
+            @Nullable QuestTrials trials) {
+        this.trials = trials;
         this.state = state;
         this.entityIndex = entityIndex;
         this.visibility = visibility;
@@ -350,6 +375,48 @@ public final class MysticQuestsApi {
 
     public QuestResult completeQuest(UUID player, String questId) {
         return quests.completeQuest(player, questId);
+    }
+
+    /** Typed status of a quest for a player (request Q-3). */
+    public PlayerQuestService.QuestStatus questStatus(UUID player, String questId) {
+        return quests.questStatus(player, questId);
+    }
+
+    /** Whether the player has completed the quest {@code <package>:<quest>} (and it was not reset since). */
+    public boolean hasCompletedQuest(UUID player, String questId) {
+        return quests.questStatus(player, questId) == PlayerQuestService.QuestStatus.COMPLETED;
+    }
+
+    /**
+     * Whether the player holds a quest tag, for other mods' requirement checks (MysticRPG's QUEST item
+     * requirements): a completed quest {@code <package>:<quest>}, a player tag of exactly that name, or,
+     * for {@code <package>:<tag>}, the package-scoped player tag {@code <package>.<tag>}.
+     */
+    public boolean hasQuestTag(UUID player, String tag) {
+        if (player == null || tag == null || tag.isBlank()) {
+            return false;
+        }
+        if (quests.definition(tag).isPresent()) {
+            return hasCompletedQuest(player, tag);
+        }
+        if (hasTag(player, tag)) {
+            return true;
+        }
+        int colon = tag.indexOf(':');
+        return colon > 0 && colon < tag.length() - 1
+                && hasTag(player, tag.substring(0, colon) + "." + tag.substring(colon + 1));
+    }
+
+    /**
+     * Trials other mods start and await: MysticRPG's class advancement trials.
+     *
+     * @throws IllegalStateException when this runtime was built without a trial service
+     */
+    public QuestTrials trials() {
+        if (trials == null) {
+            throw new IllegalStateException("MysticQuests trials are not available");
+        }
+        return trials;
     }
 
     /** Resolves MysticQuests percent-placeholders in text, as authored content would see them. */
