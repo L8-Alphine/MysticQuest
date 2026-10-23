@@ -1,0 +1,11 @@
+enabled: true
+version: 1.0.0
+# MysticRPG's level-10 class advancement trials (MysticRPG ADR-012, product owner Q16): one trial
+# quest per Common core class. MysticRPG starts them through MysticQuestsApi.trials() when a player
+# advances from Adventurer; players cannot start them from the quest board. Written into packages/
+# the first time MysticQuests 2.1 starts; edit freely, MysticQuests never overwrites it. See README.md.
+#
+# Every quest's `trial.id` must stay exactly the id MysticRPG's class asks for (mysticrpg:trial/<class>).
+# Vanilla NPC roles used here, all from Hytale 0.7.3:
+#   Trork_Warrior, Trork_Brawler, Wolf_Trork_Hunter, Skeleton_Fighter, Skeleton_Mage, Skeleton_Archer,
+#   Skeleton_Scout, Skeleton_Elite, Wolf_Black, Spider, Goblin_Thief, Goblin_Scrapper

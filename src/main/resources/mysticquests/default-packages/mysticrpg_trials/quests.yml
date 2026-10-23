@@ -1,0 +1,139 @@
+# MysticRPG class advancement trials, level 10 (Adventurer -> a Common core class).
+#
+# Each trial:
+#   - is started by MysticRPG (`/mrpg class advance` or the Character Nexus), never from the board;
+#   - fails after `timeLimitSeconds`, or on the death after `maxDeaths`;
+#   - is abandoned if the player leaves the server while it runs;
+#   - is ranked (MysticRPG Q11): score = 1 - optionalWeight - timeWeight * overPar - deathPenalty * deaths
+#     + optionalWeight * optional objectives done, clamped to [0, 1]. MysticRPG turns the score into a
+#     rank (Bronze < 0.5 <= Silver < 0.75 <= Gold < 0.95 <= Mythic). Remove `ranking` to make a trial
+#     pass/fail only.
+# Optional objectives (`optional: true`) never hold a trial open; they only raise its score.
+# Rewards are left to MysticRPG (class package): a trial can be retried, so a quest reward here would
+# be farmable.
+
+quests:
+  warrior:
+    displayName: "Trial of Steel"
+    description: >-
+      A Warrior stands in the front line and breaks it. Find a Trork war band and defeat its fighters
+      in close combat.
+    category: trial
+    difficulty: "Level 10"
+    trial:
+      id: mysticrpg:trial/warrior
+      timeLimitSeconds: 1800
+      maxDeaths: 3
+      ranking: { parTimeSeconds: 600, timeWeight: 0.3, deathPenalty: 0.1, optionalWeight: 0.2 }
+    startEvents:
+      - { type: sendMessage, message: "&6Trial of Steel: &fdefeat the Trork war band. You have 30 minutes." }
+    objectives:
+      - { id: warriors, displayName: "Defeat Trork Warriors", type: kill, target: Trork_Warrior, amount: 3 }
+      - { id: brawlers, displayName: "Defeat Trork Brawlers", type: kill, target: Trork_Brawler, amount: 2 }
+      - { id: champion, displayName: "Optional: defeat 5 Trork Warriors in all", type: kill, target: Trork_Warrior, amount: 5, optional: true }
+    completeEvents:
+      - { type: sendMessage, message: "&aTrial of Steel complete." }
+
+  mage:
+    displayName: "Trial of the Arcane"
+    description: >-
+      A Mage masters what others fear. Seek out the restless dead and put their spellcasters down
+      before their magic overwhelms you.
+    category: trial
+    difficulty: "Level 10"
+    trial:
+      id: mysticrpg:trial/mage
+      timeLimitSeconds: 1800
+      maxDeaths: 3
+      ranking: { parTimeSeconds: 600, timeWeight: 0.3, deathPenalty: 0.1, optionalWeight: 0.2 }
+    startEvents:
+      - { type: sendMessage, message: "&6Trial of the Arcane: &fdefeat the skeleton casters and their guards. You have 30 minutes." }
+    objectives:
+      - { id: casters, displayName: "Defeat Skeleton Mages", type: kill, target: Skeleton_Mage, amount: 3 }
+      - { id: guards, displayName: "Defeat Skeleton Fighters", type: kill, target: Skeleton_Fighter, amount: 2 }
+      - { id: elite, displayName: "Optional: defeat a Skeleton Elite", type: kill, target: Skeleton_Elite, amount: 1, optional: true }
+    completeEvents:
+      - { type: sendMessage, message: "&aTrial of the Arcane complete." }
+
+  ranger:
+    displayName: "Trial of the Hunt"
+    description: >-
+      A Ranger reads the wild and strikes from afar. Hunt the black wolves and the skeleton archers
+      that prey on travellers.
+    category: trial
+    difficulty: "Level 10"
+    trial:
+      id: mysticrpg:trial/ranger
+      timeLimitSeconds: 1800
+      maxDeaths: 3
+      ranking: { parTimeSeconds: 600, timeWeight: 0.3, deathPenalty: 0.1, optionalWeight: 0.2 }
+    startEvents:
+      - { type: sendMessage, message: "&6Trial of the Hunt: &fhunt the wolves and the skeleton archers. You have 30 minutes." }
+    objectives:
+      - { id: wolves, displayName: "Hunt Black Wolves", type: kill, target: Wolf_Black, amount: 3 }
+      - { id: archers, displayName: "Defeat Skeleton Archers", type: kill, target: Skeleton_Archer, amount: 2 }
+      - { id: spiders, displayName: "Optional: clear 3 Spiders", type: kill, target: Spider, amount: 3, optional: true }
+    completeEvents:
+      - { type: sendMessage, message: "&aTrial of the Hunt complete." }
+
+  rogue:
+    displayName: "Trial of Shadows"
+    description: >-
+      A Rogue is quick, quiet and gone before anyone looks. Outpace the goblin thieves at their own
+      game; this trial is short and unforgiving.
+    category: trial
+    difficulty: "Level 10"
+    trial:
+      id: mysticrpg:trial/rogue
+      timeLimitSeconds: 900
+      maxDeaths: 1
+      ranking: { parTimeSeconds: 300, timeWeight: 0.4, deathPenalty: 0.2, optionalWeight: 0.2 }
+    startEvents:
+      - { type: sendMessage, message: "&6Trial of Shadows: &fdefeat the goblin thieves. You have 15 minutes and one life to spare." }
+    objectives:
+      - { id: thieves, displayName: "Defeat Goblin Thieves", type: kill, target: Goblin_Thief, amount: 4 }
+      - { id: scrappers, displayName: "Optional: defeat 3 Goblin Scrappers", type: kill, target: Goblin_Scrapper, amount: 3, optional: true }
+    completeEvents:
+      - { type: sendMessage, message: "&aTrial of Shadows complete." }
+
+  paladin:
+    displayName: "Trial of the Oath"
+    description: >-
+      A Paladin holds faith and shield against the dead. Purge the undead patrols without falling
+      more than twice.
+    category: trial
+    difficulty: "Level 10"
+    trial:
+      id: mysticrpg:trial/paladin
+      timeLimitSeconds: 1800
+      maxDeaths: 2
+      ranking: { parTimeSeconds: 600, timeWeight: 0.2, deathPenalty: 0.15, optionalWeight: 0.2 }
+    startEvents:
+      - { type: sendMessage, message: "&6Trial of the Oath: &fpurge the undead. You may fall twice; the third time fails the trial." }
+    objectives:
+      - { id: fighters, displayName: "Purge Skeleton Fighters", type: kill, target: Skeleton_Fighter, amount: 4 }
+      - { id: scouts, displayName: "Purge Skeleton Scouts", type: kill, target: Skeleton_Scout, amount: 2 }
+      - { id: elite, displayName: "Optional: defeat a Skeleton Elite", type: kill, target: Skeleton_Elite, amount: 1, optional: true }
+    completeEvents:
+      - { type: sendMessage, message: "&aTrial of the Oath complete." }
+
+  vanguard:
+    displayName: "Trial of the Wall"
+    description: >-
+      A Vanguard holds the line so others do not have to. Stand against a Trork raiding party and its
+      hunting wolves, and do not fall more than once.
+    category: trial
+    difficulty: "Level 10"
+    trial:
+      id: mysticrpg:trial/vanguard
+      timeLimitSeconds: 1800
+      maxDeaths: 1
+      ranking: { parTimeSeconds: 600, timeWeight: 0.2, deathPenalty: 0.25, optionalWeight: 0.2 }
+    startEvents:
+      - { type: sendMessage, message: "&6Trial of the Wall: &fhold against the Trork raiders. You may fall once." }
+    objectives:
+      - { id: brawlers, displayName: "Defeat Trork Brawlers", type: kill, target: Trork_Brawler, amount: 3 }
+      - { id: hunters, displayName: "Defeat Trork wolf riders", type: kill, target: Wolf_Trork_Hunter, amount: 2 }
+      - { id: warriors, displayName: "Optional: defeat 3 Trork Warriors", type: kill, target: Trork_Warrior, amount: 3, optional: true }
+    completeEvents:
+      - { type: sendMessage, message: "&aTrial of the Wall complete." }

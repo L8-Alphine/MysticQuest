@@ -33,7 +33,10 @@ public final class BundledPackages {
      * loader, so the files are named here.
      */
     private static final Map<String, List<String>> PACKAGES = Map.of(
-            "hytale_chapter_1", List.of("package.yml", "quests.yml", "README.md"));
+            "hytale_chapter_1", List.of("package.yml", "quests.yml", "README.md"),
+            // MysticRPG's six level-10 class advancement trials (ADR-012 point 5 in MysticRPG): the
+            // shared trial package, installed where MysticQuests loads packages.
+            "mysticrpg_trials", List.of("package.yml", "quests.yml", "README.md"));
 
     private BundledPackages() {
     }
