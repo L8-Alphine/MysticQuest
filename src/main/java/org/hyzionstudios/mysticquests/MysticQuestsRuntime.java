@@ -329,7 +329,7 @@ public final class MysticQuestsRuntime implements AutoCloseable {
      */
     private void startTrials() {
         this.trials = new QuestTrialService(
-                TrialQuests.of(questService, () -> content.get().quests(), notificationService),
+                TrialQuests.of(questService, content::get, notificationService),
                 dataDirectory.resolve(QuestTrialService.LEDGER_FILE), mapper, eventBus, java.time.Clock.systemUTC(),
                 message -> plugin.getLogger().at(Level.WARNING).log(message));
         this.trials.start();

@@ -102,7 +102,7 @@ final class QuestTrialServiceTest {
     }
 
     private QuestTrialService newService() {
-        return new QuestTrialService(TrialQuests.of(quests, () -> content.quests(), notifications),
+        return new QuestTrialService(TrialQuests.of(quests, () -> content, notifications),
                 root.resolve(QuestTrialService.LEDGER_FILE), MAPPER, bus, clock, warnings::add);
     }
 
@@ -169,6 +169,7 @@ final class QuestTrialServiceTest {
         TrialResult result = run.join();
         assertEquals(TrialStatus.COMPLETED, result.status());
         assertTrue(result.ranked());
+        assertEquals("1.0.0", result.packageVersion(), "the trial package's version, for evidence records");
         assertTrue(result.score() > 0.7d && result.score() <= 0.8d,
                 "no time over par, no deaths, optional objective missed: 1 - 0.2 = 0.8, got " + result.score());
         assertEquals(1, posted.size());

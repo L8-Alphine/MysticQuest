@@ -416,7 +416,9 @@ public final class QuestTrialService implements QuestTrials, AutoCloseable {
         Map<String, Double> metrics = new LinkedHashMap<>(extra);
         metrics.put("elapsedSeconds", (double) Math.max(0L, elapsed.toSeconds()));
         metrics.put("deaths", (double) run.deaths);
-        return new TrialResult(run.trialId, run.questId, run.player, run.completionId, status, score, ranked,
+        int colon = run.questId.indexOf(':');
+        String packageVersion = colon <= 0 ? "" : quests.packageVersion(run.questId.substring(0, colon));
+        return new TrialResult(run.trialId, run.questId, packageVersion, run.player, run.completionId, status, score, ranked,
                 elapsed, run.deaths, metrics, run.startedAt, at, reason);
     }
 

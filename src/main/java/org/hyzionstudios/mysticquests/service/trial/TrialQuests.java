@@ -1,5 +1,7 @@
 package org.hyzionstudios.mysticquests.service.trial;
 
+import org.hyzionstudios.mysticquests.content.LoadedContent;
+import org.hyzionstudios.mysticquests.content.PackageMetadata;
 import org.hyzionstudios.mysticquests.model.QuestDefinition;
 import org.hyzionstudios.mysticquests.service.PlayerQuestService;
 import org.hyzionstudios.mysticquests.service.QuestResult;
@@ -33,12 +35,21 @@ public interface TrialQuests {
 
     void message(UUID player, String text);
 
-    static TrialQuests of(PlayerQuestService service, Supplier<Map<String, QuestDefinition>> quests,
+    /** The {@code version} of a loaded package's {@code package.yml}; empty when it names none. */
+    String packageVersion(String packageId);
+
+    static TrialQuests of(PlayerQuestService service, Supplier<LoadedContent> content,
                           QuestNotificationService notifications) {
         return new TrialQuests() {
             @Override
             public Map<String, QuestDefinition> quests() {
-                return quests.get();
+                return content.get().quests();
+            }
+
+            @Override
+            public String packageVersion(String packageId) {
+                PackageMetadata metadata = content.get().packageMetadata().get(packageId);
+                return metadata == null || metadata.version() == null ? "" : metadata.version();
             }
 
             @Override

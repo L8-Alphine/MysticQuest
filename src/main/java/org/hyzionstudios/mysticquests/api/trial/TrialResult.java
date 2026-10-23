@@ -12,6 +12,8 @@ import java.util.UUID;
  *
  * @param trialId      the trial id the caller asked for, e.g. {@code mysticrpg:trial/warrior}
  * @param questId      the quest that implements it, {@code <package>:<quest>}
+ * @param packageVersion the {@code version} of that quest's package, for evidence records; empty when
+ *                     the package names none or the trial was refused
  * @param player       who ran it
  * @param completionId the run's completion id (the same one every {@code QuestLifecycleEvents} of
  *                     the run carries); null only for {@link TrialStatus#REFUSED}, where no run began
@@ -32,6 +34,7 @@ import java.util.UUID;
 public record TrialResult(
         String trialId,
         String questId,
+        String packageVersion,
         UUID player,
         @Nullable String completionId,
         TrialStatus status,
@@ -51,11 +54,12 @@ public record TrialResult(
         metrics = metrics == null ? Map.of() : Map.copyOf(metrics);
         reason = reason == null ? "" : reason;
         questId = questId == null ? "" : questId;
+        packageVersion = packageVersion == null ? "" : packageVersion;
     }
 
     /** A trial that could not start at all. */
     public static TrialResult refused(String trialId, UUID player, String reason) {
-        return new TrialResult(trialId, "", player, null, TrialStatus.REFUSED, 0.0d, false, Duration.ZERO, 0,
+        return new TrialResult(trialId, "", "", player, null, TrialStatus.REFUSED, 0.0d, false, Duration.ZERO, 0,
                 Map.of(), null, Instant.now(), reason);
     }
 

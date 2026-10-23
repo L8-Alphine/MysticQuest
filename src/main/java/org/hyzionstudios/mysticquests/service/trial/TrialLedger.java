@@ -38,18 +38,18 @@ final class TrialLedger {
     }
 
     /** The saved form of a {@link TrialResult}; Duration as milliseconds so the file stays readable. */
-    record SavedResult(String trialId, String questId, UUID player, String completionId, TrialStatus status,
+    record SavedResult(String trialId, String questId, String packageVersion, UUID player, String completionId, TrialStatus status,
                        double score, boolean ranked, long elapsedMillis, int deaths, Map<String, Double> metrics,
                        Instant startedAt, Instant resolvedAt, String reason) {
 
         static SavedResult of(TrialResult result) {
-            return new SavedResult(result.trialId(), result.questId(), result.player(), result.completionId(),
+            return new SavedResult(result.trialId(), result.questId(), result.packageVersion(), result.player(), result.completionId(),
                     result.status(), result.score(), result.ranked(), result.elapsed().toMillis(), result.deaths(),
                     result.metrics(), result.startedAt(), result.resolvedAt(), result.reason());
         }
 
         TrialResult toResult() {
-            return new TrialResult(trialId, questId, player, completionId, status, score, ranked,
+            return new TrialResult(trialId, questId, packageVersion, player, completionId, status, score, ranked,
                     Duration.ofMillis(elapsedMillis), deaths, metrics, startedAt, resolvedAt, reason);
         }
     }
