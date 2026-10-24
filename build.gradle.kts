@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "org.hyzionstudios"
-version = "2.2.0"
+version = "2.3.0"
 
 repositories {
     mavenCentral()
@@ -67,9 +67,16 @@ dependencies {
     implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.20.1")
     implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.20.1")
     implementation("org.xerial:sqlite-jdbc:3.51.1.0")
+    // R-1 (MysticRPG PO addendum 2026-10-24): the shared-SQL trial store for network servers
+    // (service/trial/network). MariaDB Connector/J serves MariaDB and MySQL, the PostgreSQL driver
+    // PostgreSQL; the same versions MysticRPG ships. Drivers stay unrelocated (loaded by class name).
+    // H2 is a supported dialect for development and the tests, but is not bundled.
+    implementation("org.mariadb.jdbc:mariadb-java-client:3.4.1")
+    implementation("org.postgresql:postgresql:42.7.4")
 
     testImplementation(platform("org.junit:junit-bom:6.1.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")
+    testImplementation("com.h2database:h2:2.3.232")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
     // compileOnly deps are not inherited by the test source set, so tests covering anything whose
