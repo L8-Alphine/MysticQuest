@@ -90,6 +90,19 @@ Cross-server trial continuation remains a **release gate for a network-enabled M
 owner Q9). It needs MysticQuests quest and trial state in shared SQL storage, keyed by the same
 completion ids; that is not built.
 
+Status in 2.2.0 (24 Oct 2026, MysticRPG Wave D): still not built. MysticQuests' storage layer is a
+per-server `JsonQuestStorage` or local SQLite file; there is no connection pool, no network schema and
+no cross-server lock, so trial runs cannot be continued on another server without a new shared-SQL
+storage backend for quest progress, the trial ledger (`data/trials.json`) and the scoped state store.
+That is its own work item (a storage backend plus migration and fencing), not an API change. Until it
+exists `networkBacked()` stays false and MysticRPG keeps refusing transfers during a trial.
+
+## RPG requirements in quests (2.2)
+
+The other direction (MysticRPG U-011, U-128): MysticRPG registers a `QuestRequirementProvider` under
+`mysticrpg`, so quest content can gate on character level, class, class stage, Paragon and
+profession through the `requirement` condition. See the API guide and the content format.
+
 ## Threading
 
 Lifecycle events and `TrialResolved` are posted on the thread that changed the quest, usually the

@@ -132,6 +132,19 @@ load, because it would otherwise evaluate to a constant.
 `permission` checks the player's server permission node and **denies while the player is offline**,
 so a gate never opens just because its holder logged off.
 
+`requirement` (2.2) asks a typed requirement provider another mod registered (see the API guide):
+
+```yaml
+startConditions:
+  - { type: requirement, provider: mysticrpg, check: level, min: 10 }
+  - { type: "mysticrpg:class", class: "mysticrpg:warrior" }   # shorthand: namespace:check
+```
+
+With MysticRPG installed the `mysticrpg` checks are `level` (`min`, `max`), `class` (`class`, a
+comma-separated list of class ids), `stage` (`min`, `max`: the class stage), `paragon` (`min`: Paragon
+level; `ascended: true` alone requires Paragon) and `profession` (`profession`, `min`). The condition
+denies whenever the provider cannot answer (not installed, profile not loaded, unknown check).
+
 ## Branching and Grouped Events
 
 `folder` runs a nested `events` list. `if` evaluates `conditions` and runs either `then` or `else`.

@@ -129,6 +129,33 @@ Handlers run synchronously on the thread that fired the action, usually the worl
 keep them cheap. A handler that throws is logged and skipped — an event list keeps running, and a
 condition denies rather than passing.
 
+## Typed requirement providers (2.2)
+
+Another mod can answer typed requirements that quests gate on, without writing a condition handler
+per check. MysticRPG registers one under the namespace `mysticrpg` (character `level`, `class`, class
+`stage`, `paragon` and `profession` checks):
+
+```java
+AutoCloseable handle = MysticQuestsApi.get().requirements().register(new QuestRequirementProvider() {
+    public String namespace() { return "mymod"; }
+    public boolean available() { return true; }
+    public Set<String> checks() { return Set.of("rank"); }
+    public QuestRequirementResult evaluate(QuestRequirementRequest request) {
+        long min = request.number("min", 1);
+        return rankOf(request.playerId()) >= min ? QuestRequirementResult.met("") : QuestRequirementResult.unmet("");
+    }
+});
+// on shutdown: handle.close();
+```
+
+Content uses the built-in `requirement` condition or the `<namespace>:<check>` shorthand (see the
+content format). The provider receives every authored field except `type`, `provider` and `check`
+as text (arrays joined with commas). One provider per namespace; a second registration is refused.
+
+**Fail closed:** no provider for the namespace, `available()` false, an unknown check, an
+`UNVERIFIABLE` answer or a provider that throws all deny the condition. `MysticQuestsApi.API_VERSION`
+is 3 from 2.2.0.
+
 ## Registering narrative action and condition types
 
 The 2.0 narrative runtime (puzzle outputs, narrative transitions, condition trees) has its own,
