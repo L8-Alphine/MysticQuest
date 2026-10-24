@@ -1,0 +1,20 @@
+enabled: true
+version: 0.1.0
+# MysticRPG Paragon trials: the era challenges of eras 2-5 (MysticRPG PO addendum 2026-10-24, P-47,
+# U-073) and the short recovery trial for a dormant Paragon (P-48, U-077). MysticRPG starts them through
+# MysticQuestsApi.trials(); players cannot take them from the board.
+#
+# PROVISIONAL CONTENT, PO SIGN-OFF PENDING. The product owner approved the direction (MysticQuests owns
+# these trials, content owner: the MysticQuests team, Lewai coordinates) but not the content: every
+# objective, count, time and death limit below is an engineering draft. Each quest says
+# `trial.signOff: PENDING`; a release gate refuses to treat this package as signed until the product owner
+# approves it and the value becomes APPROVED.
+#
+# Written into packages/ the first time MysticQuests 2.3 starts; edit freely, MysticQuests never
+# overwrites it. Keep every `trial.id` exactly as MysticRPG asks for it (mysticrpg:paragon_era_<n>,
+# mysticrpg:paragon_recovery_trial). See README.md.
+#
+# Vanilla NPC roles used here, all verified in Hytale 0.7.3 gamedata (Server/NPC/Roles):
+#   Trork_Chieftain, Outlander_Brute, Outlander_Berserker, Outlander_Marauder, Zombie_Aberrant,
+#   Zombie_Aberrant_Big, Skeleton_Burnt_Knight, Skeleton_Burnt_Praetorian, Skeleton_Burnt_Wizard,
+#   Skeleton_Frost_Knight, Skeleton_Archmage, Risen_Knight, Skeleton_Knight

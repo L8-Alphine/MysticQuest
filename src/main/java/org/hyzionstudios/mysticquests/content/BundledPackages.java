@@ -36,7 +36,10 @@ public final class BundledPackages {
             "hytale_chapter_1", List.of("package.yml", "quests.yml", "README.md"),
             // MysticRPG's six level-10 class advancement trials (ADR-012 point 5 in MysticRPG): the
             // shared trial package, installed where MysticQuests loads packages.
-            "mysticrpg_trials", List.of("package.yml", "quests.yml", "README.md"));
+            "mysticrpg_trials", List.of("package.yml", "quests.yml", "README.md"),
+            // MysticRPG's Paragon era challenges (eras 2-5) and recovery trial, provisional content
+            // pending the product owner's sign-off (MysticRPG PO addendum P-47, P-48).
+            "mysticrpg_paragon_trials", List.of("package.yml", "quests.yml", "README.md"));
 
     private BundledPackages() {
     }

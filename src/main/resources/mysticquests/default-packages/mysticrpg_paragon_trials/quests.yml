@@ -1,0 +1,127 @@
+# MysticRPG Paragon trials (P-47 era challenges, P-48 recovery trial).
+#
+# PROVISIONAL CONTENT, PO SIGN-OFF PENDING (trial.signOff: PENDING on every quest). Engineering drafts:
+# the objectives, counts, time and death limits are placeholders until the product owner signs them.
+#
+# Evidence MysticRPG consumes (X7): a COMPLETED run's completion receipt (MysticQuestsApi.trials()
+# .receipt(completionId): trialId, playerId, realmId, questVersion = this package's version, evidenceId,
+# causal revision, receipt digest). With the shared-SQL trial store (trials.network) the receipt is
+# network-backed and a run continues across the servers of one realm. Missing evidence: no era unlock,
+# no recovery.
+#
+# Start conditions are MysticRPG requirements (provider mysticrpg): they deny whenever MysticRPG cannot
+# answer (fail closed). Era thresholds are the approved era floors (U-073: 100 / 1,000 / 3,000 / 6,000).
+# Rewards are left to MysticRPG (the era reward, the recovery): a trial can be retried, so a quest reward
+# here would be farmable.
+
+quests:
+  paragon_era_2:
+    displayName: "Trial of Ascendancy"
+    description: >-
+      PROVISIONAL. The first era beyond Ascension: prove the new power is yours to hold. Break a Trork
+      war camp and bring down its Chieftain.
+    category: trial
+    difficulty: "Paragon 100"
+    startConditions:
+      - { type: requirement, provider: mysticrpg, check: paragon, min: 100 }
+    trial:
+      id: mysticrpg:paragon_era_2
+      timeLimitSeconds: 2700
+      maxDeaths: 3
+      signOff: PENDING
+    startEvents:
+      - { type: sendMessage, message: "&6Trial of Ascendancy: &fbreak the Trork war camp and its Chieftain. You have 45 minutes." }
+    objectives:
+      - { id: brutes, displayName: "Defeat Outlander Brutes", type: kill, target: Outlander_Brute, amount: 4 }
+      - { id: chieftain, displayName: "Defeat a Trork Chieftain", type: kill, target: Trork_Chieftain, amount: 1 }
+    completeEvents:
+      - { type: sendMessage, message: "&aTrial of Ascendancy complete. Claim the era reward in MysticRPG." }
+
+  paragon_era_3:
+    displayName: "Trial of Exaltation"
+    description: >-
+      PROVISIONAL. Stand where legends stood: cut through a burnt legion and its praetorians.
+    category: trial
+    difficulty: "Paragon 1,000"
+    startConditions:
+      - { type: requirement, provider: mysticrpg, check: paragon, min: 1000 }
+    trial:
+      id: mysticrpg:paragon_era_3
+      timeLimitSeconds: 2700
+      maxDeaths: 3
+      signOff: PENDING
+    startEvents:
+      - { type: sendMessage, message: "&6Trial of Exaltation: &fcut through the burnt legion. You have 45 minutes." }
+    objectives:
+      - { id: knights, displayName: "Defeat Burnt Knights", type: kill, target: Skeleton_Burnt_Knight, amount: 4 }
+      - { id: wizards, displayName: "Defeat Burnt Wizards", type: kill, target: Skeleton_Burnt_Wizard, amount: 2 }
+      - { id: praetorian, displayName: "Defeat a Burnt Praetorian", type: kill, target: Skeleton_Burnt_Praetorian, amount: 1 }
+    completeEvents:
+      - { type: sendMessage, message: "&aTrial of Exaltation complete. Claim the era reward in MysticRPG." }
+
+  paragon_era_4:
+    displayName: "Trial of Transcendence"
+    description: >-
+      PROVISIONAL. Walk the edge of the world: hunt the frost-bound knights and the archmage who leads them.
+    category: trial
+    difficulty: "Paragon 3,000"
+    startConditions:
+      - { type: requirement, provider: mysticrpg, check: paragon, min: 3000 }
+    trial:
+      id: mysticrpg:paragon_era_4
+      timeLimitSeconds: 3600
+      maxDeaths: 2
+      signOff: PENDING
+    startEvents:
+      - { type: sendMessage, message: "&6Trial of Transcendence: &fhunt the frost knights and their archmage. You have 60 minutes." }
+    objectives:
+      - { id: frost, displayName: "Defeat Frost Knights", type: kill, target: Skeleton_Frost_Knight, amount: 4 }
+      - { id: archmage, displayName: "Defeat a Skeleton Archmage", type: kill, target: Skeleton_Archmage, amount: 1 }
+      - { id: aberrant, displayName: "Defeat a great Aberrant", type: kill, target: Zombie_Aberrant_Big, amount: 1 }
+    completeEvents:
+      - { type: sendMessage, message: "&aTrial of Transcendence complete. Claim the era reward in MysticRPG." }
+
+  paragon_era_5:
+    displayName: "Trial of Apotheosis"
+    description: >-
+      PROVISIONAL. The last trial before the summit: the risen knights, the berserkers and the Chieftain
+      in one hour, with almost no room for failure.
+    category: trial
+    difficulty: "Paragon 6,000"
+    startConditions:
+      - { type: requirement, provider: mysticrpg, check: paragon, min: 6000 }
+    trial:
+      id: mysticrpg:paragon_era_5
+      timeLimitSeconds: 3600
+      maxDeaths: 1
+      signOff: PENDING
+    startEvents:
+      - { type: sendMessage, message: "&6Trial of Apotheosis: &fthe last trial before the summit. You have 60 minutes and may fall once." }
+    objectives:
+      - { id: risen, displayName: "Defeat Risen Knights", type: kill, target: Risen_Knight, amount: 3 }
+      - { id: berserkers, displayName: "Defeat Outlander Berserkers", type: kill, target: Outlander_Berserker, amount: 3 }
+      - { id: chieftain, displayName: "Defeat a Trork Chieftain", type: kill, target: Trork_Chieftain, amount: 1 }
+    completeEvents:
+      - { type: sendMessage, message: "&aTrial of Apotheosis complete. Claim the era reward in MysticRPG." }
+
+  paragon_recovery_trial:
+    displayName: "Trial of Rekindling"
+    description: >-
+      PROVISIONAL. A short trial for a dormant Paragon (U-077): prove you still hold the power and
+      MysticRPG wakes it again. Optional; MysticRPG keeps it off until the server enables it.
+    category: trial
+    difficulty: "Dormant Paragon"
+    startConditions:
+      - { type: requirement, provider: mysticrpg, check: paragonDormant }
+    trial:
+      id: mysticrpg:paragon_recovery_trial
+      timeLimitSeconds: 900
+      maxDeaths: 2
+      signOff: PENDING
+    startEvents:
+      - { type: sendMessage, message: "&6Trial of Rekindling: &fdefeat the knights and marauders. You have 15 minutes." }
+    objectives:
+      - { id: knights, displayName: "Defeat Skeleton Knights", type: kill, target: Skeleton_Knight, amount: 3 }
+      - { id: marauders, displayName: "Defeat Outlander Marauders", type: kill, target: Outlander_Marauder, amount: 2 }
+    completeEvents:
+      - { type: sendMessage, message: "&aTrial of Rekindling complete. MysticRPG wakes your Paragon once it verifies the evidence." }
