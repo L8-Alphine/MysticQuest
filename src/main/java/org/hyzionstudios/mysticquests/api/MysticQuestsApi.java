@@ -62,9 +62,11 @@ public final class MysticQuestsApi {
      * lifecycle events ({@code QuestLifecycleEvents}), {@link #questStatus}, {@link #hasCompletedQuest}
      * and {@link #hasQuestTag}. 3: MysticQuests 2.2.0 added {@link #requirements()} (typed requirement
      * providers, e.g. MysticRPG level, class, stage, Paragon and profession) and the {@code requirement}
-     * condition.
+     * condition. 4: MysticQuests 2.3.0 added {@link #objectives()} (objective tracking for another mod's
+     * HUD, MysticRPG P-62) and trial contract version 2 (shared-SQL trial store and completion receipts,
+     * MysticRPG R-1).
      */
-    public static final int API_VERSION = 3;
+    public static final int API_VERSION = 4;
 
     private static volatile MysticQuestsApi instance;
 
@@ -79,6 +81,8 @@ public final class MysticQuestsApi {
     private final NarrativeRuntime narrative;
     @Nullable
     private final QuestTrials trials;
+    @Nullable
+    private final org.hyzionstudios.mysticquests.api.objective.QuestObjectives objectives;
 
     public MysticQuestsApi(
             MysticStateStore state,
@@ -104,7 +108,23 @@ public final class MysticQuestsApi {
             MysticQuestsEventBus eventBus,
             NarrativeRuntime narrative,
             @Nullable QuestTrials trials) {
+        this(state, entityIndex, visibility, targeting, packets, quests, registry, eventBus, narrative, trials, null);
+    }
+
+    public MysticQuestsApi(
+            MysticStateStore state,
+            EntityIndexService entityIndex,
+            VisibilityService visibility,
+            TargetingPreventionService targeting,
+            QuestPacketService packets,
+            PlayerQuestService quests,
+            MysticQuestsRegistry registry,
+            MysticQuestsEventBus eventBus,
+            NarrativeRuntime narrative,
+            @Nullable QuestTrials trials,
+            @Nullable org.hyzionstudios.mysticquests.api.objective.QuestObjectives objectives) {
         this.trials = trials;
+        this.objectives = objectives;
         this.state = state;
         this.entityIndex = entityIndex;
         this.visibility = visibility;
@@ -419,6 +439,19 @@ public final class MysticQuestsApi {
             throw new IllegalStateException("MysticQuests trials are not available");
         }
         return trials;
+    }
+
+    /**
+     * Objective tracking for another mod's HUD (MysticRPG P-62): the tracked quest as plain data,
+     * track/untrack, change events and the tracker claim. Since API version 4.
+     *
+     * @throws IllegalStateException when this runtime was built without it
+     */
+    public org.hyzionstudios.mysticquests.api.objective.QuestObjectives objectives() {
+        if (objectives == null) {
+            throw new IllegalStateException("MysticQuests objective tracking is not available");
+        }
+        return objectives;
     }
 
     /** Resolves MysticQuests percent-placeholders in text, as authored content would see them. */

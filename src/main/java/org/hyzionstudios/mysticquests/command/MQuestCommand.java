@@ -143,6 +143,7 @@ public final class MQuestCommand extends AbstractCommand {
                 yield CompletableFuture.completedFuture(null);
             }
             case "integrations" -> completed(integrations(context));
+            case "trials" -> completed(trials(context));
             default -> completed(sendHelp(context));
         };
         runtime.plugin().getTaskRegistry().registerTask(future);
@@ -170,7 +171,7 @@ public final class MQuestCommand extends AbstractCommand {
 
     private boolean isSubcommand(String value) {
         return switch (value.toLowerCase()) {
-            case "reload", "admin", "editor", "studio", "start", "complete", "progress", "journal", "menu", "quest", "quests", "track", "untrack", "hud", "abandon", "reaccept", "cancel", "entity", "state", "block", "volume", "hycitizens", "debug", "narrative", "visibility", "integrations", "player" -> true;
+            case "reload", "admin", "editor", "studio", "start", "complete", "progress", "journal", "menu", "quest", "quests", "track", "untrack", "hud", "abandon", "reaccept", "cancel", "entity", "state", "block", "volume", "hycitizens", "debug", "narrative", "visibility", "integrations", "player", "trials" -> true;
             default -> false;
         };
     }
@@ -298,6 +299,37 @@ public final class MQuestCommand extends AbstractCommand {
         visibilityRoute.addSubCommand(visibilityStatus);
         addSubCommand(visibilityRoute);
         addSubCommand(route("integrations"));
+        addSubCommand(route("trials"));
+    }
+
+    /**
+     * R-1 diagnostics (MysticRPG PO addendum 2026-10-24): where trial state lives, the shared trial store's
+     * health, realm, members and schema, and why a transfer during a trial would be held. Read-only.
+     */
+    private Void trials(CommandContext context) {
+        if (!requireAdmin(context, "mysticquests.command.admin.debug")) {
+            return null;
+        }
+        if (runtime.trials() == null) {
+            send(context, "Trials are not running.", ORANGE);
+            return null;
+        }
+        org.hyzionstudios.mysticquests.api.trial.TrialNetworkStatus status = runtime.trials().networkStatus();
+        send(context, "Trial store: " + (status.networkBacked() ? "shared SQL (" + status.dialect() + "), healthy"
+                : status.enabled() ? "shared SQL configured, NOT in use" : "this server only (data/trials.json)"),
+                status.networkBacked() ? GREEN : ORANGE);
+        send(context, "Realm " + (status.realmId().isEmpty() ? "-" : status.realmId()) + ", server "
+                + (status.serverId().isEmpty() ? "-" : status.serverId()) + ", schema version " + status.schemaVersion()
+                + ", contract v" + org.hyzionstudios.mysticquests.api.trial.QuestTrials.API_VERSION, MUTED);
+        send(context, "Live members: " + (status.peers().isEmpty() ? "none" : String.join(", ", status.peers()))
+                + "; runs here: " + status.activeRuns() + "; results waiting for the store: " + status.pendingResults(),
+                MUTED);
+        send(context, "Capabilities: " + (status.capabilities().isEmpty() ? "none" : String.join(", ", status.capabilities())),
+                MUTED);
+        for (String problem : status.problems()) {
+            send(context, "Problem: " + problem, ORANGE);
+        }
+        return null;
     }
 
     /** Capability status of every optional integration, and what degrades without it. */

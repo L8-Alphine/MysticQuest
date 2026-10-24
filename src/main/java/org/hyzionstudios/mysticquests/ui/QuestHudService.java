@@ -191,7 +191,9 @@ public final class QuestHudService {
             }
             PuzzleCard card = puzzleCardEnabled ? puzzleCards.get(playerId) : null;
             QuestHudCoordinator.Placement placement = coordinator.resolve(playerId, model, card != null);
-            applyTracker(playerRef, player, placement.tracker() ? model.withDisplayMode(placement.mode()) : null);
+            // P-62: another mod (MysticRPG) draws the tracker; this panel steps aside, the puzzle card stays.
+            boolean claimed = trackerClaimed.getAsBoolean();
+            applyTracker(playerRef, player, placement.tracker() && !claimed ? model.withDisplayMode(placement.mode()) : null);
             applyPuzzleCard(playerRef, player, placement.puzzle() ? card.state() : null);
         } catch (RuntimeException exception) {
             logger.at(Level.WARNING).withCause(exception).log("Failed to reconcile MysticQuests HUD for " + playerId + ".");
@@ -241,6 +243,14 @@ public final class QuestHudService {
             return;
         }
         player.getHudManager().addCustomHud(playerRef, new QuestPuzzleHud(playerRef, state));
+    }
+
+    /** Whether another mod draws the quest tracker instead (P-62); never by default. */
+    private volatile java.util.function.BooleanSupplier trackerClaimed = () -> false;
+
+    /** Binds the tracker claim of {@code QuestObjectives#claimTracker}. */
+    public void bindTrackerClaim(java.util.function.BooleanSupplier claimed) {
+        this.trackerClaimed = claimed == null ? () -> false : claimed;
     }
 
     /** Where tracker preferences are saved; bound once the story-state store exists. */

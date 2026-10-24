@@ -18,7 +18,8 @@ public record MysticQuestsConfig(
         NarrativeConfig narrative,
         StudioConfig studio,
         ExternalQuestsConfig externalQuests,
-        DialogueConfig dialogue) {
+        DialogueConfig dialogue,
+        TrialsConfig trials) {
     public static MysticQuestsConfig defaults() {
         return new MysticQuestsConfig(
                 new StorageConfig("sqlite", "data/players", "data/mysticquests.db"),
@@ -30,7 +31,8 @@ public record MysticQuestsConfig(
                 NarrativeConfig.DEFAULTS,
                 StudioConfig.DEFAULTS,
                 ExternalQuestsConfig.DEFAULTS,
-                DialogueConfig.DEFAULTS);
+                DialogueConfig.DEFAULTS,
+                TrialsConfig.DEFAULTS);
     }
 
     public static MysticQuestsConfig load(Path dataDirectory, ObjectMapper mapper) throws IOException {
@@ -57,7 +59,133 @@ public record MysticQuestsConfig(
                 narrative == null ? defaults.narrative : narrative.withDefaults(),
                 studio == null ? defaults.studio : studio.withDefaults(),
                 externalQuests == null ? defaults.externalQuests : externalQuests.withDefaults(),
-                dialogue == null ? defaults.dialogue : dialogue.withDefaults());
+                dialogue == null ? defaults.dialogue : dialogue.withDefaults(),
+                trials == null ? defaults.trials : trials.withDefaults());
+    }
+
+    /**
+     * Trials other mods start (MysticRPG class, era and recovery trials).
+     *
+     * @param network the shared-SQL trial store (MysticRPG PO addendum 2026-10-24, R-1)
+     */
+    public record TrialsConfig(NetworkTrialsConfig network) {
+        static final TrialsConfig DEFAULTS = new TrialsConfig(NetworkTrialsConfig.DEFAULTS);
+
+        TrialsConfig withDefaults() {
+            return new TrialsConfig(network == null ? NetworkTrialsConfig.DEFAULTS : network.withDefaults());
+        }
+    }
+
+    /**
+     * Shared-SQL trial persistence for a network of servers (R-1, docs/integrations/network-trials.md).
+     * Off by default: a standalone server keeps trials in {@code data/trials.json} and other mods refuse
+     * to transfer a player during a trial. On, every server of one realm points at the same database and
+     * a trial run follows its player across servers (one server runs it at a time, fenced by a lease and
+     * a revision).
+     *
+     * @param enabled          use the shared store; when it cannot be reached at start the trial service
+     *                         stays local and reports why ({@code /mq trials network})
+     * @param jdbcUrl          {@code jdbc:mariadb:}, {@code jdbc:mysql:}, {@code jdbc:postgresql:} or
+     *                         {@code jdbc:h2:} (H2 for development; its driver is not bundled)
+     * @param username         database user
+     * @param passwordEnv      environment variable holding the password (preferred)
+     * @param password         the password itself when no environment variable is set
+     * @param realmId          the realm this server belongs to, {@code namespace:name}; must equal
+     *                         MysticRPG's realm id. Trials never cross realms
+     * @param serverId         this server's id in the network; must equal MysticRPG's server id
+     * @param tablePrefix      prefix of the store's tables: a letter, then letters, digits or underscores
+     * @param leaseSeconds     how long a server's claim on a run lasts without renewal (10-300)
+     * @param handoffSeconds   how long a run waits for its player on another server after they leave
+     *                         (15-1800); past it the run is abandoned
+     * @param peerStaleSeconds a server whose heartbeat is older than this is not a valid transfer target
+     *                         (15-600)
+     * @param migration        {@code apply} (create or upgrade the schema at start) or {@code dry-run}
+     *                         (log the statements, apply nothing and stay local)
+     */
+    public record NetworkTrialsConfig(
+            Boolean enabled,
+            String jdbcUrl,
+            String username,
+            String passwordEnv,
+            String password,
+            String realmId,
+            String serverId,
+            String tablePrefix,
+            Integer leaseSeconds,
+            Integer handoffSeconds,
+            Integer peerStaleSeconds,
+            String migration) {
+        public static final NetworkTrialsConfig DEFAULTS = new NetworkTrialsConfig(false, "", "", "", "", "", "",
+                "mq_", 30, 120, 45, "apply");
+
+        public NetworkTrialsConfig withDefaults() {
+            return new NetworkTrialsConfig(
+                    enabled != null && enabled,
+                    jdbcUrl == null ? "" : jdbcUrl.strip(),
+                    username == null ? "" : username.strip(),
+                    passwordEnv == null ? "" : passwordEnv.strip(),
+                    password == null ? "" : password,
+                    realmId == null ? "" : realmId.strip(),
+                    serverId == null ? "" : serverId.strip(),
+                    tablePrefix == null || tablePrefix.isBlank() ? DEFAULTS.tablePrefix : tablePrefix.strip(),
+                    leaseSeconds == null ? DEFAULTS.leaseSeconds : leaseSeconds,
+                    handoffSeconds == null ? DEFAULTS.handoffSeconds : handoffSeconds,
+                    peerStaleSeconds == null ? DEFAULTS.peerStaleSeconds : peerStaleSeconds,
+                    migration == null || migration.isBlank() ? DEFAULTS.migration
+                            : migration.strip().toLowerCase(java.util.Locale.ROOT));
+        }
+
+        public boolean on() {
+            return enabled != null && enabled;
+        }
+
+        /** Every problem with these settings when enabled; empty when usable. Nothing is clamped. */
+        public List<String> problems() {
+            List<String> problems = new java.util.ArrayList<>();
+            if (!on()) {
+                return problems;
+            }
+            String url = jdbcUrl == null ? "" : jdbcUrl;
+            if (!(url.startsWith("jdbc:mariadb:") || url.startsWith("jdbc:mysql:")
+                    || url.startsWith("jdbc:postgresql:") || url.startsWith("jdbc:h2:"))) {
+                problems.add("trials.network.jdbcUrl must start with jdbc:mariadb:, jdbc:mysql:, jdbc:postgresql: or jdbc:h2:");
+            }
+            if (realmId == null || realmId.length() > 64
+                    || !realmId.matches("[a-z0-9][a-z0-9._-]*:[a-z0-9][a-z0-9._-]*")) {
+                problems.add("trials.network.realmId must be a namespace:name realm id (lower case, at most 64 "
+                        + "characters), the same as MysticRPG's");
+            }
+            if (serverId == null || serverId.isBlank() || serverId.length() > 64) {
+                problems.add("trials.network.serverId must be set (at most 64 characters), the same as MysticRPG's server id");
+            }
+            if (tablePrefix == null || !tablePrefix.matches("[A-Za-z][A-Za-z0-9_]{0,15}")) {
+                problems.add("trials.network.tablePrefix must be a letter then up to 15 letters, digits or underscores");
+            }
+            if (leaseSeconds == null || leaseSeconds < 10 || leaseSeconds > 300) {
+                problems.add("trials.network.leaseSeconds must be from 10 to 300");
+            }
+            if (handoffSeconds == null || handoffSeconds < 15 || handoffSeconds > 1800) {
+                problems.add("trials.network.handoffSeconds must be from 15 to 1800");
+            }
+            if (peerStaleSeconds == null || peerStaleSeconds < 15 || peerStaleSeconds > 600) {
+                problems.add("trials.network.peerStaleSeconds must be from 15 to 600");
+            }
+            if (!"apply".equals(migration) && !"dry-run".equals(migration)) {
+                problems.add("trials.network.migration must be apply or dry-run");
+            }
+            return problems;
+        }
+
+        /** The password: the environment variable when named and set, else {@link #password}. */
+        public String resolvePassword() {
+            if (passwordEnv != null && !passwordEnv.isBlank()) {
+                String fromEnv = System.getenv(passwordEnv);
+                if (fromEnv != null) {
+                    return fromEnv;
+                }
+            }
+            return password == null ? "" : password;
+        }
     }
 
     /**

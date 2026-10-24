@@ -38,6 +38,11 @@ public final class QuestDefinition {
     private String lockedText;
     /** Set when another mod can start this quest as a trial; see {@link TrialDefinition}. */
     private TrialDefinition trial;
+    /**
+     * Never exposed to other mods' objective trackers (MysticRPG P-62 hidden-quest protection): a
+     * hidden class awakening, a secret. MysticQuests' own Journal still shows it to its player.
+     */
+    private Boolean hidden;
 
     public String id() {
         return id;
@@ -84,6 +89,11 @@ public final class QuestDefinition {
     /** The trial this quest implements, or null when it is an ordinary quest. */
     public TrialDefinition trial() {
         return trial;
+    }
+
+    /** Whether other mods' objective trackers must never see this quest. */
+    public boolean hidden() {
+        return hidden != null && hidden;
     }
 
     public void setTrial(TrialDefinition trial) {

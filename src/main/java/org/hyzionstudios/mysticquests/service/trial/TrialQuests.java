@@ -38,6 +38,26 @@ public interface TrialQuests {
     /** The {@code version} of a loaded package's {@code package.yml}; empty when it names none. */
     String packageVersion(String packageId);
 
+    /**
+     * A copy of an active quest's progress for the shared trial store (R-1 handoff): when it started,
+     * objective progress and quest variables. Empty when the quest is not active.
+     */
+    default Optional<PlayerQuestService.QuestSnapshot> snapshot(UUID player, String questId) {
+        return Optional.empty();
+    }
+
+    /**
+     * Makes a quest active again exactly as another server left it (R-1 continuation): no start
+     * events, no lifecycle event, the same start time and so the same completion id.
+     */
+    default QuestResult restore(UUID player, String questId, PlayerQuestService.QuestSnapshot snapshot) {
+        return QuestResult.failure("restoring trial progress is not supported here");
+    }
+
+    /** Drops an active quest without abandoning it (the run continues on another server). */
+    default void detach(UUID player, String questId) {
+    }
+
     static TrialQuests of(PlayerQuestService service, Supplier<LoadedContent> content,
                           QuestNotificationService notifications) {
         return new TrialQuests() {
@@ -77,6 +97,21 @@ public interface TrialQuests {
             @Override
             public Optional<Instant> activeSince(UUID player, String questId) {
                 return service.activeSince(player, questId);
+            }
+
+            @Override
+            public Optional<PlayerQuestService.QuestSnapshot> snapshot(UUID player, String questId) {
+                return service.snapshotQuest(player, questId);
+            }
+
+            @Override
+            public QuestResult restore(UUID player, String questId, PlayerQuestService.QuestSnapshot snapshot) {
+                return service.restoreTrialQuest(player, questId, snapshot);
+            }
+
+            @Override
+            public void detach(UUID player, String questId) {
+                service.detachTrialQuest(player, questId);
             }
 
             @Override

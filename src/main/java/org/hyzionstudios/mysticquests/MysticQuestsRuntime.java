@@ -60,6 +60,7 @@ import org.hyzionstudios.mysticquests.service.StoryWorld;
 import org.hyzionstudios.mysticquests.storage.JsonQuestStorage;
 import org.hyzionstudios.mysticquests.storage.QuestStorage;
 import org.hyzionstudios.mysticquests.storage.SqliteQuestStorage;
+import org.hyzionstudios.mysticquests.service.ObjectiveTrackingService;
 import org.hyzionstudios.mysticquests.service.trial.QuestTrialService;
 import org.hyzionstudios.mysticquests.service.trial.TrialQuests;
 import org.hyzionstudios.mysticquests.ui.CutsceneHudBridge;
@@ -138,6 +139,12 @@ public final class MysticQuestsRuntime implements AutoCloseable {
     private QuestTrialService trials;
     /** Fails trials past their time limit; one daemon thread. */
     private java.util.concurrent.ScheduledExecutorService trialClock;
+    /** Objective tracking for other mods' HUDs (P-62); null until started. */
+    private org.hyzionstudios.mysticquests.service.ObjectiveTrackingService objectives;
+    /** The shared trial store's thread (R-1); null on a standalone server. */
+    private java.util.concurrent.ScheduledExecutorService trialStoreThread;
+    /** The shared trial store (R-1); null on a standalone server. */
+    private org.hyzionstudios.mysticquests.service.trial.network.SqlTrialStore trialStore;
     private final WorldEventTracker worldEvents;
     private HytaleStoryActions storyActions;
     /** The boss roles the loaded content watches, recomputed when the content changes. */
@@ -241,6 +248,11 @@ public final class MysticQuestsRuntime implements AutoCloseable {
                     config.ui().hudJoinDelayMillis(),
                     plugin.getLogger());
             this.questService.addChangeListener(hudService::reconcile);
+            // P-62 (MysticRPG PO addendum): objective tracking for another mod's HUD. While a mod claims
+            // the tracker, MysticQuests' own tracker panel steps aside (one owner per HUD element).
+            this.objectives = new ObjectiveTrackingService(questService, eventBus);
+            this.hudService.bindTrackerClaim(objectives::trackerClaimed);
+            this.objectives.onClaimsChanged(() -> hudService.reconcileAll());
             // Quests other mods run, mirrored into the HUD and Journal. Attached before the first
             // content load, so packs can use the condition and event types it registers.
             this.externalQuests = new ExternalQuestService(config.externalQuests(), config.ui().questHud(),
@@ -311,7 +323,7 @@ public final class MysticQuestsRuntime implements AutoCloseable {
             // Published last: other mods must never see a half-built API.
             MysticQuestsApi.install(new MysticQuestsApi(
                     stateStore, entityIndex, visibility, targeting, packetService, questService, registry, eventBus,
-                    narrative.runtime(), trials));
+                    narrative.runtime(), trials, objectives));
             // After the API: the web portal reads quests through the same services other mods do.
             this.identityPortal = MysticIdentityPortal.start(portalSource(), plugin.getLogger()).orElse(null);
             // Last: a Studio publish reloads content, so everything a reload touches must exist.
@@ -329,17 +341,95 @@ public final class MysticQuestsRuntime implements AutoCloseable {
      * it abandons runs a crashed server left behind, which needs their quests.
      */
     private void startTrials() {
+        org.hyzionstudios.mysticquests.service.trial.TrialNetworking networking = trialNetworking();
         this.trials = new QuestTrialService(
                 TrialQuests.of(questService, content::get, notificationService),
                 dataDirectory.resolve(QuestTrialService.LEDGER_FILE), mapper, eventBus, java.time.Clock.systemUTC(),
-                message -> plugin.getLogger().at(Level.WARNING).log(message));
+                message -> plugin.getLogger().at(Level.WARNING).log(message), networking);
         this.trials.start();
+        if (networking.networked()) {
+            long period = Math.max(3L, config.trials().network().leaseSeconds() / 3L);
+            QuestTrialService service = this.trials;
+            trialStoreThread.scheduleWithFixedDelay(() -> {
+                try {
+                    service.heartbeat();
+                } catch (RuntimeException failure) {
+                    plugin.getLogger().at(Level.WARNING).withCause(failure).log("MysticQuests trial store heartbeat failed.");
+                }
+            }, period, period, java.util.concurrent.TimeUnit.SECONDS);
+            for (java.util.UUID online : onlinePlayerNamesById.keySet()) {
+                service.onJoin(online);
+            }
+        }
         this.trialClock = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(runnable -> {
             Thread thread = new Thread(runnable, "MysticQuests-Trials");
             thread.setDaemon(true);
             return thread;
         });
         this.trialClock.scheduleAtFixedRate(this::enforceTrialTimeLimits, 5, 5, java.util.concurrent.TimeUnit.SECONDS);
+    }
+
+    /**
+     * The shared-SQL trial store (MysticRPG PO addendum R-1) when {@code trials.network} enables it and it
+     * opens; otherwise trials stay on this server and the reason is kept for {@code /mq trials network}.
+     */
+    private org.hyzionstudios.mysticquests.service.trial.TrialNetworking trialNetworking() {
+        MysticQuestsConfig.NetworkTrialsConfig network = config.trials().network();
+        String serverId = network.serverId().isBlank() ? config.narrative().serverId() : network.serverId();
+        if (!network.on()) {
+            return org.hyzionstudios.mysticquests.service.trial.TrialNetworking.local(network.realmId(), serverId,
+                    false, List.of());
+        }
+        List<String> problems = network.problems();
+        if (!problems.isEmpty()) {
+            plugin.getLogger().at(Level.SEVERE).log("MysticQuests shared trial store is not used; trials stay on this "
+                    + "server and transfers during a trial are refused: " + String.join("; ", problems));
+            return org.hyzionstudios.mysticquests.service.trial.TrialNetworking.local(network.realmId(), serverId,
+                    true, problems);
+        }
+        org.hyzionstudios.mysticquests.service.trial.network.SqlTrialStore store =
+                new org.hyzionstudios.mysticquests.service.trial.network.SqlTrialStore(network);
+        try {
+            List<String> dryRun = store.open();
+            if ("dry-run".equals(network.migration())) {
+                plugin.getLogger().at(Level.WARNING).log("MysticQuests shared trial store: migration dry run (schema "
+                        + "version " + store.schemaVersion() + "), nothing applied; trials stay on this server. "
+                        + "Statements: " + (dryRun.isEmpty() ? "(none: the schema is current)" : String.join("; ", dryRun)));
+                store.close();
+                return org.hyzionstudios.mysticquests.service.trial.TrialNetworking.local(network.realmId(), serverId,
+                        true, List.of("trials.network.migration is dry-run: nothing was applied and the store is not used"));
+            }
+        } catch (java.sql.SQLException | RuntimeException failure) {
+            store.close();
+            plugin.getLogger().at(Level.SEVERE).withCause(failure).log("MysticQuests could not open the shared trial "
+                    + "store; trials stay on this server and transfers during a trial are refused.");
+            return org.hyzionstudios.mysticquests.service.trial.TrialNetworking.local(network.realmId(), serverId, true,
+                    List.of("could not open the shared trial store: " + failure.getMessage()));
+        }
+        this.trialStore = store;
+        this.trialStoreThread = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(runnable -> {
+            Thread thread = new Thread(runnable, "MysticQuests-TrialStore");
+            thread.setDaemon(true);
+            return thread;
+        });
+        plugin.getLogger().at(Level.INFO).log("MysticQuests shared trial store: " + store.dialect().id() + ", realm "
+                + network.realmId() + ", server " + serverId + ", schema version " + store.schemaVersion() + ".");
+        return new org.hyzionstudios.mysticquests.service.trial.TrialNetworking(store, trialStoreThread,
+                this::runForTrial, player -> sessionService.playerRef(player) != null, network.realmId(), serverId,
+                network.leaseSeconds() * 1000L, network.handoffSeconds() * 1000L, network.peerStaleSeconds() * 1000L,
+                true, List.of());
+    }
+
+    /** Runs trial quest-state work on the player's world thread, or here when they have no live entity. */
+    private void runForTrial(java.util.UUID player, Runnable work) {
+        com.hypixel.hytale.server.core.universe.PlayerRef ref = sessionService.playerRef(player);
+        com.hypixel.hytale.component.Ref<com.hypixel.hytale.server.core.universe.world.storage.EntityStore> entity =
+                ref == null ? null : ref.getReference();
+        if (entity == null || !entity.isValid()) {
+            work.run();
+            return;
+        }
+        sessionService.runOnWorld(player, (playerEntity, store) -> work.run());
     }
 
     /** Fails overdue trial runs on their player's world thread, where quest state changes belong. */
@@ -496,6 +586,9 @@ public final class MysticQuestsRuntime implements AutoCloseable {
         }
         if (hudService != null) {
             hudService.reconcileAll();
+        }
+        if (objectives != null) {
+            objectives.reloaded(onlinePlayerNamesById.keySet());
         }
         if (transitionService != null) {
             transitionService.reseedAll();
@@ -899,6 +992,24 @@ public final class MysticQuestsRuntime implements AutoCloseable {
             } catch (RuntimeException exception) {
                 plugin.getLogger().at(Level.WARNING).withCause(exception).log("Failed to close MysticQuests trials.");
             }
+        }
+        // Network: the handoffs close() queued reach the shared store before it closes.
+        if (trialStoreThread != null) {
+            trialStoreThread.shutdown();
+            try {
+                if (!trialStoreThread.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                    plugin.getLogger().at(Level.WARNING).log("MysticQuests trial store did not finish its handoffs in "
+                            + "5 s; their leases run out instead.");
+                    trialStoreThread.shutdownNow();
+                }
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+            }
+            trialStoreThread = null;
+        }
+        if (trialStore != null) {
+            trialStore.close();
+            trialStore = null;
         }
         if (studio != null) {
             studio.close();

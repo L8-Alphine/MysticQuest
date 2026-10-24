@@ -14,6 +14,7 @@ package org.hyzionstudios.mysticquests.model;
  *     timeWeight: 0.3
  *     deathPenalty: 0.1
  *     optionalWeight: 0.2
+ *   signOff: PENDING                # optional: content sign-off state, e.g. PENDING or APPROVED
  * </pre>
  *
  * <p>Trials resolve exactly once per run, as completed, failed or abandoned, and a player who leaves
@@ -24,6 +25,8 @@ public final class TrialDefinition {
     private Integer timeLimitSeconds;
     private Integer maxDeaths;
     private Ranking ranking;
+    /** Content sign-off state as authored (MysticRPG PO addendum: provisional content says PENDING). */
+    private String signOff;
 
     public TrialDefinition() {
     }
@@ -53,6 +56,14 @@ public final class TrialDefinition {
     /** The scoring rules, or null for an unranked trial. */
     public Ranking ranking() {
         return ranking;
+    }
+
+    /**
+     * The authored content sign-off state, upper case ({@code PENDING}, {@code APPROVED}, ...); empty
+     * when the content does not say. A release gate treats anything but {@code APPROVED} as unsigned.
+     */
+    public String signOff() {
+        return signOff == null ? "" : signOff.strip().toUpperCase(java.util.Locale.ROOT);
     }
 
     /** Problems with this definition, for the content loader; empty when valid. */

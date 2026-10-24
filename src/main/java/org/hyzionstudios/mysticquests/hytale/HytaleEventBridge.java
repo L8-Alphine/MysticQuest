@@ -94,21 +94,27 @@ public final class HytaleEventBridge {
     }
 
     private void onReady(PlayerReadyEvent event) {
+        UUID readyId = event.getPlayer().getUuid();
         sessionService.register(event.getPlayerRef(), event.getPlayer());
         runtime.registerOnlinePlayer(event.getPlayer().getPlayerRef());
-        conversationService.registerPlayer(event.getPlayer().getUuid(), event.getPlayerRef());
+        conversationService.registerPlayer(readyId, event.getPlayerRef());
         if (runtime.narrative() != null) {
             // Restores the player's story sessions before anything can fire against them, and pays
             // out puzzle rewards that could not land while they were away.
-            runtime.narrative().onJoin(event.getPlayer().getUuid());
+            runtime.narrative().onJoin(readyId);
+        }
+        // R-1: a trial run handed off by another server of the realm continues here (shared trial store
+        // only; the store thread takes it over and restores the quest on this player's world thread).
+        if (runtime.trials() != null) {
+            runtime.trials().onJoin(readyId);
         }
         // Before join quests start: a quest that starts on a first join is announced, while
         // everything the player already had is the baseline and announces nothing.
-        runtime.transitionService().seed(event.getPlayer().getUuid());
-        questService.startJoinQuests(event.getPlayer().getUuid());
+        runtime.transitionService().seed(readyId);
+        questService.startJoinQuests(readyId);
         // Never reconcile() here: a HUD append on the ready tick is what disconnects the client with
         // "Could not find document …". reconcileAfterJoin holds it until the client has settled.
-        hudService.reconcileAfterJoin(event.getPlayer().getUuid());
+        hudService.reconcileAfterJoin(readyId);
     }
 
     private void onCraft(PlayerCraftEvent event) {
@@ -169,8 +175,9 @@ public final class HytaleEventBridge {
         hudService.unregisterPlayer(playerId);
         runtime.transitionService().forget(playerId);
         conversationService.unregisterPlayer(playerId);
-        // A trial never waits on someone who has left: it resolves as abandoned, and the mod that
-        // started it (MysticRPG) is told at once.
+        // A trial never waits on someone who has left: standalone, it resolves as abandoned and the mod
+        // that started it (MysticRPG) is told at once; on the shared trial store (R-1) it is handed off
+        // and waits for the player on the server they join next.
         if (runtime.trials() != null) {
             runtime.trials().onDisconnect(playerId);
         }

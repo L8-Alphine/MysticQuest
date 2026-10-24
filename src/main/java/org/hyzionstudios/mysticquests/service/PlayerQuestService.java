@@ -40,6 +40,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.ConcurrentModificationException;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -736,6 +737,83 @@ public final class PlayerQuestService {
                 Instant.now(), reason == null || reason.isBlank() ? "failed" : reason));
         QuestDefinition quest = contentSupplier.get().quests().get(questId);
         return QuestResult.success("Failed quest: " + (quest == null ? questId : quest.displayName()));
+    }
+
+    /**
+     * An active quest's progress as the shared trial store carries it between servers (MysticRPG PO
+     * addendum R-1): the start time (which fixes the completion id), objective progress and the
+     * quest's variables.
+     */
+    public record QuestSnapshot(Instant startedAt, Map<String, Integer> objectiveProgress,
+                                Map<String, String> variables) {
+        public QuestSnapshot {
+            objectiveProgress = objectiveProgress == null ? Map.of() : Map.copyOf(objectiveProgress);
+            variables = variables == null ? Map.of() : Map.copyOf(variables);
+        }
+    }
+
+    /** A copy of an active quest's progress; empty when it is not active. */
+    public Optional<QuestSnapshot> snapshotQuest(UUID playerId, String questId) {
+        PlayerQuestData data = data(playerId);
+        ActiveQuestData active = data.activeQuests().get(questId);
+        if (active == null) {
+            return Optional.empty();
+        }
+        Map<String, String> variables = data.questVariables().get(questId);
+        return Optional.of(new QuestSnapshot(active.startedAt(), new LinkedHashMap<>(active.objectiveProgress()),
+                variables == null ? Map.of() : new LinkedHashMap<>(variables)));
+    }
+
+    /**
+     * Makes a trial quest active again exactly as another server left it (R-1 continuation). Runs no
+     * start events and posts no lifecycle event: the run did not start again, it moved. Earlier
+     * completion and abandonment records of the quest are cleared, as a trial start clears them.
+     */
+    public QuestResult restoreTrialQuest(UUID playerId, String questId, QuestSnapshot snapshot) {
+        QuestDefinition quest = contentSupplier.get().quests().get(questId);
+        if (quest == null) {
+            return QuestResult.failure("Unknown quest: " + questId);
+        }
+        if (quest.trial() == null) {
+            return QuestResult.failure(quest.displayName() + " is not a trial");
+        }
+        PlayerQuestData data = data(playerId);
+        ActiveQuestData active = new ActiveQuestData(questId);
+        active.setStartedAt(snapshot.startedAt());
+        for (ObjectiveDefinition objective : quest.objectives()) {
+            active.objectiveProgress().put(objective.id(), Math.max(0,
+                    snapshot.objectiveProgress().getOrDefault(objective.id(), 0)));
+        }
+        data.completedQuests().remove(questId);
+        data.abandonedQuests().remove(questId);
+        data.activeQuests().put(questId, active);
+        if (snapshot.variables().isEmpty()) {
+            data.questVariables().remove(questId);
+        } else {
+            data.questVariables().put(questId, new LinkedHashMap<>(snapshot.variables()));
+        }
+        if (data.trackedQuestId() == null) {
+            data.setTrackedQuestId(questId);
+        }
+        save(data);
+        return QuestResult.success("Continued quest: " + quest.displayName());
+    }
+
+    /**
+     * Drops an active trial quest without abandoning it: no abandonment record, no lifecycle event.
+     * Its run was handed to another server (R-1), which continues it.
+     */
+    public void detachTrialQuest(UUID playerId, String questId) {
+        PlayerQuestData data = data(playerId);
+        if (data.activeQuests().remove(questId) == null) {
+            return;
+        }
+        data.questVariables().remove(questId);
+        if (questId.equals(data.trackedQuestId())) {
+            data.setTrackedQuestId(null);
+            normalizeTrackedQuest(data);
+        }
+        save(data);
     }
 
     /** Typed quest status (MysticRPG request Q-3). */

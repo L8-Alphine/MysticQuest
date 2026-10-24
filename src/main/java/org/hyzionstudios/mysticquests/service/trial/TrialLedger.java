@@ -1,6 +1,7 @@
 package org.hyzionstudios.mysticquests.service.trial;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.hyzionstudios.mysticquests.api.trial.TrialReceipt;
 import org.hyzionstudios.mysticquests.api.trial.TrialResult;
 import org.hyzionstudios.mysticquests.api.trial.TrialStatus;
 
@@ -32,20 +33,39 @@ import java.util.UUID;
 final class TrialLedger {
     static final int MAX_RESULTS = 5_000;
 
-    /** A run in progress, as saved. */
+    /**
+     * A run in progress, as saved. {@code revision} counts its saved transitions (the causal revision
+     * of its receipt); 0 in files written before 2.3.0.
+     */
     record ActiveRun(UUID player, String trialId, String questId, String completionId, Instant startedAt,
-                     int deaths) {
+                     int deaths, long revision) {
     }
 
-    /** The saved form of a {@link TrialResult}; Duration as milliseconds so the file stays readable. */
+    /**
+     * The saved form of a {@link TrialResult} and, since 2.3.0, its {@link TrialReceipt} (null fields
+     * while the receipt is not known yet); Duration as milliseconds so the file stays readable.
+     */
     record SavedResult(String trialId, String questId, String packageVersion, UUID player, String completionId, TrialStatus status,
                        double score, boolean ranked, long elapsedMillis, int deaths, Map<String, Double> metrics,
-                       Instant startedAt, Instant resolvedAt, String reason) {
+                       Instant startedAt, Instant resolvedAt, String reason,
+                       String realmId, String evidenceId, long causalRevision, String resolvedBy, boolean networkBacked,
+                       String receipt) {
 
-        static SavedResult of(TrialResult result) {
+        static SavedResult of(TrialResult result, @Nullable TrialReceipt receipt) {
             return new SavedResult(result.trialId(), result.questId(), result.packageVersion(), result.player(), result.completionId(),
                     result.status(), result.score(), result.ranked(), result.elapsed().toMillis(), result.deaths(),
-                    result.metrics(), result.startedAt(), result.resolvedAt(), result.reason());
+                    result.metrics(), result.startedAt(), result.resolvedAt(), result.reason(),
+                    receipt == null ? null : receipt.realmId(), receipt == null ? null : receipt.evidenceId(),
+                    receipt == null ? 0L : receipt.causalRevision(), receipt == null ? null : receipt.resolvedBy(),
+                    receipt != null && receipt.networkBacked(), receipt == null ? null : receipt.receipt());
+        }
+
+        Optional<TrialReceipt> toReceipt() {
+            if (receipt == null || evidenceId == null) {
+                return Optional.empty();
+            }
+            return Optional.of(new TrialReceipt(trialId, player, realmId, questId, packageVersion, evidenceId,
+                    completionId, status, causalRevision, resolvedAt, resolvedBy, networkBacked, receipt));
         }
 
         TrialResult toResult() {
@@ -59,6 +79,8 @@ final class TrialLedger {
         int version = 1;
         List<ActiveRun> active = new ArrayList<>();
         Map<String, SavedResult> results = new LinkedHashMap<>();
+        /** Results not yet durable in the shared trial store, by completion id: the revision to resolve from. */
+        Map<String, Long> pending = new LinkedHashMap<>();
     }
 
     @Nullable
@@ -84,6 +106,9 @@ final class TrialLedger {
             if (read.results == null) {
                 read.results = new LinkedHashMap<>();
             }
+            if (read.pending == null) {
+                read.pending = new LinkedHashMap<>();
+            }
             document = read;
         }
     }
@@ -107,15 +132,42 @@ final class TrialLedger {
     }
 
     void putResult(TrialResult result) {
+        putResult(result, null);
+    }
+
+    void putResult(TrialResult result, @Nullable TrialReceipt receipt) {
         if (result.completionId() == null) {
             return;
         }
-        document.results.put(result.completionId(), SavedResult.of(result));
+        document.results.put(result.completionId(), SavedResult.of(result, receipt));
         if (document.results.size() > MAX_RESULTS) {
             document.results.values().stream()
                     .min(Comparator.comparing(SavedResult::resolvedAt))
                     .ifPresent(oldest -> document.results.remove(oldest.completionId()));
         }
+    }
+
+    Optional<TrialReceipt> receipt(String completionId) {
+        SavedResult saved = completionId == null ? null : document.results.get(completionId);
+        return saved == null ? Optional.empty() : saved.toReceipt();
+    }
+
+    void removeResult(String completionId) {
+        document.results.remove(completionId);
+        document.pending.remove(completionId);
+    }
+
+    /** Marks a result as waiting to be written to the shared store, resolving from {@code revision}. */
+    void markPending(String completionId, long revision) {
+        document.pending.put(completionId, revision);
+    }
+
+    void clearPending(String completionId) {
+        document.pending.remove(completionId);
+    }
+
+    Map<String, Long> pending() {
+        return Map.copyOf(document.pending);
     }
 
     /** The newest resolved run of one trial for one player. */
