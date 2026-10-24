@@ -1,5 +1,7 @@
 package org.hyzionstudios.mysticquests.service;
 
+import org.hyzionstudios.mysticquests.api.requirement.QuestRequirementResult;
+import org.hyzionstudios.mysticquests.api.requirement.QuestRequirements;
 import org.hyzionstudios.mysticquests.content.LoadedContent;
 import org.hyzionstudios.mysticquests.event.MysticQuestsEventBus;
 import org.hyzionstudios.mysticquests.event.QuestLifecycleEvents;
@@ -84,7 +86,8 @@ public final class PlayerQuestService {
             "tag", "globalTag", "entityTag", "blockTag", "volumeTag", "notTag", "questCompleted",
             "questActive", "variable", "globalVariable", "entityVariable", "blockVariable", "volumeVariable",
             "economy", "and", "or", "not", "ref", "permission", "inConversation", "inParty", "partySize",
-            "playerHidden", "entityHidden", "targetingPrevented", "nearEntity", "gameFlag", "worldEventActive");
+            "playerHidden", "entityHidden", "targetingPrevented", "nearEntity", "gameFlag", "worldEventActive",
+            "requirement");
 
     /**
      * The world events {@code startGoblinBreach} starts, by {@code kind}. {@code summoned} and
@@ -142,6 +145,8 @@ public final class PlayerQuestService {
      * instead of failing a quest mid-flight.
      */
     private volatile QuestActionServices actionServices;
+    /** Typed requirement providers (MysticRPG level, class...); null until bound, which denies. */
+    private volatile QuestRequirements requirements;
 
     /** Hytale's world events, game flags and encounters; null until the runtime binds them. */
     private volatile StoryWorld storyWorld;
@@ -202,6 +207,11 @@ public final class PlayerQuestService {
     }
 
     /** Attaches visibility, targeting, target selection, and the extension registry. */
+    /** Binds the typed requirement providers the {@code requirement} condition asks (fail closed when unbound). */
+    public void bindRequirements(QuestRequirements requirements) {
+        this.requirements = requirements;
+    }
+
     public void bindActionServices(QuestActionServices services) {
         this.actionServices = services;
     }
@@ -1882,6 +1892,8 @@ public final class PlayerQuestService {
                     data.playerId(),
                     condition.text("event", condition.text("target", "")),
                     condition.bool("anywhere", false));
+            case "requirement" -> evaluateRequirement(data.playerId(), packageId,
+                    condition.text("provider", ""), condition.text("check", ""), condition);
             default -> evaluateRegisteredCondition(data.playerId(), packageId, condition, targetContext);
         };
     }
@@ -1985,6 +1997,14 @@ public final class PlayerQuestService {
         QuestActionServices services = actionServices;
         QuestConditionHandler handler = services == null ? null : services.registry().condition(condition.type());
         if (handler == null) {
+            // <namespace>:<check> shorthand for a typed requirement provider.
+            String type = condition.type() == null ? "" : condition.type();
+            int colon = type.indexOf(':');
+            QuestRequirements bound = requirements;
+            if (colon > 0 && bound != null && bound.provider(type.substring(0, colon)).isPresent()) {
+                return evaluateRequirement(playerId, packageId, type.substring(0, colon), type.substring(colon + 1),
+                        condition);
+            }
             return false;
         }
         try {
@@ -1994,6 +2014,33 @@ public final class PlayerQuestService {
                     .log("Registered MysticQuests condition '" + condition.type() + "' failed; denying.");
             return false;
         }
+    }
+
+    /**
+     * A typed requirement answered by another mod (MysticRPG U-011, U-128). Every failure denies: no
+     * provider bound or registered, unavailable, unknown check, UNVERIFIABLE.
+     */
+    private boolean evaluateRequirement(UUID playerId, String packageId, String namespace, String check,
+                                        ConditionDefinition condition) {
+        QuestRequirements bound = requirements;
+        if (bound == null) {
+            return false;
+        }
+        Map<String, String> parameters = new java.util.LinkedHashMap<>();
+        condition.data().forEach((key, node) -> {
+            if (node == null || node.isNull() || key.equals("provider") || key.equals("check")) {
+                return;
+            }
+            if (node.isArray()) {
+                java.util.List<String> parts = new java.util.ArrayList<>();
+                node.forEach(element -> parts.add(element.asText()));
+                parameters.put(key, String.join(",", parts));
+            } else if (node.isValueNode()) {
+                parameters.put(key, node.asText());
+            }
+        });
+        QuestRequirementResult result = bound.evaluate(playerId, namespace, check, parameters, packageId);
+        return result.passed();
     }
 
     /** Reads the {@code viewer} field, defaulting to the acting player, matching the hide events. */

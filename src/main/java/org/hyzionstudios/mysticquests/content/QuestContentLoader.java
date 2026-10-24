@@ -50,7 +50,7 @@ public final class QuestContentLoader {
             "questCompleted", "questActive",
             "permission", "economy", "inConversation", "inParty", "partySize",
             "playerHidden", "entityHidden", "targetingPrevented", "nearEntity",
-            "gameFlag", "worldEventActive",
+            "gameFlag", "worldEventActive", "requirement",
             "and", "or", "not", "ref",
             // 2.0 narrative condition trees; their contents are checked by the narrative compiler.
             "narrative");

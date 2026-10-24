@@ -1,5 +1,6 @@
 package org.hyzionstudios.mysticquests.api;
 
+import org.hyzionstudios.mysticquests.api.requirement.QuestRequirements;
 import com.hypixel.hytale.logger.HytaleLogger;
 
 import javax.annotation.Nullable;
@@ -45,10 +46,11 @@ public final class MysticQuestsRegistry {
             "tag", "variable", "notTag", "questCompleted", "questActive", "permission", "economy",
             "inConversation", "inParty", "partySize", "and", "or", "not", "ref",
             "playerHidden", "entityHidden", "targetingPrevented", "nearEntity", "narrative",
-            "gameFlag", "worldEventActive");
+            "gameFlag", "worldEventActive", "requirement");
 
     private final Map<String, QuestEventHandler> events = new ConcurrentHashMap<>();
     private final Map<String, QuestConditionHandler> conditions = new ConcurrentHashMap<>();
+    private final QuestRequirements requirements = new QuestRequirements();
 
     @Nullable
     private final HytaleLogger logger;
@@ -106,9 +108,24 @@ public final class MysticQuestsRegistry {
         return Set.copyOf(conditions.keySet());
     }
 
+    /**
+     * Typed requirement providers (another mod's level, class, profession...), answered by the built-in
+     * {@code requirement} condition and the {@code <namespace>:<check>} shorthand. Fail closed.
+     */
+    public QuestRequirements requirements() {
+        return requirements;
+    }
+
+    /** Whether {@code type} is a {@code <namespace>:<check>} shorthand some requirement provider answers. */
+    public boolean isRequirementShorthand(String type) {
+        int colon = type == null ? -1 : type.indexOf(':');
+        return colon > 0 && requirements.provider(type.substring(0, colon)).isPresent();
+    }
+
     public void clear() {
         events.clear();
         conditions.clear();
+        requirements.clear();
     }
 
     private <H> boolean register(

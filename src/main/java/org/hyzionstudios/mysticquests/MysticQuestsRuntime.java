@@ -226,6 +226,7 @@ public final class MysticQuestsRuntime implements AutoCloseable {
                             stateStore, entityIndex, sessionService, partyIntegration::members, generationBridge),
                     registry,
                     generationBridge));
+            this.questService.bindRequirements(registry.requirements());
             this.signalBus = new QuestSignalBus(questService, partyIntegration);
             // Hytale's goblin breaches, game flags and encounters, for quest actions and conditions.
             this.storyActions = new HytaleStoryActions(sessionService, worldEvents, plugin.getLogger());

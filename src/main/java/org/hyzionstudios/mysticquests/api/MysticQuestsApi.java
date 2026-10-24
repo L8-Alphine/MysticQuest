@@ -60,9 +60,11 @@ public final class MysticQuestsApi {
     /**
      * Version of this facade's contract. 2: MysticQuests 2.1.0 added {@link #trials()}, quest
      * lifecycle events ({@code QuestLifecycleEvents}), {@link #questStatus}, {@link #hasCompletedQuest}
-     * and {@link #hasQuestTag}.
+     * and {@link #hasQuestTag}. 3: MysticQuests 2.2.0 added {@link #requirements()} (typed requirement
+     * providers, e.g. MysticRPG level, class, stage, Paragon and profession) and the {@code requirement}
+     * condition.
      */
-    public static final int API_VERSION = 2;
+    public static final int API_VERSION = 3;
 
     private static volatile MysticQuestsApi instance;
 
@@ -429,6 +431,15 @@ public final class MysticQuestsApi {
     /** Where event and condition types are registered. */
     public MysticQuestsRegistry registry() {
         return registry;
+    }
+
+    /**
+     * Where another mod registers a {@link org.hyzionstudios.mysticquests.api.requirement.QuestRequirementProvider}
+     * so content can gate on its typed requirements, e.g. a {@code requirement} condition with provider
+     * {@code mysticrpg}, check {@code level} and {@code min} 10. Since API version 3.
+     */
+    public org.hyzionstudios.mysticquests.api.requirement.QuestRequirements requirements() {
+        return registry.requirements();
     }
 
     /**

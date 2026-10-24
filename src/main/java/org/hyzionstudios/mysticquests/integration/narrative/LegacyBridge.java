@@ -117,7 +117,8 @@ public final class LegacyBridge {
         @Override
         public void validate(ObjectNode parameters, String path, DiagnosticReport report) {
             String type = parameters.path("condition").path("type").asText("");
-            if (!PlayerQuestService.BUILT_IN_CONDITION_TYPES.contains(type) && registry.condition(type) == null) {
+            if (!PlayerQuestService.BUILT_IN_CONDITION_TYPES.contains(type) && registry.condition(type) == null
+                    && !registry.isRequirementShorthand(type)) {
                 report.error(DiagnosticCode.UNKNOWN_CONDITION, path, "unknown v1 condition type '" + type + "'");
             }
         }
