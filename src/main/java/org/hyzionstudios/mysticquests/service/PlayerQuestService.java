@@ -1077,6 +1077,20 @@ public final class PlayerQuestService {
     }
 
     /** A loaded quest's definition, for surfaces that show authored fields such as its category. */
+    /**
+     * The {@code version} of the package a loaded quest belongs to; empty when the quest is unknown or its
+     * package names none. For completion receipts other mods keep (MysticRPG class mastery, P-6).
+     */
+    public String packageVersion(String questId) {
+        QuestDefinition quest = contentSupplier.get().quests().get(questId);
+        if (quest == null) {
+            return "";
+        }
+        org.hyzionstudios.mysticquests.content.PackageMetadata metadata =
+                contentSupplier.get().packageMetadata().get(quest.packageId());
+        return metadata == null || metadata.version() == null ? "" : metadata.version();
+    }
+
     public Optional<QuestDefinition> definition(String questId) {
         return Optional.ofNullable(contentSupplier.get().quests().get(questId));
     }

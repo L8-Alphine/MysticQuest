@@ -109,6 +109,15 @@ public interface QuestTrials {
         return Optional.empty();
     }
 
+    /**
+     * The player's newest COMPLETED run of the trial, even when a later attempt failed or was abandoned:
+     * the run whose {@link #receipt} is evidence (MysticRPG Paragon era, ascension and recovery commits).
+     * Since version 2.
+     */
+    default Optional<TrialResult> lastCompleted(UUID player, String trialId) {
+        return lastResult(player, trialId).filter(TrialResult::passed);
+    }
+
     /** Where trial state lives and how healthy the shared store is (R-1 diagnostics). Since version 2. */
     default TrialNetworkStatus networkStatus() {
         return TrialNetworkStatus.local(java.util.List.of());

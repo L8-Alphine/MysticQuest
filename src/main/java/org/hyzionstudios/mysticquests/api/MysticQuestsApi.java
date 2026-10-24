@@ -454,6 +454,14 @@ public final class MysticQuestsApi {
         return objectives;
     }
 
+    /**
+     * The {@code version} of the package a quest belongs to, empty when unknown: the quest version of a
+     * completion receipt (MysticRPG P-6 class mastery from quests). Since API version 4.
+     */
+    public String questVersion(String questId) {
+        return questId == null ? "" : quests.packageVersion(questId);
+    }
+
     /** Resolves MysticQuests percent-placeholders in text, as authored content would see them. */
     public String resolveText(UUID player, String packageId, String text) {
         return quests.resolveText(player, packageId, text);

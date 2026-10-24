@@ -178,6 +178,15 @@ final class TrialLedger {
                 .map(SavedResult::toResult);
     }
 
+    /** The newest completed run of one trial for one player, whatever came after it. */
+    Optional<TrialResult> lastCompleted(UUID player, String trialId) {
+        return document.results.values().stream()
+                .filter(saved -> saved.player().equals(player) && saved.trialId().equals(trialId)
+                        && saved.status() == TrialStatus.COMPLETED)
+                .max(Comparator.comparing(SavedResult::resolvedAt))
+                .map(SavedResult::toResult);
+    }
+
     void save() throws IOException {
         if (file == null) {
             return;

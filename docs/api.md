@@ -233,7 +233,9 @@ completion id (`evidence`). See [integrations/mysticrpg-trials.md](integrations/
 player, realm, quest version, evidence id, causal revision, SHA-256 receipt; `verifies()`),
 `transferHold(player, targetServerId)` checks the target against the shared trial store,
 `networkStatus()` reports the store (`capabilities()` holds `mysticquests:trials/shared-sql` while it is
-healthy) and `signOff(trialId)` the content's sign-off state. See
+healthy), `signOff(trialId)` the content's sign-off state and `lastCompleted(player, trialId)` the newest
+completed run even when a later attempt failed (the run whose receipt is evidence).
+`api.questVersion(questId)` gives a quest's package version for completion receipts of ordinary quests. See
 [integrations/network-trials.md](integrations/network-trials.md).
 
 ## Objective tracking for another mod's HUD (2.3)

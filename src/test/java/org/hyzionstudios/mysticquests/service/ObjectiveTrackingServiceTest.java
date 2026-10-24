@@ -83,6 +83,8 @@ final class ObjectiveTrackingServiceTest {
     void trackedDto() {
         assertTrue(objectives.tracked(ALICE).isEmpty(), "nothing active, nothing tracked");
         assertTrue(quests.startQuest(ALICE, "demo:wolves").success());
+        assertEquals("1.0.0", quests.packageVersion("demo:wolves"), "the quest version of completion receipts");
+        assertEquals("", quests.packageVersion("demo:nope"));
         TrackedQuest tracked = objectives.tracked(ALICE).orElseThrow();
         assertEquals("demo:wolves", tracked.questId());
         assertEquals("Wolf Trouble", tracked.displayName());

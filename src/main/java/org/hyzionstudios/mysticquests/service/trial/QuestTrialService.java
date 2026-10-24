@@ -298,6 +298,11 @@ public final class QuestTrialService implements QuestTrials, AutoCloseable {
     }
 
     @Override
+    public synchronized Optional<TrialResult> lastCompleted(UUID player, String trialId) {
+        return ledger.lastCompleted(player, trialId);
+    }
+
+    @Override
     public synchronized Optional<TrialResult> evidence(String completionId) {
         return ledger.result(completionId);
     }

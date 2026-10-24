@@ -211,6 +211,13 @@ final class NetworkTrialsTest {
         assertEquals(1, rows("SELECT COUNT(*) FROM mq_trial_results"));
         assertEquals(0, rows("SELECT COUNT(*) FROM mq_trial_slots"), "the slot is free again");
         assertTrue(a.warnings.isEmpty(), a.warnings.toString());
+
+        // A later abandoned attempt does not hide the completed run that is evidence.
+        a.trials.start(ALICE, WARRIOR);
+        time().now = Instant.now().plusSeconds(5);
+        a.trials.cancel(ALICE, WARRIOR, "changed my mind");
+        assertEquals(TrialStatus.ABANDONED, a.trials.lastResult(ALICE, WARRIOR).orElseThrow().status());
+        assertEquals(result.completionId(), a.trials.lastCompleted(ALICE, WARRIOR).orElseThrow().completionId());
     }
 
     @Test
