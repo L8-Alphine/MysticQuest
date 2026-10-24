@@ -227,6 +227,25 @@ score when the trial is ranked), failed or abandoned; a logout abandons. Results
 completion id (`evidence`). See [integrations/mysticrpg-trials.md](integrations/mysticrpg-trials.md).
 `MysticQuestsApi.API_VERSION` is 2 and `QuestTrials.API_VERSION` 1.
 
+### Trial contract 2 (2.3)
+
+`QuestTrials.API_VERSION` is 2: `receipt(completionId)` returns the run's `TrialReceipt` (trial,
+player, realm, quest version, evidence id, causal revision, SHA-256 receipt; `verifies()`),
+`transferHold(player, targetServerId)` checks the target against the shared trial store,
+`networkStatus()` reports the store (`capabilities()` holds `mysticquests:trials/shared-sql` while it is
+healthy) and `signOff(trialId)` the content's sign-off state. See
+[integrations/network-trials.md](integrations/network-trials.md).
+
+## Objective tracking for another mod's HUD (2.3)
+
+`api.objectives()` (`QuestObjectives`, MysticRPG P-62): `tracked(player)` is the tracked quest with the
+objectives of its current step as plain data (`TrackedQuest`, with a `revision` for stale checks),
+`active(player)` every trackable active quest, `track` / `untrack` (idempotent, `TrackingResult`),
+`subscribe` for `TrackedObjectivesChanged` (progress, start, completion, tracking, reload) and
+`claimTracker(owner)`, which hides MysticQuests' own tracker panel while another mod draws one. Quests
+with `hidden: true` are never exposed: not tracked, not listed, refused like unknown quests.
+`MysticQuestsApi.API_VERSION` is 4.
+
 ## Built-in types worth knowing
 
 Events: `tag`, `variable`, `giveItem`, `removeItem`, `runCommand`, `sendMessage`, `startQuest`,

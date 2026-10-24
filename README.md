@@ -101,9 +101,30 @@ Default config is generated at `mods/MysticQuests/config.json`:
   },
   "dialogue": {
     "livePreview": true
+  },
+  "trials": {
+    "network": {
+      "enabled": false,
+      "jdbcUrl": "",
+      "username": "",
+      "passwordEnv": "",
+      "password": "",
+      "realmId": "",
+      "serverId": "",
+      "tablePrefix": "mq_",
+      "leaseSeconds": 30,
+      "handoffSeconds": 120,
+      "peerStaleSeconds": 45,
+      "migration": "apply"
+    }
   }
 }
 ```
+
+`trials.network` is the shared-SQL trial store (2.3): with it, a trial run (MysticRPG's class, era
+and recovery trials) follows its player across the servers of one realm, one server at a time, and
+leaves a completion receipt every server can read. Off by default; see
+[Network trials](docs/integrations/network-trials.md). `/mq trials` shows its state.
 
 Give every server on a network its own `narrative.serverId` and never change it once players have
 state; see [the narrative configuration](docs/2.0/narrative-runtime.md#1-configuration).

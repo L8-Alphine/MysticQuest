@@ -25,6 +25,11 @@ MysticEconomy.
   Ranger, Rogue, Paladin, Vanguard), installed into `packages/` on first start.
 - `MysticQuestsApi.API_VERSION = 2`.
 
+2.3.0 adds trial contract version 2 (`receipt`, `transferHold(player, target)`, `networkStatus`,
+`signOff`), the shared-SQL trial store ([network-trials.md](network-trials.md)), and the
+`mysticrpg_paragon_trials` package: the era challenges `mysticrpg:paragon_era_2` to `_5` and
+`mysticrpg:paragon_recovery_trial` (provisional content, `trial.signOff: PENDING`, MysticRPG P-47, P-48).
+
 ## Completion ids
 
 Every run of every quest has one completion id, carried by all of its lifecycle events and by its
@@ -90,12 +95,15 @@ Cross-server trial continuation remains a **release gate for a network-enabled M
 owner Q9). It needs MysticQuests quest and trial state in shared SQL storage, keyed by the same
 completion ids; that is not built.
 
-Status in 2.2.0 (24 Oct 2026, MysticRPG Wave D): still not built. MysticQuests' storage layer is a
-per-server `JsonQuestStorage` or local SQLite file; there is no connection pool, no network schema and
-no cross-server lock, so trial runs cannot be continued on another server without a new shared-SQL
-storage backend for quest progress, the trial ledger (`data/trials.json`) and the scoped state store.
-That is its own work item (a storage backend plus migration and fencing), not an API change. Until it
-exists `networkBacked()` stays false and MysticRPG keeps refusing transfers during a trial.
+Status in 2.2.0 (24 Oct 2026, MysticRPG Wave D): still not built.
+
+**Built in 2.3.0 (MysticRPG PO addendum R-1):** the shared-SQL trial store, off by default
+(`trials.network`). A trial run's state (owner, lease, revision, deaths, objective progress, quest
+variables) and every result with its completion receipt live in one database per realm; a run is handed
+off when its player leaves and continued, with the same completion id, on the server they join next.
+Only trial runs move: ordinary quest progress and scoped state stay on each server's own storage. With
+the store, `networkBacked()` is true while it is healthy and `transferHold(player, target)` allows a
+transfer to a live member of the same realm. See [network-trials.md](network-trials.md).
 
 ## RPG requirements in quests (2.2)
 

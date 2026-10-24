@@ -66,8 +66,11 @@ exact objective progress, tracking, abandonment overrides, player tags, and play
 - `trial`: optional. Makes the quest a trial another mod starts through the API (MysticRPG's class
   trials): `id` (the namespaced trial id, unique across packages), `timeLimitSeconds`, `maxDeaths`
   and optional `ranking` (`parTimeSeconds`, `timeWeight`, `deathPenalty`, `optionalWeight`). A trial
-  quest is never offered on the board and cannot be started by `startQuest`. See
+  quest is never offered on the board and cannot be started by `startQuest`. `signOff` (2.3) records
+  the content's sign-off state (`PENDING`, `APPROVED`); provisional content says `PENDING`. See
   [integrations/mysticrpg-trials.md](integrations/mysticrpg-trials.md).
+- `hidden`: optional boolean (2.3). Never exposed to other mods' objective trackers (MysticRPG's HUD):
+  not tracked, not listed, and refused like an unknown quest. The player's own Journal still shows it.
 
 Any objective may set `optional: true`: it is tracked and shown, but never holds the quest open. A
 ranked trial counts optional objectives into its score.
