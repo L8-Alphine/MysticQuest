@@ -568,6 +568,7 @@ A puzzle input bound with `volume:` only hears ENTER and EXIT. For a lever or a 
 | Check a volume's own state | `/mquest volume tag <world:volumeId> list`, `/mquest volume state <world:volumeId> get [key]` |
 | Switch a volume for a player | `/mquest narrative trigger <player> <world:volumeId> enable\|disable\|clear [scope]` |
 | Go to a volume | `/mquest narrative goto <world:volumeId>` |
+| Clear copies that piled up under one name | `/mquest volume purge <name>` counts them, `... confirm` removes all but one, `keep 0` removes every one, `world <world>` from the console |
 
 If MysticQuests types are missing from the editor, check the server log at startup for
 "Trigger volume types could not be registered". The types must register before any world loads, or

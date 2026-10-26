@@ -61,8 +61,9 @@ public final class QuestLocations {
         });
     }
 
+    /** The loaded world called {@code name}, ignoring case. */
     @Nullable
-    private static World worldNamed(String name) {
+    public static World worldNamed(String name) {
         for (World world : Universe.get().getWorlds().values()) {
             if (world.getName().equalsIgnoreCase(name)) {
                 return world;

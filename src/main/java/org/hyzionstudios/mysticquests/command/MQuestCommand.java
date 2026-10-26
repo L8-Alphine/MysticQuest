@@ -6,6 +6,8 @@ import org.hyzionstudios.mysticquests.integration.studio.StudioIntegration;
 import org.hyzionstudios.mysticquests.MysticQuestsRuntime;
 import org.hyzionstudios.mysticquests.integration.HyCitizensBridge.CitizenView;
 import org.hyzionstudios.mysticquests.integration.IntegrationStatus;
+import org.hyzionstudios.mysticquests.integration.triggervolumes.QuestLocations;
+import org.hyzionstudios.mysticquests.integration.triggervolumes.VolumePurge;
 import org.hyzionstudios.mysticquests.model.EventDefinition;
 import org.hyzionstudios.mysticquests.service.QuestTargetContext;
 import org.hyzionstudios.mysticquests.service.ScopedStateService;
@@ -260,8 +262,11 @@ public final class MQuestCommand extends AbstractCommand {
         volumeTag.withRequiredArg("volume", "Volume key", ArgTypes.STRING);
         volumeTag.withRequiredArg("mutation", "Tag action", suggested("mutation", () -> List.of("add", "remove", "has", "list")));
         volumeTag.withOptionalArg("tag", "Tag", ArgTypes.STRING);
+        RouteCommand volumePurge = route("purge");
+        volumePurge.withRequiredArg("name", "Trigger volume name", ArgTypes.STRING);
         volume.addSubCommand(volumeState);
         volume.addSubCommand(volumeTag);
+        volume.addSubCommand(volumePurge);
         addSubCommand(volume);
 
         RouteCommand hyCitizens = route("hycitizens");
@@ -1092,7 +1097,7 @@ public final class MQuestCommand extends AbstractCommand {
             return null;
         }
         if (args.length < 2) {
-            usage(context, "Usage: /mquest volume <uuid|state|tag> ...");
+            usage(context, "Usage: /mquest volume <uuid|state|tag|purge> ...");
             return null;
         }
         switch (args[1].toLowerCase()) {
@@ -1102,9 +1107,58 @@ public final class MQuestCommand extends AbstractCommand {
             }
             case "state" -> volumeState(context, args);
             case "tag" -> volumeTag(context, args);
-            default -> usage(context, "Usage: /mquest volume <uuid|state|tag> ...");
+            case "purge" -> volumePurge(context, args);
+            default -> usage(context, "Usage: /mquest volume <uuid|state|tag|purge> ...");
         }
         return null;
+    }
+
+    /**
+     * {@code /mquest volume purge <name> [keep <n>] [world <world>] [confirm]}: removes the copies of an
+     * engine trigger volume that piled up under one name, keeping one unless told otherwise. Without
+     * {@code confirm} it only counts them.
+     */
+    private void volumePurge(CommandContext context, String[] args) {
+        String usageLine = "Usage: /mquest volume purge <name> [keep <n>] [world <world>] [confirm]";
+        if (args.length < 3) {
+            usage(context, usageLine);
+            return;
+        }
+        int keep = 1;
+        String worldName = null;
+        boolean confirm = false;
+        for (int index = 3; index < args.length; index++) {
+            String word = args[index].toLowerCase(Locale.ROOT);
+            if (word.equals("confirm")) {
+                confirm = true;
+            } else if (word.equals("keep") && index + 1 < args.length && args[index + 1].matches("\\d{1,9}")) {
+                keep = Integer.parseInt(args[++index]);
+            } else if (word.equals("world") && index + 1 < args.length) {
+                worldName = args[++index];
+            } else {
+                usage(context, usageLine);
+                return;
+            }
+        }
+        World world;
+        if (worldName != null) {
+            world = QuestLocations.worldNamed(worldName);
+            if (world == null) {
+                warn(context, "No loaded world named " + worldName + ".");
+                return;
+            }
+        } else if (context.isPlayer()) {
+            world = context.senderAsPlayerRef().getStore().getExternalData().getWorld();
+        } else {
+            warn(context, "From the console, name the world: " + usageLine.substring("Usage: ".length()));
+            return;
+        }
+        String base = args[2];
+        String staff = context.sender().getUsername() + " (" + context.sender().getUuid() + ")";
+        VolumePurge.run(world, base, keep, confirm,
+                line -> info(context, line),
+                done -> runtime.plugin().getLogger().at(java.util.logging.Level.INFO).log(
+                        "MysticQuests audit: " + staff + " " + done));
     }
 
     private void volumeState(CommandContext context, String[] args) {
