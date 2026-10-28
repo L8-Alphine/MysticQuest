@@ -126,6 +126,8 @@ public final class NarrativeRuntime implements AutoCloseable {
     private final NarrativeAudit audit;
     private final StoryEntityRegistry storyEntities;
     private final WorldOverlayRegistry overlays;
+    /** Built once: the entity index reads it for every entity on every tick. */
+    private final List<PresentationLayer> observedLayers;
     private final QuestMediaService media;
     private final QuestCutsceneService cutscenes;
     private final ScheduledExecutorService writer;
@@ -156,6 +158,7 @@ public final class NarrativeRuntime implements AutoCloseable {
         this.storyEntities = new StoryEntityRegistry(settings.documents(), settings.clock(), settings.partyOf(), problems,
                 metrics, settings.limits().storyEntities());
         this.overlays = new WorldOverlayRegistry(() -> content.get().overlays(), activation);
+        this.observedLayers = List.of(storyEntities, overlays);
         this.media = new QuestMediaService(content::get, host, settings.serverId(), settings.partyOf(), this::activeSessionIds,
                 sessions, settings.clock(), problems);
         this.cutscenes = new QuestCutsceneService(() -> content.get().cutscenes(), packageId -> content.get().version(packageId),
@@ -553,7 +556,7 @@ public final class NarrativeRuntime implements AutoCloseable {
 
     /** Every layer that binds entities by durable identity; fed by the entity index each tick. */
     public List<PresentationLayer> observedLayers() {
-        return List.of(storyEntities, overlays);
+        return observedLayers;
     }
 
     public String serverId() {
