@@ -31,6 +31,8 @@ import java.util.regex.Pattern;
  */
 public final class VolumePurge {
     private static final Pattern NUMBERED = Pattern.compile("(.*) \\((\\d+)\\)");
+    /** Volumes a dry run lists by position. */
+    private static final int LISTED = 20;
 
     private VolumePurge() {
     }
@@ -126,6 +128,12 @@ public final class VolumePurge {
             }
             reply.accept(volumes(plan.total()) + " named " + base + " in " + world.getName() + ", on "
                     + plan.positions() + (plan.positions() == 1 ? " block." : " blocks."));
+            if (!confirm) {
+                // Where the copies sit tells what made them: evenly spaced in a line is a repeated paste
+                for (String line : listing(plan, LISTED)) {
+                    reply.accept(line);
+                }
+            }
             if (plan.removed().isEmpty()) {
                 reply.accept("Nothing to remove: keeping " + plan.kept().size() + ".");
                 return;
@@ -147,6 +155,21 @@ public final class VolumePurge {
                     + " They are gone at the end of this tick.");
             audit.accept(done);
         });
+    }
+
+    /** The volumes of a plan in copy order, each with the block it sits on, at most {@code limit} lines. */
+    static List<String> listing(Plan plan, int limit) {
+        List<Candidate> all = new ArrayList<>(plan.kept());
+        all.addAll(plan.removed());
+        List<String> lines = new ArrayList<>();
+        for (int i = 0; i < Math.min(all.size(), limit); i++) {
+            Candidate volume = all.get(i);
+            lines.add("  " + volume.name() + " at " + volume.block());
+        }
+        if (all.size() > limit) {
+            lines.add("  ... and " + (all.size() - limit) + " more");
+        }
+        return lines;
     }
 
     private static String block(Vector3d position) {

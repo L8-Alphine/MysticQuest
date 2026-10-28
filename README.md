@@ -218,7 +218,8 @@ instruction syntax, placeholders, named elements, schedules, cancelers, and part
 - `/mquest volume tag <volume> <add|remove|has|list> [tag]`
 - `/mquest volume purge <name> [keep <n>] [world <world>] [confirm]` — removes the copies of an
   engine trigger volume that piled up under one name (`name`, `name (2)`, `name (3)`…), keeping one.
-  Without `confirm` it only counts them. From the console, add `world <world>`.
+  Without `confirm` it only counts them and lists the block of the first 20, so copies lined up at a
+  regular spacing show a repeated paste. From the console, add `world <world>`.
 - `/mquest hycitizens list [near]`
 - `/mquest hycitizens info <id>`
 - `/mquest hycitizens bind <conversation> <id>`

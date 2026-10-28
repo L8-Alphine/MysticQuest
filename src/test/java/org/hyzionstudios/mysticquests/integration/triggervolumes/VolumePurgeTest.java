@@ -53,6 +53,20 @@ class VolumePurgeTest {
     }
 
     @Test
+    void listsEachVolumeWithItsBlockInCopyOrderUpToTheLimit() {
+        List<Candidate> volumes = List.of(
+                new Candidate("c", "frontier_camp (3)", "740 144 175"),
+                new Candidate("a", "frontier_camp", "676 144 175"),
+                new Candidate("b", "frontier_camp (2)", "708 144 175"));
+        Plan plan = VolumePurge.plan("frontier_camp", volumes, 1);
+
+        assertEquals(List.of("  frontier_camp at 676 144 175", "  frontier_camp (2) at 708 144 175",
+                "  frontier_camp (3) at 740 144 175"), VolumePurge.listing(plan, 20));
+        assertEquals(List.of("  frontier_camp at 676 144 175", "  ... and 2 more"),
+                VolumePurge.listing(plan, 1));
+    }
+
+    @Test
     void keepingMoreThanThereAreRemovesNothing() {
         Plan plan = VolumePurge.plan("frontier_camp",
                 List.of(new Candidate("a", "frontier_camp", "0 0 0")), 5);
